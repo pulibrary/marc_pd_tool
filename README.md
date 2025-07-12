@@ -4,18 +4,11 @@ A tool for comparing MARC bibliographic records against copyright registry data 
 
 ## Overview
 
-This tool identifies which publications from MARC XML files appear in historical copyright data by comparing titles, authors, and publication years. It automatically filters out likely public domain works and uses parallel processing to efficiently handle large datasets.
+This tool aims to identify which publications from MARC XML files appear in historical copyright data by comparing titles, authors, and publication years. It automatically filters out likely public domain works and uses parallel processing to efficiently handle large datasets.
 
 **Data Sources:**
 - **MARC records**: Library catalog data in MARCXML format
 - **Copyright data**: Historical copyright registry entries (1923-1977) from the [NYPL Catalog of Copyright Entries Project](https://github.com/NYPL/catalog_of_copyright_entries_project)
-
-**Key Features:**
-- 🚀 **High-performance parallel processing** using all CPU cores (configurable)
-- 📚 **Smart public domain filtering** (excludes works older than current year - 95, configurable)
-- 🔍 **Enhanced MARC extraction** supporting both RDA and AACR2 formats
-- 📊 **CSV output** for easy analysis in spreadsheets
-- ⚡ **Memory efficient** streaming XML parsing with configurable batch sizes
 
 ## Quick Start
 
@@ -44,6 +37,23 @@ The tool automatically uses all available CPU cores and includes several optimiz
 - **Parallel processing**: Efficient multi-core utilization
 - **Smart memory management**: Streaming XML parsing
 
+Here is the result of a analyzing ~160K MARC XML records the defaults on a laptop with eight cores:
+
+```bash
+============================================================
+COMPARISON COMPLETE
+============================================================
+MARC records processed: 159,736
+Matches found: 10,760
+Match rate: 6.74%
+Total comparisons: 297,986,042,312
+Workers used: 8
+Total time: 904.0 minutes
+Speed: 177 records/minute
+Output: matches.csv
+============================================================
+```
+
 ## Usage
 
 ### Basic Usage
@@ -65,29 +75,6 @@ pdm run python compare.py \
     --min-year 1925
 ```
 
-### Performance Tuning
-```bash
-# High-performance systems
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --batch-size 1000 \
-    --max-workers 8
-
-# Memory-constrained systems  
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --max-workers 4 \
-    --batch-size 250
-
-# Include older records (override public domain filtering)
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --min-year 1900
-```
-
 ## Command Line Options
 
 ### Required Arguments
@@ -106,23 +93,6 @@ pdm run python compare.py \
 ### Performance Options
 - `--max-workers` - Number of CPU cores to use (default: auto-detect)
 - `--batch-size` - Records per batch (default: 500)
-
-Here is the result of a analyzing ~160K MARC records the defaults on a laptop with eight cores:
-
-```bash
-============================================================
-COMPARISON COMPLETE
-============================================================
-MARC records processed: 159,736
-Matches found: 10,760
-Match rate: 6.74%
-Total comparisons: 297,986,042,312
-Workers used: 8
-Total time: 904.0 minutes
-Speed: 177 records/minute
-Output: matches.csv
-============================================================
-```
 
 ## Public Domain Filtering
 
