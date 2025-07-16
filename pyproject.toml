@@ -19,6 +19,9 @@ license-files = ["LICENSE"]
 dev = [
     "black>=25.1.0",
     "isort>=6.0.1",
+    "pytest>=8.4.1",
+    "mdformat>=0.7.22",
+    "mdformat-gfm>=0.4.1",
 ]
 [build-system]
 requires = ["pdm-backend"]
@@ -46,7 +49,16 @@ import_heading_thirdparty = "Third party imports"
 import_heading_firstparty = "Local imports"
 import_heading_localfolder = "Local folder imports"
 
+[tool.mdformat]
+number = true
+wrap = 80
+extensions = [
+    "gfm"
+]
+
 [tool.pdm.scripts]
 black = { cmd = "black ." }
 isort = { cmd = "isort ." }
-format = { composite = [ "black", "isort", ] }
+mdformat = { cmd = "mdformat ." }
+format = { composite = [ "black", "isort", "mdformat" ] }
+test = { cmd = "pytest tests/ -v" }

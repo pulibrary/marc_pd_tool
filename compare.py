@@ -19,8 +19,8 @@ import time
 from marc_pd_tool import CopyrightDataLoader
 from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import Publication
-from marc_pd_tool import process_batch
 from marc_pd_tool import RenewalDataLoader
+from marc_pd_tool import process_batch
 from marc_pd_tool import save_matches_csv
 
 # Configure logging
@@ -34,7 +34,7 @@ def format_time_duration(seconds: float) -> str:
     days = total_seconds // (24 * 3600)
     hours = (total_seconds % (24 * 3600)) // 3600
     minutes = (total_seconds % 3600) // 60
-    
+
     if days > 0:
         return f"{days}d {hours}h {minutes}m"
     elif hours > 0:
@@ -46,11 +46,15 @@ def format_time_duration(seconds: float) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Enhanced publication comparison with registration and renewal matching")
+    parser = argparse.ArgumentParser(
+        description="Enhanced publication comparison with registration and renewal matching"
+    )
     parser.add_argument(
         "--marcxml", required=True, help="Path to MARC XML file or directory of MARC files"
     )
-    parser.add_argument("--copyright-dir", required=True, help="Path to copyright registration XML directory")
+    parser.add_argument(
+        "--copyright-dir", required=True, help="Path to copyright registration XML directory"
+    )
     parser.add_argument("--renewal-dir", required=True, help="Path to renewal TSV directory")
     parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file")
     parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
@@ -60,6 +64,18 @@ def main():
     parser.add_argument("--title-threshold", type=int, default=80)
     parser.add_argument("--author-threshold", type=int, default=70)
     parser.add_argument("--year-tolerance", type=int, default=2)
+    parser.add_argument(
+        "--early-exit-title",
+        type=int,
+        default=95,
+        help="Title score for early termination (default: 95)",
+    )
+    parser.add_argument(
+        "--early-exit-author",
+        type=int,
+        default=90,
+        help="Author score for early termination (default: 90)",
+    )
     parser.add_argument(
         "--min-year",
         type=int,
@@ -116,7 +132,9 @@ def main():
     # Phase 4: Process batches in parallel with both registration and renewal data
     logger.info("=== PHASE 4: PARALLEL BATCH PROCESSING ===")
     total_marc_records = sum(len(batch) for batch in marc_batches)
-    logger.info(f"Processing {total_marc_records:,} MARC records in {len(marc_batches)} batches using {args.max_workers} CPU cores")
+    logger.info(
+        f"Processing {total_marc_records:,} MARC records in {len(marc_batches)} batches using {args.max_workers} CPU cores"
+    )
     logger.info(f"Registration data: {len(registration_publications):,} entries")
     logger.info(f"Renewal data: {len(renewal_publications):,} entries")
 
@@ -131,6 +149,8 @@ def main():
             args.title_threshold,
             args.author_threshold,
             args.year_tolerance,
+            args.early_exit_title,
+            args.early_exit_author,
         )
         batch_infos.append(batch_info)
 
@@ -158,8 +178,8 @@ def main():
                 eta = (elapsed / completed_batches) * (len(marc_batches) - completed_batches)
                 eta_str = format_time_duration(eta)
 
-                reg_matches = batch_stats['registration_matches_found']
-                ren_matches = batch_stats['renewal_matches_found']
+                reg_matches = batch_stats["registration_matches_found"]
+                ren_matches = batch_stats["renewal_matches_found"]
                 logger.info(
                     f"Completed batch {batch_id}: {reg_matches} registration, {ren_matches} renewal matches | "
                     f"Progress: {completed_batches}/{len(marc_batches)} | "

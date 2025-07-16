@@ -1,0 +1,186 @@
+"""Tests for key generation in indexing system"""
+
+# Third party imports
+import pytest
+
+# Local imports
+from marc_pd_tool.indexer import extract_significant_words
+from marc_pd_tool.indexer import generate_author_keys
+from marc_pd_tool.indexer import generate_title_keys
+from marc_pd_tool.indexer import normalize_text
+
+
+class TestTextNormalization:
+    """Test text normalization functions"""
+
+    def test_normalize_text_basic(self):
+        """Test basic text normalization"""
+        assert normalize_text("The Great American Novel!") == "the great american novel"
+        assert normalize_text("Smith, John A.") == "smith john a"
+        assert normalize_text("Multiple   Spaces") == "multiple spaces"
+
+    def test_normalize_text_punctuation(self):
+        """Test punctuation removal"""
+        assert normalize_text("Title: A Subtitle (Revised)") == "title a subtitle revised"
+        assert normalize_text("Author, Jr.") == "author jr"
+        assert normalize_text("Hyphen-ated") == "hyphen ated"
+
+    def test_extract_significant_words(self):
+        """Test significant word extraction"""
+        words = extract_significant_words("The Great American Novel")
+        assert "great" in words
+        assert "american" in words
+        assert "novel" in words
+        assert "the" not in words  # Stopword filtered
+
+    def test_extract_significant_words_edge_cases(self):
+        """Test edge cases for word extraction"""
+        # Empty string
+        assert extract_significant_words("") == []
+
+        # Only stopwords
+        words = extract_significant_words("the a an of")
+        assert len(words) <= 1  # Should keep at least one word if possible
+
+        # Short words filtered
+        words = extract_significant_words("a bb ccc dddd")
+        assert "bb" not in words  # Too short
+        assert "ccc" in words
+        assert "dddd" in words
+
+
+class TestTitleKeys:
+    """Test title key generation"""
+
+    def test_title_keys_basic(self):
+        """Test basic title key generation"""
+        keys = generate_title_keys("The Great American Novel")
+
+        # Should contain individual words
+        assert "great" in keys
+        assert "american" in keys
+        assert "novel" in keys
+
+        # Should contain multi-word combinations
+        assert "great_american" in keys
+        assert "american_novel" in keys
+        assert "great_american_novel" in keys
+
+    def test_title_keys_no_stopwords(self):
+        """Test that stopwords are filtered from keys"""
+        keys = generate_title_keys("The Great American Novel")
+        assert "the" not in keys
+
+    def test_title_keys_short_titles(self):
+        """Test key generation for short titles"""
+        keys = generate_title_keys("Novel")
+        assert "novel" in keys
+        assert len(keys) >= 1
+
+        keys = generate_title_keys("Great Novel")
+        assert "great" in keys
+        assert "novel" in keys
+        assert "great_novel" in keys
+
+    def test_title_keys_empty(self):
+        """Test key generation for empty/invalid titles"""
+        assert generate_title_keys("") == set()
+        assert generate_title_keys("   ") == set()
+        assert generate_title_keys("the a an") == set() or len(generate_title_keys("the a an")) <= 1
+
+
+class TestAuthorKeys:
+    """Test author key generation"""
+
+    def test_author_keys_last_first_format(self):
+        """Test author keys for 'Last, First' format"""
+        keys = generate_author_keys("Smith, John A.")
+
+        # Should contain surname
+        assert "smith" in keys
+
+        # Should contain surname + first name combinations
+        assert "smith_john" in keys or "smith_a" in keys
+
+        # Should contain reversed format
+        assert any("john" in key for key in keys)
+
+    def test_author_keys_first_last_format(self):
+        """Test author keys for 'First Last' format"""
+        keys = generate_author_keys("John Smith")
+
+        assert "smith" in keys  # Surname
+        assert "john_smith" in keys  # First + Last
+        assert "smith_john" in keys  # Reversed
+
+    def test_author_keys_single_name(self):
+        """Test author keys for single names"""
+        keys = generate_author_keys("Shakespeare")
+        assert "shakespeare" in keys
+
+        keys = generate_author_keys("Voltaire")
+        assert "voltaire" in keys
+
+    def test_author_keys_complex_names(self):
+        """Test author keys for complex name formats"""
+        # Multiple middle names
+        keys = generate_author_keys("Smith, John William Alexander")
+        assert "smith" in keys
+        assert "smith_john" in keys
+
+        # Jr./Sr. suffixes
+        keys = generate_author_keys("King, Martin Luther Jr.")
+        assert "king" in keys
+        assert any("martin" in key for key in keys)
+
+    def test_author_keys_empty(self):
+        """Test author key generation for empty authors"""
+        assert generate_author_keys("") == set()
+        assert generate_author_keys("   ") == set()
+
+
+class TestKeyGeneration:
+    """Integration tests for key generation"""
+
+    def test_key_generation_preserves_matching(self):
+        """Test that similar titles/authors generate overlapping keys"""
+        # Similar titles should share keys
+        keys1 = generate_title_keys("The Great Gatsby")
+        keys2 = generate_title_keys("Great Gatsby")
+        keys3 = generate_title_keys("The Great Gatsby: A Novel")
+
+        # Should have overlapping keys
+        assert len(keys1 & keys2) > 0
+        assert len(keys1 & keys3) > 0
+
+        # Similar authors should share keys
+        auth_keys1 = generate_author_keys("Fitzgerald, F. Scott")
+        auth_keys2 = generate_author_keys("Fitzgerald, Francis Scott")
+        auth_keys3 = generate_author_keys("F. Scott Fitzgerald")
+
+        assert len(auth_keys1 & auth_keys2) > 0
+        assert len(auth_keys1 & auth_keys3) > 0
+
+    def test_key_generation_handles_variations(self):
+        """Test that common bibliographic variations are handled"""
+        # Title variations
+        variations = [
+            "Introduction to Physics",
+            "Physics: An Introduction",
+            "An Introduction to Physics",
+        ]
+
+        all_keys = [generate_title_keys(title) for title in variations]
+
+        # All should share some keys (physics, introduction)
+        common_keys = set.intersection(*all_keys)
+        assert len(common_keys) > 0
+
+        # Author variations
+        author_variations = ["MacDonald, John", "McDonald, John", "John MacDonald", "John McDonald"]
+
+        auth_keys = [generate_author_keys(author) for author in author_variations]
+        # Should have some overlap (john, macdonald/mcdonald sound similar)
+        for i in range(len(auth_keys)):
+            for j in range(i + 1, len(auth_keys)):
+                assert len(auth_keys[i] & auth_keys[j]) > 0

@@ -31,7 +31,9 @@ class CopyrightDataLoader:
             if i % 10 == 0:
                 batch_start_count = len(all_publications)
                 end_file = min(i + 10, len(xml_files))
-                logger.info(f"Processing copyright files {i+1}-{end_file}/{len(xml_files)}: starting with {xml_file.name}")
+                logger.info(
+                    f"Processing copyright files {i+1}-{end_file}/{len(xml_files)}: starting with {xml_file.name}"
+                )
 
             pubs = self._extract_from_file(xml_file)
             all_publications.extend(pubs)
@@ -39,8 +41,12 @@ class CopyrightDataLoader:
             # Log summary after completing each batch of 10 (or at the end)
             if (i + 1) % 10 == 0 or i == len(xml_files) - 1:
                 batch_entries = len(all_publications) - batch_start_count
-                files_in_batch = min(10, len(xml_files) - (i // 10) * 10) if i == len(xml_files) - 1 else 10
-                logger.info(f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})")
+                files_in_batch = (
+                    min(10, len(xml_files) - (i // 10) * 10) if i == len(xml_files) - 1 else 10
+                )
+                logger.info(
+                    f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})"
+                )
 
         logger.info(
             f"Loaded {len(all_publications):,} copyright entries from {len(xml_files)} files"

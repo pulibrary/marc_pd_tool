@@ -30,7 +30,9 @@ class RenewalDataLoader:
             if i % 10 == 0:
                 batch_start_count = len(all_publications)
                 end_file = min(i + 10, len(tsv_files))
-                logger.info(f"Processing renewal files {i+1}-{end_file}/{len(tsv_files)}: starting with {tsv_file.name}")
+                logger.info(
+                    f"Processing renewal files {i+1}-{end_file}/{len(tsv_files)}: starting with {tsv_file.name}"
+                )
 
             pubs = self._extract_from_file(tsv_file)
             all_publications.extend(pubs)
@@ -38,21 +40,23 @@ class RenewalDataLoader:
             # Log summary after completing each batch of 10 (or at the end)
             if (i + 1) % 10 == 0 or i == len(tsv_files) - 1:
                 batch_entries = len(all_publications) - batch_start_count
-                files_in_batch = min(10, len(tsv_files) - (i // 10) * 10) if i == len(tsv_files) - 1 else 10
-                logger.info(f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})")
+                files_in_batch = (
+                    min(10, len(tsv_files) - (i // 10) * 10) if i == len(tsv_files) - 1 else 10
+                )
+                logger.info(
+                    f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})"
+                )
 
-        logger.info(
-            f"Loaded {len(all_publications):,} renewal entries from {len(tsv_files)} files"
-        )
+        logger.info(f"Loaded {len(all_publications):,} renewal entries from {len(tsv_files)} files")
         return all_publications
 
     def _extract_from_file(self, tsv_file: Path) -> List[Publication]:
         publications = []
 
         try:
-            with open(tsv_file, 'r', encoding='utf-8') as file:
-                reader = csv.DictReader(file, delimiter='\t')
-                
+            with open(tsv_file, "r", encoding="utf-8") as file:
+                reader = csv.DictReader(file, delimiter="\t")
+
                 for row in reader:
                     pub = self._extract_from_row(row)
                     if pub:
@@ -67,21 +71,21 @@ class RenewalDataLoader:
         """Extract Publication from TSV row"""
         try:
             # Extract title
-            title = row.get('title', '').strip()
+            title = row.get("title", "").strip()
             if not title:
                 return None
 
             # Extract author
-            author = row.get('author', '').strip()
+            author = row.get("author", "").strip()
 
             # Extract publication date - use original registration date (odat)
-            pub_date = row.get('odat', '').strip()
+            pub_date = row.get("odat", "").strip()
 
             # Extract renewal information for source_id
-            renewal_id = row.get('id', '').strip()
-            renewal_date = row.get('rdat', '').strip()
-            original_reg = row.get('oreg', '').strip()
-            
+            renewal_id = row.get("id", "").strip()
+            renewal_date = row.get("rdat", "").strip()
+            original_reg = row.get("oreg", "").strip()
+
             # Create composite source_id with renewal and original registration info
             source_id_parts = []
             if renewal_id:
