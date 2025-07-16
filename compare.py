@@ -20,6 +20,7 @@ from marc_pd_tool import CopyrightDataLoader
 from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import Publication
 from marc_pd_tool import process_batch
+from marc_pd_tool import RenewalDataLoader
 from marc_pd_tool import save_matches_csv
 
 # Configure logging
@@ -27,12 +28,30 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+def format_time_duration(seconds: float) -> str:
+    """Format time duration in human-readable format (days, hours, minutes, seconds)"""
+    total_seconds = int(seconds)
+    days = total_seconds // (24 * 3600)
+    hours = (total_seconds % (24 * 3600)) // 3600
+    minutes = (total_seconds % 3600) // 60
+    
+    if days > 0:
+        return f"{days}d {hours}h {minutes}m"
+    elif hours > 0:
+        return f"{hours}h {minutes}m"
+    elif minutes > 0:
+        return f"{minutes}m"
+    else:
+        return f"{total_seconds}s"
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Parallel batch-based publication comparison")
+    parser = argparse.ArgumentParser(description="Enhanced publication comparison with registration and renewal matching")
     parser.add_argument(
         "--marcxml", required=True, help="Path to MARC XML file or directory of MARC files"
     )
-    parser.add_argument("--copyright-dir", required=True, help="Path to copyright XML directory")
+    parser.add_argument("--copyright-dir", required=True, help="Path to copyright registration XML directory")
+    parser.add_argument("--renewal-dir", required=True, help="Path to renewal TSV directory")
     parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file")
     parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
     parser.add_argument(
@@ -60,7 +79,7 @@ def main():
         args.max_workers = mp.cpu_count()
 
     start_time = time.time()
-    logger.info("=== STARTING PARALLEL PUBLICATION COMPARISON ===")
+    logger.info("=== STARTING ENHANCED PUBLICATION COMPARISON ===")
     logger.info(f"Configuration: {args.max_workers} workers, batch_size={args.batch_size}")
     logger.info(
         f"Thresholds: title={args.title_threshold}, author={args.author_threshold}, year_tolerance={args.year_tolerance}"
@@ -76,19 +95,30 @@ def main():
         logger.error("No MARC batches extracted. Exiting.")
         return
 
-    # Phase 2: Load all copyright data
-    logger.info("=== PHASE 2: LOADING COPYRIGHT DATA ===")
+    # Phase 2: Load copyright registration data
+    logger.info("=== PHASE 2: LOADING COPYRIGHT REGISTRATION DATA ===")
     copyright_loader = CopyrightDataLoader(args.copyright_dir)
-    copyright_publications = copyright_loader.load_all_copyright_data()
+    registration_publications = copyright_loader.load_all_copyright_data()
 
-    if not copyright_publications:
-        logger.error("No copyright data loaded. Exiting.")
+    if not registration_publications:
+        logger.error("No copyright registration data loaded. Exiting.")
         return
 
-    # Phase 3: Process batches in parallel
-    logger.info("=== PHASE 3: PARALLEL BATCH PROCESSING ===")
+    # Phase 3: Load renewal data
+    logger.info("=== PHASE 3: LOADING RENEWAL DATA ===")
+    renewal_loader = RenewalDataLoader(args.renewal_dir)
+    renewal_publications = renewal_loader.load_all_renewal_data()
+
+    if not renewal_publications:
+        logger.error("No renewal data loaded. Exiting.")
+        return
+
+    # Phase 4: Process batches in parallel with both registration and renewal data
+    logger.info("=== PHASE 4: PARALLEL BATCH PROCESSING ===")
     total_marc_records = sum(len(batch) for batch in marc_batches)
     logger.info(f"Processing {total_marc_records:,} MARC records in {len(marc_batches)} batches using {args.max_workers} CPU cores")
+    logger.info(f"Registration data: {len(registration_publications):,} entries")
+    logger.info(f"Renewal data: {len(renewal_publications):,} entries")
 
     # Prepare batch information for workers
     batch_infos = []
@@ -96,14 +126,15 @@ def main():
         batch_info = (
             i + 1,
             batch,
-            copyright_publications,
+            registration_publications,
+            renewal_publications,
             args.title_threshold,
             args.author_threshold,
             args.year_tolerance,
         )
         batch_infos.append(batch_info)
 
-    all_matches = []
+    all_processed_marc = []
     all_stats = []
     completed_batches = 0
 
@@ -118,59 +149,70 @@ def main():
         for future in as_completed(future_to_batch):
             batch_id = future_to_batch[future]
             try:
-                batch_id_result, batch_matches, batch_stats = future.result()
-                all_matches.extend(batch_matches)
+                batch_id_result, processed_marc_batch, batch_stats = future.result()
+                all_processed_marc.extend(processed_marc_batch)
                 all_stats.append(batch_stats)
                 completed_batches += 1
 
                 elapsed = time.time() - start_time
                 eta = (elapsed / completed_batches) * (len(marc_batches) - completed_batches)
-                
-                # Format ETA in a human-readable way
-                eta_seconds = int(eta)
-                eta_days = eta_seconds // (24 * 3600)
-                eta_hours = (eta_seconds % (24 * 3600)) // 3600
-                eta_minutes = (eta_seconds % 3600) // 60
-                
-                if eta_days > 0:
-                    eta_str = f"{eta_days}d {eta_hours}h {eta_minutes}m"
-                elif eta_hours > 0:
-                    eta_str = f"{eta_hours}h {eta_minutes}m"
-                else:
-                    eta_str = f"{eta_minutes}m"
+                eta_str = format_time_duration(eta)
 
+                reg_matches = batch_stats['registration_matches_found']
+                ren_matches = batch_stats['renewal_matches_found']
                 logger.info(
-                    f"Completed batch {batch_id}: {batch_stats['matches_found']} matches | "
+                    f"Completed batch {batch_id}: {reg_matches} registration, {ren_matches} renewal matches | "
                     f"Progress: {completed_batches}/{len(marc_batches)} | "
-                    f"Total matches: {len(all_matches):,} | "
                     f"ETA: {eta_str}"
                 )
 
             except Exception as e:
                 logger.error(f"Batch {batch_id} failed: {e}")
 
-    # Phase 4: Save results
-    logger.info("=== PHASE 4: SAVING RESULTS ===")
-    save_matches_csv(all_matches, args.output)
+    # Phase 5: Save results
+    logger.info("=== PHASE 5: SAVING RESULTS ===")
+    save_matches_csv(all_processed_marc, args.output)
 
     # Final summary
     total_time = time.time() - start_time
     total_marc = sum(stat["marc_count"] for stat in all_stats)
-    total_comparisons = sum(stat["comparisons_made"] for stat in all_stats)
+    total_registration_matches = sum(stat["registration_matches_found"] for stat in all_stats)
+    total_renewal_matches = sum(stat["renewal_matches_found"] for stat in all_stats)
+    total_comparisons = sum(stat["total_comparisons"] for stat in all_stats)
+    total_us = sum(stat["us_records"] for stat in all_stats)
+    total_non_us = sum(stat["non_us_records"] for stat in all_stats)
+    total_unknown = sum(stat["unknown_country_records"] for stat in all_stats)
+
+    # Count copyright status classifications
+    status_counts = {}
+    for pub in all_processed_marc:
+        status = pub.copyright_status.value
+        status_counts[status] = status_counts.get(status, 0) + 1
 
     logger.info("=== FINAL SUMMARY ===")
-    print(f"\n{'='*60}")
-    print(f"COMPARISON COMPLETE")
-    print(f"{'='*60}")
+    print(f"\n{'='*80}")
+    print(f"ENHANCED PUBLICATION COMPARISON COMPLETE")
+    print(f"{'='*80}")
     print(f"MARC records processed: {total_marc:,}")
-    print(f"Matches found: {len(all_matches):,}")
-    print(f"Match rate: {len(all_matches)/total_marc*100:.2f}%")
-    print(f"Total comparisons: {total_comparisons:,}")
-    print(f"Workers used: {args.max_workers}")
-    print(f"Total time: {total_time/60:.1f} minutes")
-    print(f"Speed: {total_marc/(total_time/60):.0f} records/minute")
-    print(f"Output: {args.output}")
-    print(f"{'='*60}")
+    print(f"Registration matches found: {total_registration_matches:,}")
+    print(f"Renewal matches found: {total_renewal_matches:,}")
+    print(f"Total comparisons made: {total_comparisons:,}")
+    print(f"")
+    print(f"Country Classification:")
+    print(f"  US records: {total_us:,} ({total_us/total_marc*100:.1f}%)")
+    print(f"  Non-US records: {total_non_us:,} ({total_non_us/total_marc*100:.1f}%)")
+    print(f"  Unknown country: {total_unknown:,} ({total_unknown/total_marc*100:.1f}%)")
+    print(f"")
+    print(f"Copyright Status Results:")
+    for status, count in status_counts.items():
+        print(f"  {status}: {count:,} ({count/total_marc*100:.1f}%)")
+    print(f"")
+    print(f"Performance:")
+    print(f"  Workers used: {args.max_workers}")
+    print(f"  Total time: {format_time_duration(total_time)}")
+    print(f"  Speed: {total_marc/(total_time/60):.0f} records/minute")
+    print(f"  Output: {args.output}")
+    print(f"{'='*80}")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,8 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 
 # Local imports
+from marc_pd_tool.enums import CountryClassification
+from marc_pd_tool.publication import extract_country_from_marc_008
 from marc_pd_tool.publication import Publication
 
 logger = logging.getLogger(__name__)
@@ -158,16 +160,24 @@ class ParallelMarcExtractor:
                     ".//marc:datafield[@tag='260']/marc:subfield[@code='c']", ns
                 )
 
+            # Get 008 field for both publication date and country extraction
+            control_008 = record.find(".//controlfield[@tag='008']")
+            if control_008 is None:
+                control_008 = record.find(".//marc:controlfield[@tag='008']", ns)
+            
             if pub_date_elem is not None:
                 pub_date = pub_date_elem.text
             else:
-                control_008 = record.find(".//controlfield[@tag='008']")
-                if control_008 is None:
-                    control_008 = record.find(".//marc:controlfield[@tag='008']", ns)
                 if control_008 is not None and len(control_008.text) >= 11:
                     pub_date = control_008.text[7:11]
                 else:
                     pub_date = ""
+            
+            # Extract country information from 008 field
+            country_code = ""
+            country_classification = CountryClassification.UNKNOWN
+            if control_008 is not None and control_008.text:
+                country_code, country_classification = extract_country_from_marc_008(control_008.text)
 
             # Extract publisher (try 264 first, then 260)
             publisher_elem = record.find(".//datafield[@tag='264']/subfield[@code='b']")
@@ -211,6 +221,8 @@ class ParallelMarcExtractor:
                 place=place,
                 source="MARC",
                 source_id=source_id,
+                country_code=country_code,
+                country_classification=country_classification,
             )
 
         except Exception as e:

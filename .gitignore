@@ -1,5 +1,6 @@
 # Data files - do not commit large datasets
-catalog_of_copyright_entries_project/
+catalog_of_copyright_entries_project
+cce-renewals
 *.xml
 *.marcxml
 
