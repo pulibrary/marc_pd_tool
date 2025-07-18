@@ -1,9 +1,11 @@
 """Batch processing functions for parallel publication matching"""
 
 # Standard library imports
-import csv
-import logging
-import os
+from csv import writer
+from logging import DEBUG
+from logging import getLogger
+from os import getpid
+from pickle import load
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -13,27 +15,25 @@ from typing import Tuple
 from fuzzywuzzy import fuzz
 
 # Local imports
-from marc_pd_tool.indexer import build_index
 from marc_pd_tool.publication import MatchResult
 from marc_pd_tool.publication import Publication
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 def process_batch(
-    batch_info: Tuple[
-        int, List[Publication], List[Publication], List[Publication], int, int, int, int, int
-    ],
+    batch_info: Tuple[int, List[Publication], str, str, int, int, int, int, int, int],
 ) -> Tuple[int, List[Publication], Dict]:
     """
-    Process a single batch of MARC records against both registration and renewal data.
+    Process a single batch of MARC records against pre-built indexes.
     This function runs in a separate process.
     """
     (
         batch_id,
         marc_batch,
-        registration_pubs,
-        renewal_pubs,
+        registration_index_file,
+        renewal_index_file,
+        total_batches,
         title_threshold,
         author_threshold,
         year_tolerance,
@@ -42,7 +42,7 @@ def process_batch(
     ) = batch_info
 
     # Set up logging for this process
-    process_logger = logging.getLogger(f"batch_{batch_id}")
+    process_logger = getLogger(f"batch_{batch_id}")
 
     stats = {
         "batch_id": batch_id,
@@ -56,36 +56,30 @@ def process_batch(
     }
 
     process_logger.info(
-        f"Process {os.getpid()} starting batch {batch_id} with {len(marc_batch)} MARC records"
-    )
-    process_logger.info(
-        f"Batch {batch_id}: {len(registration_pubs):,} registration entries, {len(renewal_pubs):,} renewal entries"
+        f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
     )
 
-    # Build indexes for fast candidate lookup
-    process_logger.info(f"Batch {batch_id}: Building registration index...")
-    registration_index = build_index(registration_pubs)
-    process_logger.info(f"Batch {batch_id}: Building renewal index...")
-    renewal_index = build_index(renewal_pubs)
+    # Load pre-built indexes from pickle files
+    process_logger.info(
+        f"Batch {batch_id}/{total_batches}: Loading registration index from {registration_index_file}"
+    )
+    with open(registration_index_file, "rb") as f:
+        registration_index = load(f)
 
-    reg_stats = registration_index.get_stats()
-    ren_stats = renewal_index.get_stats()
     process_logger.info(
-        f"Batch {batch_id}: Registration index - {reg_stats['title_keys']} title keys, {reg_stats['author_keys']} author keys"
+        f"Batch {batch_id}/{total_batches}: Loading renewal index from {renewal_index_file}"
     )
-    process_logger.info(
-        f"Batch {batch_id}: Renewal index - {ren_stats['title_keys']} title keys, {ren_stats['author_keys']} author keys"
+    with open(renewal_index_file, "rb") as f:
+        renewal_index = load(f)
+
+    process_logger.debug(
+        f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_index.size():,} renewal entries"
     )
+
+    process_logger.debug(f"Batch {batch_id}/{total_batches}: Indexes loaded successfully")
 
     # Process each MARC record in the batch
     for i, marc_pub in enumerate(marc_batch):
-        if i % 100 == 0 and i > 0:
-            reg_matches = stats["registration_matches_found"]
-            ren_matches = stats["renewal_matches_found"]
-            process_logger.info(
-                f"Batch {batch_id}: Processed {i}/{len(marc_batch)} records, "
-                f"found {reg_matches} registration matches, {ren_matches} renewal matches"
-            )
 
         # Count by country classification
         if hasattr(marc_pub, "country_classification"):
@@ -107,11 +101,16 @@ def process_batch(
             early_exit_title,
             early_exit_author,
         )
+
+        # Note: Metaphone fallback matching removed to reduce false positives
+
         if reg_match:
             match_result = MatchResult(
                 matched_title=reg_match["copyright_record"]["title"],
                 matched_author=reg_match["copyright_record"]["author"],
                 similarity_score=reg_match["similarity_scores"]["combined"],
+                title_score=reg_match["similarity_scores"]["title"],
+                author_score=reg_match["similarity_scores"]["author"],
                 year_difference=(
                     abs(marc_pub.year - reg_match["copyright_record"]["year"])
                     if marc_pub.year and reg_match["copyright_record"]["year"]
@@ -120,7 +119,7 @@ def process_batch(
                 source_id=reg_match["copyright_record"]["source_id"],
                 source_type="registration",
             )
-            marc_pub.add_registration_match(match_result)
+            marc_pub.set_registration_match(match_result)
             stats["registration_matches_found"] += 1
 
         # Find renewal candidates using index
@@ -134,11 +133,16 @@ def process_batch(
             early_exit_title,
             early_exit_author,
         )
+
+        # Note: Metaphone fallback matching removed to reduce false positives
+
         if ren_match:
             match_result = MatchResult(
                 matched_title=ren_match["copyright_record"]["title"],
                 matched_author=ren_match["copyright_record"]["author"],
                 similarity_score=ren_match["similarity_scores"]["combined"],
+                title_score=ren_match["similarity_scores"]["title"],
+                author_score=ren_match["similarity_scores"]["author"],
                 year_difference=(
                     abs(marc_pub.year - ren_match["copyright_record"]["year"])
                     if marc_pub.year and ren_match["copyright_record"]["year"]
@@ -147,7 +151,7 @@ def process_batch(
                 source_id=ren_match["copyright_record"]["source_id"],
                 source_type="renewal",
             )
-            marc_pub.add_renewal_match(match_result)
+            marc_pub.set_renewal_match(match_result)
             stats["renewal_matches_found"] += 1
 
         stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
@@ -156,11 +160,11 @@ def process_batch(
         marc_pub.determine_copyright_status()
 
     process_logger.info(
-        f"Batch {batch_id} complete: {stats['registration_matches_found']} registration matches, "
+        f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
         f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records"
     )
     process_logger.info(
-        f"Batch {batch_id} country breakdown: {stats['us_records']} US, "
+        f"Batch {batch_id}/{total_batches} country breakdown: {stats['us_records']} US, "
         f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
     )
 
@@ -227,53 +231,65 @@ def find_best_match(
     return best_match
 
 
+# find_best_metaphone_match function removed to reduce false positives
+
+
+
 def save_matches_csv(marc_publications: List[Publication], csv_file: str):
     """Save results to CSV file with country and status information"""
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(
+        csv_writer = writer(f)
+        csv_writer.writerow(
             [
-                "MARC_ID",
-                "MARC_Title",
-                "MARC_Author",
-                "MARC_Year",
-                "MARC_Publisher",
-                "MARC_Place",
-                "Country_Code",
-                "Country_Classification",
-                "Copyright_Status",
-                "Registration_Matches_Count",
-                "Renewal_Matches_Count",
-                "Registration_Match_Details",
-                "Renewal_Match_Details",
+                "MARC ID",
+                "MARC Title",
+                "MARC Author",
+                "MARC Year",
+                "MARC Publisher",
+                "MARC Place",
+                "Country Code",
+                "Country Classification",
+                "Copyright Status",
+                "Registration Source ID",
+                "Renewal Entry ID",
+                "Registration Similarity Score",
+                "Renewal Similarity Score",
+                "Registration Title Score",
+                "Registration Author Score",
+                "Registration Combined Score",
+                "Renewal Title Score",
+                "Renewal Author Score",
+                "Renewal Combined Score",
             ]
         )
 
         for pub in marc_publications:
-            # Format match details
-            reg_details = (
-                "; ".join(
-                    [
-                        f"{match.source_id}({match.similarity_score:.1f})"
-                        for match in pub.registration_matches
-                    ]
-                )
-                if pub.registration_matches
-                else ""
+            # Get single match data for registration
+            reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
+            reg_similarity_score = (
+                f"{pub.registration_match.similarity_score:.1f}" if pub.registration_match else ""
+            )
+            reg_title_score = (
+                f"{pub.registration_match.title_score:.1f}" if pub.registration_match else ""
+            )
+            reg_author_score = (
+                f"{pub.registration_match.author_score:.1f}" if pub.registration_match else ""
+            )
+            reg_combined_score = (
+                f"{pub.registration_match.similarity_score:.1f}" if pub.registration_match else ""
+            )
+            # Get single match data for renewal
+            ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
+            ren_similarity_score = (
+                f"{pub.renewal_match.similarity_score:.1f}" if pub.renewal_match else ""
+            )
+            ren_title_score = f"{pub.renewal_match.title_score:.1f}" if pub.renewal_match else ""
+            ren_author_score = f"{pub.renewal_match.author_score:.1f}" if pub.renewal_match else ""
+            ren_combined_score = (
+                f"{pub.renewal_match.similarity_score:.1f}" if pub.renewal_match else ""
             )
 
-            ren_details = (
-                "; ".join(
-                    [
-                        f"{match.source_id}({match.similarity_score:.1f})"
-                        for match in pub.renewal_matches
-                    ]
-                )
-                if pub.renewal_matches
-                else ""
-            )
-
-            writer.writerow(
+            csv_writer.writerow(
                 [
                     pub.source_id,
                     pub.original_title,
@@ -284,9 +300,15 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
                     pub.country_code,
                     pub.country_classification.value,
                     pub.copyright_status.value,
-                    len(pub.registration_matches),
-                    len(pub.renewal_matches),
-                    reg_details,
-                    ren_details,
+                    reg_source_id,
+                    ren_entry_id,
+                    reg_similarity_score,
+                    ren_similarity_score,
+                    reg_title_score,
+                    reg_author_score,
+                    reg_combined_score,
+                    ren_title_score,
+                    ren_author_score,
+                    ren_combined_score,
                 ]
             )

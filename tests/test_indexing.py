@@ -4,7 +4,7 @@
 from typing import List
 
 # Third party imports
-import pytest
+from pytest import fixture
 
 # Local imports
 from marc_pd_tool import Publication
@@ -13,7 +13,7 @@ from marc_pd_tool import find_best_match
 from marc_pd_tool.enums import CountryClassification
 
 
-@pytest.fixture
+@fixture
 def sample_marc_records():
     """Sample MARC records for testing"""
     return [
@@ -75,7 +75,7 @@ def sample_marc_records():
     ]
 
 
-@pytest.fixture
+@fixture
 def sample_copyright_records():
     """Sample copyright records for testing"""
     return [

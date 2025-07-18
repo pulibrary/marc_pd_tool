@@ -109,6 +109,32 @@ pdm run python compare.py \
     --max-workers 16
 ```
 
+### Logging Examples
+
+```bash
+# Save logs to file for analysis
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --log-file copyright_analysis.log
+
+# Enable verbose DEBUG logging
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --debug
+
+# Both file logging and debug mode
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --log-file copyright_analysis.log \
+    --debug
+```
+
 ## Command Line Options
 
 ### Required Arguments
@@ -121,12 +147,18 @@ pdm run python compare.py \
 
 - `--output` - CSV output filename (default: `matches.csv`)
 
+### Logging Options
+
+- `--log-file` - Write logs to specified file (default: console only)
+- `--debug` - Enable DEBUG level logging for verbose details
+
 ### Matching Parameters
 
 - `--title-threshold` - Title similarity threshold 0-100 (default: 80)
 - `--author-threshold` - Author similarity threshold 0-100 (default: 70)
 - `--year-tolerance` - Maximum year difference for matching (default: 2)
 - `--min-year` - Minimum publication year to include (default: current year - 95)
+- `--max-year` - Maximum publication year to include (default: no limit)
 
 ### Performance Options
 
@@ -143,54 +175,34 @@ By default, the tool focuses on potentially copyrighted works by filtering out r
 
 Use `--min-year` to override (e.g., `--min-year 1900`).
 
-## Copyright Analysis Algorithm
+## Year Range Filtering
 
-The tool implements a comprehensive copyright status determination algorithm:
+You can focus analysis on specific time periods using:
 
-### Step 1: Country Classification
+```bash
+# Focus on 1950s decade
+pdm run python compare.py --marcxml data.xml --copyright-dir reg/ --renewal-dir ren/ --min-year 1950 --max-year 1959
 
-Records are classified by country of origin using official MARC country codes from field 008:
+# Only 1955 publications  
+pdm run python compare.py --marcxml data.xml --copyright-dir reg/ --renewal-dir ren/ --min-year 1955 --max-year 1955
 
-- **US Records**: Publications originating in the United States
-- **Non-US Records**: Publications from other countries
-- **Unknown**: Records without determinable country information
+# Everything up to 1970
+pdm run python compare.py --marcxml data.xml --copyright-dir reg/ --renewal-dir ren/ --max-year 1970
+```
 
-### Step 2: Dual Dataset Matching
+## How It Works
 
-Each MARC record is compared against both datasets using fuzzy matching:
+The tool compares MARC bibliographic records against U.S. copyright registration and renewal data to determine likely copyright status. It uses:
 
-- **Registration Matching**: Against copyright registration data (1923-1977)
-- **Renewal Matching**: Against renewal data (1950-1991)
+1. **Country Classification**: Identifies US vs. non-US publications using MARC country codes
+1. **Fuzzy Matching**: Compares titles and authors against both registration (1923-1977) and renewal (1950-1991) datasets
+1. **Status Determination**: Assigns one of four copyright status categories based on match patterns
 
-**Matching Criteria:**
-
-- **Title matching** (70% weight, 80% threshold default): Normalized publication titles
-- **Author matching** (30% weight, 70% threshold default): Author names when available
-- **Year filtering**: Publications within ±2 years only
-
-### Step 3: Copyright Status Determination
-
-Based on match patterns and country classification:
-
-**For US Records:**
-
-- Registration hit + No renewal = **"Potentially PD (date verify)"**
-- No registration + Renewal hit = **"Potentially In-Copyright"**
-- No hits in either = **"Potentially PD (date verify)"**
-- Hits in both = **"Potentially In-Copyright"**
-
-**For Non-US Records:**
-
-- Hit in either dataset = **"Research for US status"**
-- No hits in either = **"Research for potential US-only PD status"**
-
-**MARC Fields Used:**
-
-- **Field 008**: Country codes (positions 15-17) and publication dates
-- **Fields 264/260**: Publication data (RDA and AACR2 formats)
-- **Fields 100/110/111**: Personal, corporate, and meeting name authors
+For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
 
 ## Development
+
+For technical details about code architecture, design patterns, performance optimizations, and system requirements, see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ### Code Formatting
 
@@ -198,52 +210,32 @@ Based on match patterns and country classification:
 pdm run format
 ```
 
-### Project Structure
+## Output
 
-```
-marc_pd_tool/
-├── __init__.py              # Package interface
-├── enums.py                 # Copyright status and country enums
-├── publication.py           # Publication data model with country classification
-├── marc_extractor.py        # MARC XML data extraction with country detection
-├── copyright_loader.py      # Copyright registration data loading
-├── renewal_loader.py        # Renewal data loading (TSV format)
-└── batch_processor.py       # Parallel dual-dataset matching
-compare.py                   # Command-line application
-```
+The tool generates a CSV file with copyright analysis results for each MARC record, including:
 
-## Requirements
+- Original bibliographic data (title, author, year, publisher, place)
+- Country classification (US/Non-US/Unknown)
+- Copyright status determination
+- Match details and confidence scores for the best match found
 
-- **Python 3.12+**
-- **PDM package manager**
-- **Multi-core CPU** recommended for best performance
-- **4GB+ RAM** for large datasets
+For complete output format details and sample data, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
 
-## Output Format
+## Documentation
 
-The CSV output includes comprehensive analysis results:
+- **[ALGORITHM.md](docs/ALGORITHM.md)** - Domain logic and copyright analysis details
+- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Code architecture and technical implementation
 
-**MARC Record Data:**
+## Limitations and Considerations
 
-- MARC_ID, MARC_Title, MARC_Author, MARC_Year, MARC_Publisher, MARC_Place
+**This is not legal advice** - the results provide research starting points, not definitive copyright determinations. The analysis has several limitations:
 
-**Country Classification:**
+- **Matching accuracy**: Fuzzy matching may miss some matches due to spelling variations, transcription errors, or different citation formats
+- **Data completeness**: Not all copyright registrations or renewals may be present in the digitized records
+- **Complex copyright law**: Copyright status depends on many factors beyond registration/renewal patterns
+- **International considerations**: Copyright law varies by country and has changed over time
 
-- Country_Code (from MARC 008 field), Country_Classification (US/Non-US/Unknown)
-
-**Copyright Analysis Results:**
-
-- Copyright_Status (algorithmic determination)
-- Registration_Matches_Count, Renewal_Matches_Count
-- Registration_Match_Details, Renewal_Match_Details (with similarity scores)
-
-**Sample Output:**
-
-```csv
-MARC_ID,MARC_Title,MARC_Author,Country_Code,Country_Classification,Copyright_Status,Registration_Matches_Count,Renewal_Matches_Count
-99123456,The Great Novel,Smith John,xxu,US,Potentially PD (date verify),1,0
-99789012,Another Book,Jones Mary,uk,Non-US,Research for US status,0,1
-```
+**Use this information as a starting point for copyright research, not as a final determination. All works including those marked as "potentially public domain" require verification of actual copyright status through additional research.**
 
 ## License
 

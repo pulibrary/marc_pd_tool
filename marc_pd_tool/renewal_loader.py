@@ -1,8 +1,8 @@
 """Renewal data TSV loader for publications"""
 
 # Standard library imports
-import csv
-import logging
+from csv import DictReader
+from logging import getLogger
 from pathlib import Path
 from typing import List
 from typing import Optional
@@ -10,7 +10,7 @@ from typing import Optional
 # Local imports
 from marc_pd_tool.publication import Publication
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class RenewalDataLoader:
@@ -30,7 +30,7 @@ class RenewalDataLoader:
             if i % 10 == 0:
                 batch_start_count = len(all_publications)
                 end_file = min(i + 10, len(tsv_files))
-                logger.info(
+                logger.debug(
                     f"Processing renewal files {i+1}-{end_file}/{len(tsv_files)}: starting with {tsv_file.name}"
                 )
 
@@ -43,7 +43,7 @@ class RenewalDataLoader:
                 files_in_batch = (
                     min(10, len(tsv_files) - (i // 10) * 10) if i == len(tsv_files) - 1 else 10
                 )
-                logger.info(
+                logger.debug(
                     f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})"
                 )
 
@@ -55,7 +55,7 @@ class RenewalDataLoader:
 
         try:
             with open(tsv_file, "r", encoding="utf-8") as file:
-                reader = csv.DictReader(file, delimiter="\t")
+                reader = DictReader(file, delimiter="\t")
 
                 for row in reader:
                     pub = self._extract_from_row(row)
@@ -81,18 +81,9 @@ class RenewalDataLoader:
             # Extract publication date - use original registration date (odat)
             pub_date = row.get("odat", "").strip()
 
-            # Extract renewal information for source_id
-            renewal_id = row.get("id", "").strip()
-            renewal_date = row.get("rdat", "").strip()
-            original_reg = row.get("oreg", "").strip()
-
-            # Create composite source_id with renewal and original registration info
-            source_id_parts = []
-            if renewal_id:
-                source_id_parts.append(f"R{renewal_id}")
-            if original_reg:
-                source_id_parts.append(f"Orig:{original_reg}")
-            source_id = "|".join(source_id_parts) if source_id_parts else ""
+            # Extract entry_id for source_id (direct lookup in TSV files)
+            entry_id = row.get("entry_id", "").strip()
+            source_id = entry_id
 
             # No publisher/place in renewal data, leave empty
             publisher = ""

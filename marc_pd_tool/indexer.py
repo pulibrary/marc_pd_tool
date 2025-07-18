@@ -2,21 +2,17 @@
 
 # Standard library imports
 from collections import defaultdict
-import re
+from re import sub
 from typing import Dict
 from typing import List
 from typing import Set
 from typing import Tuple
 
-try:
-    # Third party imports
-    from metaphone import doublemetaphone
-
-    METAPHONE_AVAILABLE = True
-except ImportError:
-    METAPHONE_AVAILABLE = False
+# Third party imports
+# (none currently needed)
 
 # Local imports
+from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.publication import Publication
 
 # Common stopwords to filter from titles
@@ -60,9 +56,9 @@ def normalize_text(text: str) -> str:
         return ""
 
     # Convert to lowercase and remove punctuation except spaces and hyphens
-    normalized = re.sub(r"[^\w\s\-]", " ", text.lower())
+    normalized = sub(r"[^\w\s\-]", " ", text.lower())
     # Normalize whitespace and hyphens
-    normalized = re.sub(r"[\s\-]+", " ", normalized)
+    normalized = sub(r"[\s\-]+", " ", normalized)
     return normalized.strip()
 
 
@@ -110,25 +106,52 @@ def generate_title_keys(title: str) -> Set[str]:
         if len(words) >= 3:
             keys.add("_".join(words[:3]))
 
-    # Add metaphone keys if available for phonetic matching
-    if METAPHONE_AVAILABLE and len(words) >= 1:
-        for word in words[:2]:  # Only first two words to avoid too many keys
-            metaphones = doublemetaphone(word)
-            for metaphone in metaphones:
-                if metaphone:
-                    keys.add(f"meta_{metaphone}")
+    # Note: Metaphone keys removed to reduce false positives
 
     return keys
 
 
-def generate_author_keys(author: str) -> Set[str]:
-    """Generate multiple indexing keys for an author name"""
+def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNOWN) -> Set[str]:
+    """Generate multiple indexing keys for an author name based on author type
+
+    Args:
+        author: The author name string
+        author_type: The type of author (PERSONAL, CORPORATE, MEETING, or UNKNOWN)
+
+    Returns:
+        Set of indexing keys appropriate for the author type
+    """
     if not author:
         return set()
 
     keys = set()
-    # For author names, we need to preserve commas for parsing, then normalize parts separately
     author_lower = author.lower().strip()
+
+    if author_type == AuthorType.PERSONAL:
+        # Personal names: use surname/given name parsing
+        keys = _generate_personal_name_keys(author_lower)
+    elif author_type == AuthorType.CORPORATE:
+        # Corporate names: use entity-based parsing
+        keys = _generate_corporate_name_keys(author_lower)
+    elif author_type == AuthorType.MEETING:
+        # Meeting names: use entity-based parsing
+        keys = _generate_meeting_name_keys(author_lower)
+    else:
+        # Unknown type: fall back to personal name parsing (backward compatibility)
+        keys = _generate_personal_name_keys(author_lower)
+
+    # Note: Metaphone keys removed to reduce false positives
+
+    return keys
+
+
+def _generate_personal_name_keys(author_lower: str) -> Set[str]:
+    """Generate keys for personal names (field 100)
+
+    Returns:
+        Set of keys for indexing
+    """
+    keys = set()
 
     # Handle common author formats: "Last, First" or "First Last"
     if "," in author_lower:
@@ -188,15 +211,63 @@ def generate_author_keys(author: str) -> Set[str]:
             if len(words) == 1 and len(words[0]) >= 2:
                 keys.add(words[0])
 
-    # Add metaphone keys if available
-    if METAPHONE_AVAILABLE:
-        author_words = normalize_text(author_lower).split()
-        for word in author_words[:2]:  # Only first two words
-            if len(word) >= 3:
-                metaphones = doublemetaphone(word)
-                for metaphone in metaphones:
-                    if metaphone:
-                        keys.add(f"meta_{metaphone}")
+    return keys
+
+
+def _generate_corporate_name_keys(author_lower: str) -> Set[str]:
+    """Generate keys for corporate names (field 110)
+
+    Returns:
+        Set of keys for indexing
+    """
+    keys = set()
+
+    # Extract significant words from the corporate name
+    words = extract_significant_words(author_lower, max_words=6)
+
+    # Add individual words
+    for word in words:
+        if len(word) >= 3:
+            keys.add(word)
+
+    # Add 2-word combinations for key corporate terms
+    if len(words) >= 2:
+        for i in range(len(words) - 1):
+            keys.add(f"{words[i]}_{words[i+1]}")
+
+    # Add 3-word combinations for longer corporate names
+    if len(words) >= 3:
+        for i in range(len(words) - 2):
+            keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
+
+    return keys
+
+
+def _generate_meeting_name_keys(author_lower: str) -> Set[str]:
+    """Generate keys for meeting names (field 111)
+
+    Returns:
+        Set of keys for indexing
+    """
+    keys = set()
+
+    # Extract significant words from the meeting name
+    words = extract_significant_words(author_lower, max_words=6)
+
+    # Add individual words
+    for word in words:
+        if len(word) >= 3:
+            keys.add(word)
+
+    # Add 2-word combinations for key meeting terms
+    if len(words) >= 2:
+        for i in range(len(words) - 1):
+            keys.add(f"{words[i]}_{words[i+1]}")
+
+    # Add 3-word combinations for longer meeting names
+    if len(words) >= 3:
+        for i in range(len(words) - 2):
+            keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
 
     return keys
 
@@ -222,7 +293,7 @@ class PublicationIndex:
 
         # Index by author
         if pub.author:
-            author_keys = generate_author_keys(pub.author)
+            author_keys = generate_author_keys(pub.author, pub.author_type)
             for key in author_keys:
                 self.author_index[key].add(pub_id)
 
@@ -245,7 +316,7 @@ class PublicationIndex:
         # Find candidates by author (if available)
         author_candidates = set()
         if query_pub.author:
-            author_keys = generate_author_keys(query_pub.author)
+            author_keys = generate_author_keys(query_pub.author, query_pub.author_type)
             for key in author_keys:
                 author_candidates.update(self.author_index.get(key, set()))
 
@@ -281,6 +352,8 @@ class PublicationIndex:
 
         return candidates
 
+    # Metaphone-related methods removed to reduce false positives
+
     def get_publication(self, pub_id: int) -> Publication:
         """Get publication by ID"""
         return self.publications[pub_id]
@@ -291,6 +364,8 @@ class PublicationIndex:
         """Get list of candidate publications for matching"""
         candidate_ids = self.find_candidates(query_pub, year_tolerance)
         return [self.publications[pub_id] for pub_id in candidate_ids]
+
+    # Metaphone-related methods removed to reduce false positives
 
     def size(self) -> int:
         """Return number of publications in index"""

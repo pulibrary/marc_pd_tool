@@ -1,25 +1,29 @@
 """MARC XML data extraction for publications"""
 
 # Standard library imports
-import logging
+from logging import getLogger
 from pathlib import Path
 from typing import List
 from typing import Optional
 import xml.etree.ElementTree as ET
 
 # Local imports
+from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.publication import Publication
 from marc_pd_tool.publication import extract_country_from_marc_008
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class ParallelMarcExtractor:
-    def __init__(self, marc_path: str, batch_size: int = 1000, min_year: int = None):
+    def __init__(
+        self, marc_path: str, batch_size: int = 1000, min_year: int = None, max_year: int = None
+    ):
         self.marc_path = Path(marc_path)
         self.batch_size = batch_size
         self.min_year = min_year
+        self.max_year = max_year
 
     def extract_all_batches(self) -> List[List[Publication]]:
         """Extract all MARC records and return as list of batches"""
@@ -65,7 +69,7 @@ class ParallelMarcExtractor:
 
                         if len(current_batch) >= self.batch_size:
                             batches.append(current_batch)
-                            logger.info(
+                            logger.debug(
                                 f"Created batch {len(batches)} with {len(current_batch)} publications (processed {total_record_count:,} records)"
                             )
                             current_batch = []
@@ -91,7 +95,13 @@ class ParallelMarcExtractor:
             f"Extracted {len(batches)} batches totaling {sum(len(b) for b in batches):,} publications from {len(marc_files)} file(s)"
         )
         if filtered_count > 0:
-            logger.info(f"Filtered out {filtered_count:,} records older than {self.min_year}")
+            filter_desc = []
+            if self.min_year is not None:
+                filter_desc.append(f"before {self.min_year}")
+            if self.max_year is not None:
+                filter_desc.append(f"after {self.max_year}")
+            filter_text = " or ".join(filter_desc)
+            logger.info(f"Filtered out {filtered_count:,} records ({filter_text})")
         return batches
 
     def _get_marc_files(self) -> List[Path]:
@@ -127,25 +137,42 @@ class ParallelMarcExtractor:
             if not title:
                 return None
 
-            # Extract author
+            # Extract author with type tracking
+            author = ""
+            author_type = AuthorType.UNKNOWN
+
+            # Try field 100 (personal names)
             author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
             if author_elem is None:
                 author_elem = record.find(
                     ".//marc:datafield[@tag='100']/marc:subfield[@code='a']", ns
                 )
-            if author_elem is None:
+            if author_elem is not None:
+                author = author_elem.text
+                author_type = AuthorType.PERSONAL
+            else:
+                # Try field 110 (corporate names)
                 author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
-            if author_elem is None:
-                author_elem = record.find(
-                    ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
-                )
-            if author_elem is None:
-                author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
-            if author_elem is None:
-                author_elem = record.find(
-                    ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
-                )
-            author = author_elem.text if author_elem is not None else ""
+                if author_elem is None:
+                    author_elem = record.find(
+                        ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
+                    )
+                if author_elem is not None:
+                    author = author_elem.text
+                    author_type = AuthorType.CORPORATE
+                else:
+                    # Try field 111 (meeting names)
+                    author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
+                    if author_elem is None:
+                        author_elem = record.find(
+                            ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
+                        )
+                    if author_elem is not None:
+                        author = author_elem.text
+                        author_type = AuthorType.MEETING
+
+            # Default to empty string if no author found
+            author = author if author else ""
 
             # Extract publication date (try 264 first, then 260)
             pub_date_elem = record.find(".//datafield[@tag='264']/subfield[@code='c']")
@@ -225,15 +252,23 @@ class ParallelMarcExtractor:
                 source_id=source_id,
                 country_code=country_code,
                 country_classification=country_classification,
+                author_type=author_type,
             )
 
         except Exception as e:
             return None
 
     def _should_include_record(self, pub: Publication) -> bool:
-        """Check if record should be included based on minimum year filter"""
-        if self.min_year is None:
-            return True
+        """Check if record should be included based on year filters"""
         if pub.year is None:
             return True  # Include records without years to be safe
-        return pub.year >= self.min_year
+
+        # Check minimum year
+        if self.min_year is not None and pub.year < self.min_year:
+            return False
+
+        # Check maximum year
+        if self.max_year is not None and pub.year > self.max_year:
+            return False
+
+        return True

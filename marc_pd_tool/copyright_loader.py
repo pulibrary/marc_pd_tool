@@ -1,9 +1,9 @@
 """Copyright data XML loader for publications"""
 
 # Standard library imports
-import logging
+from logging import getLogger
 from pathlib import Path
-import re
+from re import search
 from typing import List
 from typing import Optional
 import xml.etree.ElementTree as ET
@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 # Local imports
 from marc_pd_tool.publication import Publication
 
-logger = logging.getLogger(__name__)
+logger = getLogger(__name__)
 
 
 class CopyrightDataLoader:
@@ -31,7 +31,7 @@ class CopyrightDataLoader:
             if i % 10 == 0:
                 batch_start_count = len(all_publications)
                 end_file = min(i + 10, len(xml_files))
-                logger.info(
+                logger.debug(
                     f"Processing copyright files {i+1}-{end_file}/{len(xml_files)}: starting with {xml_file.name}"
                 )
 
@@ -44,7 +44,7 @@ class CopyrightDataLoader:
                 files_in_batch = (
                     min(10, len(xml_files) - (i // 10) * 10) if i == len(xml_files) - 1 else 10
                 )
-                logger.info(
+                logger.debug(
                     f"  Completed {files_in_batch} files: {batch_entries:,} entries from this batch (Total: {len(all_publications):,})"
                 )
 
@@ -54,7 +54,7 @@ class CopyrightDataLoader:
         return all_publications
 
     def _extract_year_from_filename(self, filename: str) -> str:
-        year_match = re.search(r"\b(19|20)\d{2}\b", filename)
+        year_match = search(r"\b(19|20)\d{2}\b", filename)
         return year_match.group() if year_match else ""
 
     def _extract_from_file(self, xml_file: Path) -> List[Publication]:

@@ -19,4 +19,13 @@ class CopyrightStatus(Enum):
     POTENTIALLY_IN_COPYRIGHT = "Potentially In-Copyright"
     RESEARCH_US_STATUS = "Research for US status"
     RESEARCH_US_ONLY_PD = "Research for potential US-only PD status"
+    COUNTRY_UNKNOWN = "Country Unknown"
+
+
+class AuthorType(Enum):
+    """MARC author field types"""
+
+    PERSONAL = "Personal"  # Field 100 - Personal names
+    CORPORATE = "Corporate"  # Field 110 - Corporate names
+    MEETING = "Meeting"  # Field 111 - Meeting names
     UNKNOWN = "Unknown"

@@ -2,12 +2,14 @@
 
 # Standard library imports
 from dataclasses import dataclass
-import re
+from re import search
+from re import sub
 from typing import Dict
 from typing import List
 from typing import Optional
 
 # Local imports
+from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 
@@ -74,6 +76,8 @@ class MatchResult:
     matched_title: str
     matched_author: str
     similarity_score: float
+    title_score: float
+    author_score: float
     year_difference: int
     source_id: str
     source_type: str
@@ -91,6 +95,7 @@ class Publication:
         source_id: str = "",
         country_code: str = "",
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
+        author_type: AuthorType = AuthorType.UNKNOWN,
     ):
         self.title = self.normalize_text(title)
         self.author = self.normalize_text(author)
@@ -112,52 +117,53 @@ class Publication:
         # Enhanced fields for new algorithm
         self.country_code = country_code
         self.country_classification = country_classification
+        self.author_type = author_type
 
-        # Match tracking
-        self.registration_matches: List[MatchResult] = []
-        self.renewal_matches: List[MatchResult] = []
+        # Match tracking - single best match only
+        self.registration_match: Optional[MatchResult] = None
+        self.renewal_match: Optional[MatchResult] = None
 
         # Final status
-        self.copyright_status = CopyrightStatus.UNKNOWN
+        self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
     @staticmethod
     def normalize_text(text: str) -> str:
         if not text:
             return ""
-        text = re.sub(r"[^\w\s]", " ", text)
-        text = re.sub(r"\s+", " ", text)
+        text = sub(r"[^\w\s]", " ", text)
+        text = sub(r"\s+", " ", text)
         return text.strip().lower()
 
     def extract_year(self) -> Optional[int]:
         if not self.pub_date:
             return None
-        year_match = re.search(r"\b(19|20)\d{2}\b", self.pub_date)
+        year_match = search(r"\b(19|20)\d{2}\b", self.pub_date)
         if year_match:
             return int(year_match.group())
         return None
 
-    def add_registration_match(self, match: MatchResult) -> None:
-        """Add a registration match"""
+    def set_registration_match(self, match: MatchResult) -> None:
+        """Set the best registration match"""
         match.source_type = "registration"
-        self.registration_matches.append(match)
+        self.registration_match = match
 
-    def add_renewal_match(self, match: MatchResult) -> None:
-        """Add a renewal match"""
+    def set_renewal_match(self, match: MatchResult) -> None:
+        """Set the best renewal match"""
         match.source_type = "renewal"
-        self.renewal_matches.append(match)
+        self.renewal_match = match
 
-    def has_registration_matches(self) -> bool:
-        """Check if record has any registration matches"""
-        return len(self.registration_matches) > 0
+    def has_registration_match(self) -> bool:
+        """Check if record has a registration match"""
+        return self.registration_match is not None
 
-    def has_renewal_matches(self) -> bool:
-        """Check if record has any renewal matches"""
-        return len(self.renewal_matches) > 0
+    def has_renewal_match(self) -> bool:
+        """Check if record has a renewal match"""
+        return self.renewal_match is not None
 
     def determine_copyright_status(self) -> CopyrightStatus:
         """Determine final copyright status based on matches and country"""
-        has_reg = self.has_registration_matches()
-        has_ren = self.has_renewal_matches()
+        has_reg = self.has_registration_match()
+        has_ren = self.has_renewal_match()
 
         if self.country_classification == CountryClassification.US:
             # US records logic
@@ -178,7 +184,7 @@ class Publication:
                 self.copyright_status = CopyrightStatus.RESEARCH_US_ONLY_PD
         else:
             # Unknown country - still track matches but can't determine status
-            self.copyright_status = CopyrightStatus.UNKNOWN
+            self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
         return self.copyright_status
 
@@ -194,29 +200,33 @@ class Publication:
             "year": self.year,
             "country_code": self.country_code,
             "country_classification": self.country_classification.value,
-            "registration_matches_count": len(self.registration_matches),
-            "renewal_matches_count": len(self.renewal_matches),
             "copyright_status": self.copyright_status.value,
-            "registration_matches": [
+            "registration_match": (
                 {
-                    "matched_title": match.matched_title,
-                    "matched_author": match.matched_author,
-                    "similarity_score": match.similarity_score,
-                    "year_difference": match.year_difference,
-                    "source_id": match.source_id,
+                    "matched_title": self.registration_match.matched_title,
+                    "matched_author": self.registration_match.matched_author,
+                    "similarity_score": self.registration_match.similarity_score,
+                    "title_score": self.registration_match.title_score,
+                    "author_score": self.registration_match.author_score,
+                    "year_difference": self.registration_match.year_difference,
+                    "source_id": self.registration_match.source_id,
                 }
-                for match in self.registration_matches
-            ],
-            "renewal_matches": [
+                if self.registration_match
+                else None
+            ),
+            "renewal_match": (
                 {
-                    "matched_title": match.matched_title,
-                    "matched_author": match.matched_author,
-                    "similarity_score": match.similarity_score,
-                    "year_difference": match.year_difference,
-                    "source_id": match.source_id,
+                    "matched_title": self.renewal_match.matched_title,
+                    "matched_author": self.renewal_match.matched_author,
+                    "similarity_score": self.renewal_match.similarity_score,
+                    "title_score": self.renewal_match.title_score,
+                    "author_score": self.renewal_match.author_score,
+                    "year_difference": self.renewal_match.year_difference,
+                    "source_id": self.renewal_match.source_id,
                 }
-                for match in self.renewal_matches
-            ],
+                if self.renewal_match
+                else None
+            ),
         }
 
 
