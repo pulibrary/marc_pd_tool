@@ -20,6 +20,8 @@ from multiprocessing import cpu_count
 from os import rmdir
 from os import unlink
 from os.path import join
+from os.path import abspath
+from os.path import dirname
 from pickle import dump
 from tempfile import mkdtemp
 from time import time
@@ -83,6 +85,7 @@ def format_time_duration(seconds: float) -> str:
 
 
 def main():
+    cwd = dirname(abspath(__file__))
     parser = ArgumentParser(
         description="MARC data comparison with registration and renewal matching"
     )
@@ -90,9 +93,9 @@ def main():
         "--marcxml", required=True, help="Path to MARC XML file or directory of MARC files"
     )
     parser.add_argument(
-        "--copyright-dir", required=True, help="Path to copyright registration XML directory"
+        "--copyright-dir", default=f"{cwd}/nypl-reg/xml", help="Path to copyright registration XML directory"
     )
-    parser.add_argument("--renewal-dir", required=True, help="Path to renewal TSV directory")
+    parser.add_argument("--renewal-dir", default=f"{cwd}/nypl-ren/data", help="Path to renewal TSV directory")
     parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file")
     parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
     parser.add_argument(
