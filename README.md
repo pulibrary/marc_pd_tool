@@ -45,6 +45,7 @@ The tool automatically uses all available CPU cores and includes several optimiz
 
 - **Public domain filtering**: Excludes records older than current year - 95 by default
 - **Year-based filtering**: Only compares publications within ±2 years of each other
+- **US-only filtering**: Optional `--us-only` flag to process only US publications (50-70% faster)
 - **Parallel processing**: Efficient multi-core utilization with dual dataset matching
 - **Smart memory management**: Streaming XML parsing and batch processing
 - **Country classification**: Official MARC country codes for accurate geographic analysis
@@ -135,6 +136,17 @@ pdm run python compare.py \
     --debug
 ```
 
+### US-Focused Research
+
+```bash
+# Process only US publications (significantly faster)
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --us-only
+```
+
 ## Command Line Options
 
 ### Required Arguments
@@ -145,7 +157,20 @@ pdm run python compare.py \
 
 ### Output Options
 
-- `--output` - CSV output filename (default: `matches.csv`)
+- `--output` - CSV output filename (default: auto-generated based on filters)
+
+**Automatic Filename Generation:**
+When using the default output, filenames are automatically generated based on applied filters:
+
+- `matches.csv` - No filters applied
+- `matches_us-only.csv` - US-only filtering enabled
+- `matches_1950-1960.csv` - Year range filtering
+- `matches_us-only_1950-1960.csv` - Combined filters
+- `matches_1955-only.csv` - Single year (min_year = max_year)
+- `matches_after-1945.csv` - Minimum year only
+- `matches_before-1970.csv` - Maximum year only
+
+To override automatic naming, specify a custom filename with `--output`.
 
 ### Logging Options
 
@@ -159,6 +184,7 @@ pdm run python compare.py \
 - `--year-tolerance` - Maximum year difference for matching (default: 2)
 - `--min-year` - Minimum publication year to include (default: current year - 95)
 - `--max-year` - Maximum publication year to include (default: no limit)
+- `--us-only` - Only process US publications (significantly faster for US-focused research)
 
 ### Performance Options
 

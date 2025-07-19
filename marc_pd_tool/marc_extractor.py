@@ -18,12 +18,13 @@ logger = getLogger(__name__)
 
 class ParallelMarcExtractor:
     def __init__(
-        self, marc_path: str, batch_size: int = 1000, min_year: int = None, max_year: int = None
+        self, marc_path: str, batch_size: int = 1000, min_year: int = None, max_year: int = None, us_only: bool = False
     ):
         self.marc_path = Path(marc_path)
         self.batch_size = batch_size
         self.min_year = min_year
         self.max_year = max_year
+        self.us_only = us_only
 
     def extract_all_batches(self) -> List[List[Publication]]:
         """Extract all MARC records and return as list of batches"""
@@ -100,6 +101,8 @@ class ParallelMarcExtractor:
                 filter_desc.append(f"after {self.min_year}")
             if self.max_year is not None:
                 filter_desc.append(f"before {self.max_year} (inclusive)")
+            if self.us_only:
+                filter_desc.append("non-US publications")
             filter_text = " or ".join(filter_desc)
             logger.info(f"Filtered out {filtered_count:,} records ({filter_text})")
         return batches
@@ -259,7 +262,12 @@ class ParallelMarcExtractor:
             return None
 
     def _should_include_record(self, pub: Publication) -> bool:
-        """Check if record should be included based on year filters"""
+        """Check if record should be included based on year and country filters"""
+        # Check US-only filter first (most restrictive)
+        if self.us_only and pub.country_classification != CountryClassification.US:
+            return False
+
+        # Check year filters
         if pub.year is None:
             return True  # Include records without years to be safe
 

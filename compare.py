@@ -84,6 +84,42 @@ def format_time_duration(seconds: float) -> str:
         return f"{total_seconds}s"
 
 
+def build_year_part(min_year, max_year):
+    """Build year component for dynamic filename"""
+    if min_year is not None and max_year is not None:
+        if min_year == max_year:
+            return f"{min_year}-only"
+        else:
+            return f"{min_year}-{max_year}"
+    elif min_year is not None:
+        return f"after-{min_year}"
+    elif max_year is not None:
+        return f"before-{max_year}"
+    return None
+
+
+def generate_output_filename(args):
+    """Generate dynamic output filename based on filtering parameters"""
+    # If user specified custom output, use it unchanged
+    if args.output != "matches.csv":  # Not using default
+        return args.output
+    
+    # Build dynamic filename from filters
+    parts = ["matches"]
+    
+    # Add country filter
+    if args.us_only:
+        parts.append("us-only")
+    
+    # Add year filter
+    if args.min_year is not None or args.max_year is not None:
+        year_part = build_year_part(args.min_year, args.max_year)
+        if year_part:
+            parts.append(year_part)
+    
+    return "_".join(parts) + ".csv"
+
+
 def main():
     cwd = dirname(abspath(__file__))
     parser = ArgumentParser(
@@ -96,7 +132,7 @@ def main():
         "--copyright-dir", default=f"{cwd}/nypl-reg/xml", help="Path to copyright registration XML directory"
     )
     parser.add_argument("--renewal-dir", default=f"{cwd}/nypl-ren/data", help="Path to renewal TSV directory")
-    parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file")
+    parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file (default auto-generates descriptive names based on filters)")
     parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
     parser.add_argument(
         "--max-workers", type=int, default=None, help="Number of processes (default: CPU count)"
@@ -127,6 +163,11 @@ def main():
         type=int,
         default=None,
         help="Maximum publication year to include (default: no limit)",
+    )
+    parser.add_argument(
+        "--us-only",
+        action="store_true",
+        help="Only process records from US publications (significantly faster for US-focused research)",
     )
     parser.add_argument(
         "--log-file",
@@ -168,11 +209,14 @@ def main():
         logger.info(f"Publication year range: {args.min_year} - {args.max_year}")
     else:
         logger.info(f"Minimum publication year: {args.min_year} (no maximum)")
+    
+    if args.us_only:
+        logger.info("Country filter: US publications only (non-US records will be excluded)")
 
     # Phase 1: Extract all MARC records into batches
     logger.info("=== PHASE 1: EXTRACTING MARC RECORDS ===")
     marc_extractor = ParallelMarcExtractor(
-        args.marcxml, args.batch_size, args.min_year, args.max_year
+        args.marcxml, args.batch_size, args.min_year, args.max_year, args.us_only
     )
     marc_batches = marc_extractor.extract_all_batches()
 
@@ -306,7 +350,8 @@ def main():
 
     # Phase 5: Save results
     logger.info("=== PHASE 5: SAVING RESULTS ===")
-    save_matches_csv(all_processed_marc, args.output)
+    output_filename = generate_output_filename(args)
+    save_matches_csv(all_processed_marc, output_filename)
 
     # Final summary
     total_time = time() - start_time
@@ -346,7 +391,7 @@ def main():
     print(f"  Workers used: {args.max_workers}")
     print(f"  Total time: {format_time_duration(total_time)}")
     print(f"  Speed: {total_marc/(total_time/60):.0f} records/minute")
-    print(f"  Output: {args.output}")
+    print(f"  Output: {output_filename}")
     print(f"{'='*80}")
 
 
