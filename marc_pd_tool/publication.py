@@ -9,7 +9,6 @@ from typing import List
 from typing import Optional
 
 # Local imports
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 
@@ -96,7 +95,6 @@ class Publication:
         source_id: str = "",
         country_code: str = "",
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
-        author_type: AuthorType = AuthorType.UNKNOWN,
     ):
         self.title = self.normalize_text(title)
         self.author = self.normalize_text(author)
@@ -118,7 +116,6 @@ class Publication:
         # Enhanced fields for new algorithm
         self.country_code = country_code
         self.country_classification = country_classification
-        self.author_type = author_type
 
         # Match tracking - single best match only
         self.registration_match: Optional[MatchResult] = None

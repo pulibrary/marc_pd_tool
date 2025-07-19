@@ -4,7 +4,6 @@
 # pytest imported automatically by test runner
 
 # Local imports
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.indexer import extract_significant_words
 from marc_pd_tool.indexer import generate_author_keys
 from marc_pd_tool.indexer import generate_title_keys
@@ -98,7 +97,7 @@ class TestAuthorKeys:
 
     def test_author_keys_last_first_format(self):
         """Test author keys for 'Last, First' format (personal names)"""
-        keys = generate_author_keys("Smith, John A.", AuthorType.PERSONAL)
+        keys = generate_author_keys("Smith, John A.")
 
         # Should contain surname
         assert "smith" in keys
@@ -111,7 +110,7 @@ class TestAuthorKeys:
 
     def test_author_keys_first_last_format(self):
         """Test author keys for 'First Last' format (personal names)"""
-        keys = generate_author_keys("John Smith", AuthorType.PERSONAL)
+        keys = generate_author_keys("John Smith")
 
         assert "smith" in keys  # Surname
         assert "john_smith" in keys  # First + Last
@@ -119,21 +118,21 @@ class TestAuthorKeys:
 
     def test_author_keys_single_name(self):
         """Test author keys for single names (personal names)"""
-        keys = generate_author_keys("Shakespeare", AuthorType.PERSONAL)
+        keys = generate_author_keys("Shakespeare")
         assert "shakespeare" in keys
 
-        keys = generate_author_keys("Voltaire", AuthorType.PERSONAL)
+        keys = generate_author_keys("Voltaire")
         assert "voltaire" in keys
 
     def test_author_keys_complex_names(self):
         """Test author keys for complex name formats (personal names)"""
         # Multiple middle names
-        keys = generate_author_keys("Smith, John William Alexander", AuthorType.PERSONAL)
+        keys = generate_author_keys("Smith, John William Alexander")
         assert "smith" in keys
         assert "smith_john" in keys
 
         # Jr./Sr. suffixes
-        keys = generate_author_keys("King, Martin Luther Jr.", AuthorType.PERSONAL)
+        keys = generate_author_keys("King, Martin Luther Jr.")
         assert "king" in keys
         assert any("martin" in key for key in keys)
 
@@ -142,85 +141,22 @@ class TestAuthorKeys:
         assert generate_author_keys("") == set()
         assert generate_author_keys("   ") == set()
 
-    def test_author_keys_corporate_names(self):
-        """Test author keys for corporate names (MARC field 110)
+    def test_author_keys_non_personal_names(self):
+        """Test author keys for non-personal names (now treated as personal names)
 
-        Corporate names use entity-based parsing with significant words and combinations.
+        Since we simplified to use only personal name parsing for all authors from 245$c,
+        these should still generate keys but using personal name logic.
         """
-        # University press - should generate significant word combinations
-        keys = generate_author_keys("Harvard University Press", AuthorType.CORPORATE)
-        assert "harvard" in keys
-        assert "university" in keys
-        assert "press" in keys
-        assert "harvard_university" in keys  # 2-word combination
-        assert "university_press" in keys  # 2-word combination
-        assert "harvard_university_press" in keys  # 3-word combination
+        # Corporate-style name - treated as personal name (uses last word as surname)
+        keys = generate_author_keys("Harvard University Press")
+        assert "press" in keys  # Last word treated as surname
+        assert len(keys) > 0
 
-        # Government body - periods are normalized to spaces
-        keys = generate_author_keys("United States. Congress", AuthorType.CORPORATE)
-        assert "united" in keys
-        assert "states" in keys
-        assert "congress" in keys
-        assert "united_states" in keys  # 2-word combination
-        assert "states_congress" in keys  # 2-word combination
-
-        # Company with Inc.
-        keys = generate_author_keys("Apple Inc.", AuthorType.CORPORATE)
-        assert "apple" in keys
-        assert "inc" in keys
-        assert "apple_inc" in keys  # 2-word combination
-
-        # University with location - treated as corporate entity (no comma parsing)
-        keys = generate_author_keys("University of California, Berkeley", AuthorType.CORPORATE)
-        assert "university" in keys
-        assert "california" in keys
-        assert "berkeley" in keys
-        assert "university_california" in keys  # 2-word combination
-        assert "california_berkeley" in keys  # 2-word combination
-
-    def test_author_keys_meeting_names(self):
-        """Test author keys for meeting names (MARC field 111)
-
-        Meeting names use entity-based parsing with significant words and combinations.
-        """
-        # Academic conference - should generate significant word combinations
-        keys = generate_author_keys(
-            "International Conference on Computer Science", AuthorType.MEETING
-        )
-        assert "international" in keys
-        assert "conference" in keys
-        assert "computer" in keys
-        assert "science" in keys
-        assert "international_conference" in keys  # 2-word combination
-        assert "computer_science" in keys  # 2-word combination
-        assert "international_conference_computer" in keys  # 3-word combination
-
-        # Professional association meeting - should generate significant word combinations
-        keys = generate_author_keys(
-            "Annual Meeting of the American Historical Association", AuthorType.MEETING
-        )
-        assert "annual" in keys
-        assert "meeting" in keys
-        assert "american" in keys
-        assert "historical" in keys
-        assert "association" in keys
-        assert "annual_meeting" in keys  # 2-word combination
-        assert "american_historical" in keys  # 2-word combination
-        assert "historical_association" in keys  # 2-word combination
-
-        # Conference with details - punctuation is normalized, limited to significant words
-        keys = generate_author_keys(
-            "Symposium on Artificial Intelligence (1st : 1969 : Stanford University)",
-            AuthorType.MEETING,
-        )
-        assert "symposium" in keys
-        assert "artificial" in keys
-        assert "intelligence" in keys
-        assert "stanford" in keys
-        # Note: "university" may be filtered out due to max_words limit in extract_significant_words
-        assert "symposium_artificial" in keys  # 2-word combination
-        assert "artificial_intelligence" in keys  # 2-word combination
-        # Note: "stanford_university" may not be present due to word filtering
+        # Multi-part name with periods
+        keys = generate_author_keys("United States Congress")
+        assert "congress" in keys  # Last word
+        assert "united_congress" in keys  # First + Last
+        assert len(keys) > 0
 
 
 class TestKeyGeneration:

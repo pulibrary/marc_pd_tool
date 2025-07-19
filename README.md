@@ -14,13 +14,28 @@ This tool implements a comprehensive algorithm to classify publications by copyr
 
 ## Quick Start
 
-1. **Install dependencies:**
+1. **Clone the repository with submodules:**
+
+   ```bash
+   git clone --recurse-submodules https://github.com/NYPL/marc_pd_tool.git
+   cd marc_pd_tool
+   ```
+
+   **Important:** This repository includes the copyright registration and renewal data as git submodules. The `--recurse-submodules` flag is required to download the data files needed for analysis.
+
+   If you already cloned without submodules, initialize them:
+
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+2. **Install dependencies:**
 
    ```bash
    pdm install
    ```
 
-2. **Run analysis:**
+3. **Run analysis:**
 
    ```bash
    pdm run python compare.py \

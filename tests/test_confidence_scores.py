@@ -7,7 +7,6 @@ from tempfile import NamedTemporaryFile
 
 # Local imports
 from marc_pd_tool.batch_processor import save_matches_csv
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.publication import MatchResult
@@ -46,7 +45,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         # Add a match with confidence scores
@@ -80,7 +78,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
@@ -130,7 +127,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         # Add renewal match with entry ID (UUID format)
@@ -175,7 +171,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         # Add registration match
@@ -249,7 +244,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         # No matches added
@@ -293,7 +287,6 @@ class TestConfidenceScores:
             pub_date="1950",
             source_id="test_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
         # Add single registration match

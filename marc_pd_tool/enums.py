@@ -22,10 +22,3 @@ class CopyrightStatus(Enum):
     COUNTRY_UNKNOWN = "Country Unknown"
 
 
-class AuthorType(Enum):
-    """MARC author field types"""
-
-    PERSONAL = "Personal"  # Field 100 - Personal names
-    CORPORATE = "Corporate"  # Field 110 - Corporate names
-    MEETING = "Meeting"  # Field 111 - Meeting names
-    UNKNOWN = "Unknown"

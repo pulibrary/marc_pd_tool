@@ -4,7 +4,6 @@
 from pathlib import Path
 
 # Local imports
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.marc_extractor import ParallelMarcExtractor
 from marc_pd_tool.publication import Publication
@@ -23,24 +22,20 @@ class TestYearFiltering:
         pub_1940 = Publication(
             "Test 1940",
             pub_date="1940",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1955 = Publication(
             "Test 1955",
             pub_date="1955",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_2020 = Publication(
             "Test 2020",
             pub_date="2020",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_no_year = Publication(
             "Test No Year",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -57,19 +52,16 @@ class TestYearFiltering:
         pub_1940 = Publication(
             "Test 1940",
             pub_date="1940",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1950 = Publication(
             "Test 1950",
             pub_date="1950",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1960 = Publication(
             "Test 1960",
             pub_date="1960",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -84,19 +76,16 @@ class TestYearFiltering:
         pub_1940 = Publication(
             "Test 1940",
             pub_date="1940",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1960 = Publication(
             "Test 1960",
             pub_date="1960",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1970 = Publication(
             "Test 1970",
             pub_date="1970",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -111,31 +100,26 @@ class TestYearFiltering:
         pub_1940 = Publication(
             "Test 1940",
             pub_date="1940",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1950 = Publication(
             "Test 1950",
             pub_date="1950",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1955 = Publication(
             "Test 1955",
             pub_date="1955",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1960 = Publication(
             "Test 1960",
             pub_date="1960",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1970 = Publication(
             "Test 1970",
             pub_date="1970",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -152,19 +136,16 @@ class TestYearFiltering:
         pub_1954 = Publication(
             "Test 1954",
             pub_date="1954",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1955 = Publication(
             "Test 1955",
             pub_date="1955",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_1956 = Publication(
             "Test 1956",
             pub_date="1956",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -180,7 +161,6 @@ class TestYearFiltering:
 
         pub_no_year = Publication(
             "Test No Year",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -219,13 +199,11 @@ class TestYearFiltering:
         pub_min_boundary = Publication(
             "Test Min Boundary",
             pub_date="1950",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_max_boundary = Publication(
             "Test Max Boundary",
             pub_date="1960",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -237,13 +215,11 @@ class TestYearFiltering:
         pub_below_min = Publication(
             "Test Below Min",
             pub_date="1949",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_above_max = Publication(
             "Test Above Max",
             pub_date="1961",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 
@@ -258,19 +234,16 @@ class TestYearFiltering:
         pub_year_only = Publication(
             "Test Year Only",
             pub_date="1955",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_full_date = Publication(
             "Test Full Date",
             pub_date="1955-06-15",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
         pub_complex_date = Publication(
             "Test Complex Date",
             pub_date="c1955",
-            author_type=AuthorType.PERSONAL,
             country_classification=CountryClassification.US,
         )
 

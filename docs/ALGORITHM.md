@@ -73,7 +73,7 @@ Each MARC record can have at most one match in each dataset (registration and re
 
 - **Field 008**: Country codes (positions 15-17) and publication dates
 - **Fields 264/260**: Publication data (RDA and AACR2 formats)
-- **Fields 100/110/111**: Personal, corporate, and meeting name authors
+- **Field 245$c**: Author information from statement of responsibility (more likely to match copyright data format than formal authority fields)
 
 ### 3. Copyright Status Determination
 

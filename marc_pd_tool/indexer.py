@@ -12,7 +12,6 @@ from typing import Tuple
 # (none currently needed)
 
 # Local imports
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.publication import Publication
 
 # Common stopwords to filter from titles
@@ -111,15 +110,14 @@ def generate_title_keys(title: str) -> Set[str]:
     return keys
 
 
-def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNOWN) -> Set[str]:
-    """Generate multiple indexing keys for an author name based on author type
+def generate_author_keys(author: str) -> Set[str]:
+    """Generate multiple indexing keys for an author name
 
     Args:
         author: The author name string
-        author_type: The type of author (PERSONAL, CORPORATE, MEETING, or UNKNOWN)
 
     Returns:
-        Set of indexing keys appropriate for the author type
+        Set of indexing keys for the author
     """
     if not author:
         return set()
@@ -127,18 +125,9 @@ def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNO
     keys = set()
     author_lower = author.lower().strip()
 
-    if author_type == AuthorType.PERSONAL:
-        # Personal names: use surname/given name parsing
-        keys = _generate_personal_name_keys(author_lower)
-    elif author_type == AuthorType.CORPORATE:
-        # Corporate names: use entity-based parsing
-        keys = _generate_corporate_name_keys(author_lower)
-    elif author_type == AuthorType.MEETING:
-        # Meeting names: use entity-based parsing
-        keys = _generate_meeting_name_keys(author_lower)
-    else:
-        # Unknown type: fall back to personal name parsing (backward compatibility)
-        keys = _generate_personal_name_keys(author_lower)
+    # Use personal name parsing strategy for all authors
+    # since 245$c typically contains personal names
+    keys = _generate_personal_name_keys(author_lower)
 
     # Note: Metaphone keys removed to reduce false positives
 
@@ -146,7 +135,7 @@ def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNO
 
 
 def _generate_personal_name_keys(author_lower: str) -> Set[str]:
-    """Generate keys for personal names (field 100)
+    """Generate keys for author names (using personal name parsing strategy)
 
     Returns:
         Set of keys for indexing
@@ -214,62 +203,6 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
     return keys
 
 
-def _generate_corporate_name_keys(author_lower: str) -> Set[str]:
-    """Generate keys for corporate names (field 110)
-
-    Returns:
-        Set of keys for indexing
-    """
-    keys = set()
-
-    # Extract significant words from the corporate name
-    words = extract_significant_words(author_lower, max_words=6)
-
-    # Add individual words
-    for word in words:
-        if len(word) >= 3:
-            keys.add(word)
-
-    # Add 2-word combinations for key corporate terms
-    if len(words) >= 2:
-        for i in range(len(words) - 1):
-            keys.add(f"{words[i]}_{words[i+1]}")
-
-    # Add 3-word combinations for longer corporate names
-    if len(words) >= 3:
-        for i in range(len(words) - 2):
-            keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
-
-    return keys
-
-
-def _generate_meeting_name_keys(author_lower: str) -> Set[str]:
-    """Generate keys for meeting names (field 111)
-
-    Returns:
-        Set of keys for indexing
-    """
-    keys = set()
-
-    # Extract significant words from the meeting name
-    words = extract_significant_words(author_lower, max_words=6)
-
-    # Add individual words
-    for word in words:
-        if len(word) >= 3:
-            keys.add(word)
-
-    # Add 2-word combinations for key meeting terms
-    if len(words) >= 2:
-        for i in range(len(words) - 1):
-            keys.add(f"{words[i]}_{words[i+1]}")
-
-    # Add 3-word combinations for longer meeting names
-    if len(words) >= 3:
-        for i in range(len(words) - 2):
-            keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
-
-    return keys
 
 
 class PublicationIndex:
@@ -293,7 +226,7 @@ class PublicationIndex:
 
         # Index by author
         if pub.author:
-            author_keys = generate_author_keys(pub.author, pub.author_type)
+            author_keys = generate_author_keys(pub.author)
             for key in author_keys:
                 self.author_index[key].add(pub_id)
 
@@ -316,7 +249,7 @@ class PublicationIndex:
         # Find candidates by author (if available)
         author_candidates = set()
         if query_pub.author:
-            author_keys = generate_author_keys(query_pub.author, query_pub.author_type)
+            author_keys = generate_author_keys(query_pub.author)
             for key in author_keys:
                 author_candidates.update(self.author_index.get(key, set()))
 

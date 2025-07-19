@@ -8,7 +8,6 @@ from typing import Optional
 import xml.etree.ElementTree as ET
 
 # Local imports
-from marc_pd_tool.enums import AuthorType
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.publication import Publication
 from marc_pd_tool.publication import extract_country_from_marc_008
@@ -140,42 +139,14 @@ class ParallelMarcExtractor:
             if not title:
                 return None
 
-            # Extract author with type tracking
-            author = ""
-            author_type = AuthorType.UNKNOWN
-
-            # Try field 100 (personal names)
-            author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
+            # Extract author from 245$c (statement of responsibility)
+            author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
             if author_elem is None:
                 author_elem = record.find(
-                    ".//marc:datafield[@tag='100']/marc:subfield[@code='a']", ns
+                    ".//marc:datafield[@tag='245']/marc:subfield[@code='c']", ns
                 )
-            if author_elem is not None:
-                author = author_elem.text
-                author_type = AuthorType.PERSONAL
-            else:
-                # Try field 110 (corporate names)
-                author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
-                if author_elem is None:
-                    author_elem = record.find(
-                        ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
-                    )
-                if author_elem is not None:
-                    author = author_elem.text
-                    author_type = AuthorType.CORPORATE
-                else:
-                    # Try field 111 (meeting names)
-                    author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
-                    if author_elem is None:
-                        author_elem = record.find(
-                            ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
-                        )
-                    if author_elem is not None:
-                        author = author_elem.text
-                        author_type = AuthorType.MEETING
-
-            # Default to empty string if no author found
-            author = author if author else ""
+            
+            author = author_elem.text if author_elem is not None else ""
 
             # Extract publication date (try 264 first, then 260)
             pub_date_elem = record.find(".//datafield[@tag='264']/subfield[@code='c']")
@@ -255,7 +226,6 @@ class ParallelMarcExtractor:
                 source_id=source_id,
                 country_code=country_code,
                 country_classification=country_classification,
-                author_type=author_type,
             )
 
         except Exception as e:

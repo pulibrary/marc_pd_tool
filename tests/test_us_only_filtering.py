@@ -9,7 +9,7 @@ from os import unlink
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.enums import CountryClassification, AuthorType
+from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.marc_extractor import ParallelMarcExtractor
 from marc_pd_tool.publication import Publication
 
@@ -26,7 +26,6 @@ class TestUSOnlyFiltering:
             pub_date="1950",
             source_id="us_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
 
     @fixture
@@ -38,7 +37,6 @@ class TestUSOnlyFiltering:
             pub_date="1950",
             source_id="non_us_001",
             country_classification=CountryClassification.NON_US,
-            author_type=AuthorType.PERSONAL,
         )
 
     @fixture
@@ -50,7 +48,6 @@ class TestUSOnlyFiltering:
             pub_date="1950", 
             source_id="unknown_001",
             country_classification=CountryClassification.UNKNOWN,
-            author_type=AuthorType.PERSONAL,
         )
 
     def test_us_only_filter_includes_us_records(self, us_publication):
@@ -84,7 +81,6 @@ class TestUSOnlyFiltering:
             pub_date="1920",
             source_id="old_us_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
         old_us_pub.year = 1920
 
@@ -95,7 +91,6 @@ class TestUSOnlyFiltering:
             pub_date="1950",
             source_id="new_non_us_001",
             country_classification=CountryClassification.NON_US,
-            author_type=AuthorType.PERSONAL,
         )
         new_non_us_pub.year = 1950
 
@@ -106,7 +101,6 @@ class TestUSOnlyFiltering:
             pub_date="1950", 
             source_id="new_us_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
         new_us_pub.year = 1950
 
@@ -127,7 +121,6 @@ class TestUSOnlyFiltering:
             pub_date="",
             source_id="us_no_year_001",
             country_classification=CountryClassification.US,
-            author_type=AuthorType.PERSONAL,
         )
         us_pub_no_year.year = None
 
@@ -137,7 +130,6 @@ class TestUSOnlyFiltering:
             pub_date="",
             source_id="non_us_no_year_001", 
             country_classification=CountryClassification.NON_US,
-            author_type=AuthorType.PERSONAL,
         )
         non_us_pub_no_year.year = None
 
@@ -186,7 +178,6 @@ class TestUSOnlyFiltering:
             pub_date="1950",
             source_id="edge_001",
             country_classification=CountryClassification.NON_US,
-            author_type=AuthorType.CORPORATE,
         )
         edge_case_pub.year = 1950
         

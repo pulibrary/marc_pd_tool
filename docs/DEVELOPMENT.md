@@ -13,17 +13,38 @@ The codebase is organized as a Python package with one class per file:
 ```
 marc_pd_tool/
 ├── __init__.py              # Package interface with explicit imports
-├── enums.py                 # Copyright status, country classification, and author type enums
+├── enums.py                 # Copyright status and country classification enums
 ├── publication.py           # Publication data model with country and match tracking
-├── marc_extractor.py        # MARC XML extraction with country detection and author type tracking
+├── marc_extractor.py        # MARC XML extraction with country detection
 ├── copyright_loader.py      # Copyright registration data loading
 ├── renewal_loader.py        # Renewal data loading (TSV format)
-├── indexer.py               # Multi-key indexing system with author type support
+├── indexer.py               # Multi-key indexing system
 └── batch_processor.py       # Parallel dual-dataset matching
 compare.py                   # Command-line application
 ```
 
-## Requirements
+## Getting Started
+
+### Clone with Submodules
+
+**Critical:** This repository includes the copyright registration and renewal data as git submodules. You must clone with submodules to get the data files:
+
+```bash
+git clone --recurse-submodules https://github.com/NYPL/marc_pd_tool.git
+cd marc_pd_tool
+```
+
+If you already cloned without submodules, initialize them:
+
+```bash
+git submodule update --init --recursive
+```
+
+**Submodules included:**
+- `nypl-reg/` - Copyright registration data (1923-1977) from [NYPL Catalog of Copyright Entries Project](https://github.com/NYPL/catalog_of_copyright_entries_project)
+- `nypl-ren/` - Copyright renewal data (1950-1991) from [NYPL CCE Renewals Project](https://github.com/NYPL/cce-renewals)
+
+### Requirements
 
 - **Python 3.12+**
 - **PDM package manager**
@@ -45,21 +66,18 @@ The Publication class stores both normalized and original data:
 
 ```python
 class Publication:
-    def __init__(self, title, author, ..., author_type=AuthorType.UNKNOWN):
+    def __init__(self, title, author, ...):
         # Store both normalized and original data
         self.title = self.normalize_text(title)           # For matching
         self.original_title = title                       # For output
         
-        # Match tracking
-        self.registration_matches: List[MatchResult] = []
-        self.renewal_matches: List[MatchResult] = []
+        # Match tracking - single best match only
+        self.registration_match: Optional[MatchResult] = None
+        self.renewal_match: Optional[MatchResult] = None
         
         # Country classification for algorithmic analysis
         self.country_classification = country_classification
-        self.copyright_status = CopyrightStatus.UNKNOWN
-        
-        # Author type for intelligent indexing
-        self.author_type = author_type
+        self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 ```
 
 ### MatchResult Class
@@ -84,7 +102,7 @@ This design allows for:
 
 - Normalized text for matching algorithms
 - Original text preserved for output
-- Multiple matches stored rather than just the best one
+- Single best match stored for registration and renewal
 - Built-in country classification for copyright analysis
 
 ### Country Classification
@@ -114,46 +132,30 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
     return country_code, classification
 ```
 
-### Author Type Detection and Handling
+### Author Extraction from MARC 245$c
 
-The system now detects and handles different MARC author field types:
-
-```python
-class AuthorType(Enum):
-    PERSONAL = "Personal"   # Field 100 - Personal names
-    CORPORATE = "Corporate" # Field 110 - Corporate names  
-    MEETING = "Meeting"     # Field 111 - Meeting names
-    UNKNOWN = "Unknown"
-```
+The system extracts author information from MARC field 245$c (statement of responsibility), which is more likely to match copyright registration data than the traditional 1xx author fields:
 
 **MARC Extraction Logic**:
 
 ```python
 def _extract_from_record(self, record) -> Optional[Publication]:
-    # Try field 100 (personal names)
-    author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
+    # Extract author from 245$c (statement of responsibility)
+    # This format is more likely to match copyright registration data
+    author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
     if author_elem is not None:
         author = author_elem.text
-        author_type = AuthorType.PERSONAL
     else:
-        # Try field 110 (corporate names)
-        author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
-        if author_elem is not None:
-            author = author_elem.text
-            author_type = AuthorType.CORPORATE
-        else:
-            # Try field 111 (meeting names)
-            author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
-            if author_elem is not None:
-                author = author_elem.text
-                author_type = AuthorType.MEETING
+        author = ""
 ```
 
-**Type-Specific Indexing Strategies**:
+**Indexing Strategy**:
 
-- **Personal names**: Surname/given name parsing with initials handling
-- **Corporate names**: Entity-based parsing with significant word combinations
-- **Meeting names**: Entity-based parsing with significant word combinations
+Since 245$c contains statement of responsibility text (which is typically personal names), the system uses personal name parsing logic for all authors:
+
+- **Personal name parsing**: Surname/given name parsing with initials handling
+- **Format handling**: "Last, First" and "First Last" name formats
+- **Simplified approach**: One consistent strategy instead of type-specific parsing
 
 ## 3. Performance Optimizations
 
@@ -187,31 +189,24 @@ def generate_title_keys(title: str) -> Set[str]:
     return keys
 ```
 
-**Author Keys** handle multiple name formats based on author type:
+**Author Keys** use simplified personal name parsing for all authors:
 
 ```python
-def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNOWN) -> Set[str]:
-    if author_type == AuthorType.PERSONAL:
-        keys, words = _generate_personal_name_keys(author_lower)
-    elif author_type == AuthorType.CORPORATE:
-        keys, words = _generate_corporate_name_keys(author_lower)
-    elif author_type == AuthorType.MEETING:
-        keys, words = _generate_meeting_name_keys(author_lower)
-    else:
-        # Unknown type: fall back to personal name parsing
-        keys, words = _generate_personal_name_keys(author_lower)
+def generate_author_keys(author: str) -> Set[str]:
+    # Use personal name parsing strategy for all authors
+    # since 245$c typically contains personal names
+    keys = _generate_personal_name_keys(author_lower)
     
     # Note: Metaphone keys removed to reduce false positives
     
     return keys
 ```
 
-**Personal Name Keys** (Field 100):
+**Personal Name Keys** (from 245$c):
 
 ```python
-def _generate_personal_name_keys(author_lower: str) -> Tuple[Set[str], List[str]]:
+def _generate_personal_name_keys(author_lower: str) -> Set[str]:
     keys = set()
-    metaphone_words = []
     
     if "," in author_lower:
         # "Last, First" format
@@ -231,43 +226,16 @@ def _generate_personal_name_keys(author_lower: str) -> Tuple[Set[str], List[str]
         keys.add(f"{words[0]}_{words[-1]}")       # First + Last
         keys.add(f"{words[-1]}_{words[0]}")       # Last + First
         
-    
     return keys
 ```
 
-**Corporate/Meeting Name Keys** (Fields 110/111):
-
-```python
-def _generate_corporate_name_keys(author_lower: str) -> Set[str]:
-    keys = set()
-    
-    # Extract significant words (filters stopwords)
-    words = extract_significant_words(author_lower, max_words=6)
-    
-    # Add individual words
-    for word in words:
-        if len(word) >= 3:
-            keys.add(word)
-    
-    # Add 2-word combinations
-    if len(words) >= 2:
-        for i in range(len(words) - 1):
-            keys.add(f"{words[i]}_{words[i+1]}")
-    
-    # Add 3-word combinations
-    if len(words) >= 3:
-        for i in range(len(words) - 2):
-            keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
-    
-    return keys
-```
 
 The indexing handles:
 
-- **Author type-specific strategies**: Personal, corporate, and meeting names use appropriate parsing logic
+- **Personal name parsing**: Consistent strategy for all authors from 245$c
 - **Different word orders and formats**: Handles variations in name presentation
 - **Smart stopword filtering**: Only significant words used for key generation
-- **Multi-level indexing**: Title, author (with type), and year dimensions
+- **Multi-level indexing**: Title, author, and year dimensions
 - **False positive reduction**: Removed phonetic matching to eliminate excessive false matches
 
 ### 3.2 Candidate Filtering Strategy
@@ -279,10 +247,10 @@ def find_candidates(self, query_pub: Publication, year_tolerance: int = 2) -> Se
     for key in generate_title_keys(query_pub.title):
         title_candidates.update(self.title_index.get(key, set()))
     
-    # Find candidates by author (using author type)
+    # Find candidates by author
     author_candidates = set()
     if query_pub.author:
-        for key in generate_author_keys(query_pub.author, query_pub.author_type):
+        for key in generate_author_keys(query_pub.author):
             author_candidates.update(self.author_index.get(key, set()))
     
     # Combine with priority: prefer title+author intersection
@@ -593,8 +561,8 @@ This approach:
 
 ```python
 def determine_copyright_status(self) -> CopyrightStatus:
-    has_reg = self.has_registration_matches()
-    has_ren = self.has_renewal_matches()
+    has_reg = self.has_registration_match()
+    has_ren = self.has_renewal_match()
     
     if self.country_classification == CountryClassification.US:
         if has_reg and not has_ren:
