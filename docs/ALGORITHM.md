@@ -34,8 +34,9 @@ For each MARC record, we search for similar entries in both the registration and
 **Enhanced Matching Features:**
 
 - **Author Type Recognition**: Personal names (field 100), corporate names (field 110), and meeting names (field 111) are handled with appropriate parsing strategies
+- **Publisher Indexing**: Multi-key indexing includes publisher information with specialized stopword filtering
 - **Intelligent Indexing**: Multi-key indexing reduces search space from billions to thousands of candidates per query
-- **Smart Word Filtering**: Only significant words are used for key generation
+- **Smart Word Filtering**: Only significant words are used for key generation, with publishing-specific stopwords removed
 
 **Matching Process:**
 
@@ -43,23 +44,30 @@ For each MARC record, we search for similar entries in both the registration and
 1. **Threshold-Based Matching**: Candidates must meet similarity thresholds to be recorded as matches:
    - Title similarity ≥ 80% (default)
    - Author similarity ≥ 70% (default, when both authors exist)
+   - Publisher similarity ≥ 60% (default, when MARC has publisher data)
    - Publication year within ±2 years
 1. **Strict Matching**: Only candidates that meet similarity thresholds are recorded as matches
 
 **Matching Criteria:**
 
-- Title similarity (weighted 70%, calculated using Levenshtein distance)
-- Author similarity (weighted 30%, calculated using Levenshtein distance) - using author type-specific parsing
+- Title similarity (weighted 60% or 70%, calculated using Levenshtein distance)
+- Author similarity (weighted 25% or 30%, calculated using Levenshtein distance) - using author type-specific parsing
+- Publisher similarity (weighted 15%, calculated using fuzzy matching strategies)
 - Publication year (within ±2 years)
-- Combined score: `(title_score * 0.7) + (author_score * 0.3)`
+- Combined score (adaptive weighting based on available data):
+  - **With publisher data**: `(title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)`
+  - **Without publisher data**: `(title_score * 0.7) + (author_score * 0.3)` (redistributes publisher weight)
 
 **Important: Scoring Method**
 
-All similarity scores are calculated using standard Levenshtein distance on the original normalized text:
+All similarity scores are calculated using fuzzy string matching on normalized text:
 
-- **String Similarity**: Direct comparison of normalized title and author text
+- **Title & Author Similarity**: Direct comparison using Levenshtein distance (`fuzz.ratio()`)
+- **Publisher Similarity**: Uses different strategies based on data source:
+  - **Registration matches**: Direct comparison using `fuzz.ratio()` (MARC publisher vs registration publisher)
+  - **Renewal matches**: Fuzzy matching using `fuzz.partial_ratio()` (MARC publisher vs renewal full_text)
 - **Threshold Application**: All matches must meet similarity thresholds to be recorded
-- **CSV Output**: Shows the actual string similarity scores for recorded matches
+- **CSV Output**: Shows the actual similarity scores for recorded matches
 
 **Single Best Match:**
 
@@ -135,19 +143,19 @@ The tool produces a CSV file with comprehensive analysis results:
 - MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place
 - Country Code, Country Classification, Copyright Status
 - Registration Source ID, Renewal Entry ID
-- Registration Title, Registration Author, Registration Date
-- Registration Similarity Score, Registration Title Score, Registration Author Score
-- Renewal Title, Renewal Author, Renewal Date
-- Renewal Similarity Score, Renewal Title Score, Renewal Author Score
+- Registration Title, Registration Author, Registration Publisher, Registration Date
+- Registration Similarity Score, Registration Title Score, Registration Author Score, Registration Publisher Score
+- Renewal Title, Renewal Author, Renewal Publisher, Renewal Date
+- Renewal Similarity Score, Renewal Title Score, Renewal Author Score, Renewal Publisher Score
 
 **Sample Output:**
 
 ```csv
-MARC ID,MARC Title,MARC Author,MARC Year,Country Code,Country Classification,Copyright Status,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score
-99123456,The Great Novel,Smith John,1955,xxu,US,POTENTIALLY_PD_DATE_VERIFY,R456789,,The great novel,Smith John,1955,82.5,85.0,75.0
-99789012,Another Book,Jones Mary,1960,uk,Non-US,RESEARCH_US_STATUS,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,Another book,Jones Mary,75.3,78.0,70.0
-99345678,Mystery Work,Author Unknown,1950,,Unknown,Country Unknown,,,,,,,,
-99111222,Popular Title,Common Author,1965,xxu,US,POTENTIALLY_IN_COPYRIGHT,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Popular title,Common Author,1965,88.7,90.0,85.0
+MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,Country Code,Country Classification,Copyright Status,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Publisher,Registration Similarity Score,Registration Title Score,Registration Author Score,Registration Publisher Score,Renewal Title,Renewal Author,Renewal Publisher,Renewal Similarity Score,Renewal Title Score,Renewal Author Score,Renewal Publisher Score
+99123456,The Great Novel,Smith John,1955,Great Books Inc,xxu,US,POTENTIALLY_PD_DATE_VERIFY,R456789,,The great novel,Smith John,Great Books Inc,82.5,85.0,75.0,90.0,,,,,,
+99789012,Another Book,Jones Mary,1960,Academic Press,uk,Non-US,RESEARCH_US_STATUS,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,,Academic Press snippet,75.3,78.0,70.0,,Another book,Jones Mary,Academic Press,82.1,85.0,72.0,75.0
+99345678,Mystery Work,Author Unknown,1950,,,,Country Unknown,,,,,,,,,,,,,,
+99111222,Popular Title,Common Author,1965,Popular Publishers,xxu,US,POTENTIALLY_IN_COPYRIGHT,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Popular title,Common Author,Popular Publishers,88.7,90.0,85.0,95.0,Popular title,Common Author,Popular Publishers,89.2,91.0,86.0,92.0
 ```
 
 **Important Notes:**
@@ -157,7 +165,11 @@ MARC ID,MARC Title,MARC Author,MARC Year,Country Code,Country Classification,Cop
   - **Registration Source ID**: Direct lookup in copyright registration XML files
   - **Renewal Entry ID**: UUID for direct lookup in renewal TSV files (finds exact row)
 - **Score Fields**: All score fields show values from the single best match found
+- **Publisher Matching**: 
+  - **Registration Publisher**: Direct text comparison of MARC publisher vs registration publisher
+  - **Renewal Publisher**: Extracted snippet from renewal full_text that best matches MARC publisher
+  - **Publisher Score**: Reflects quality of publisher match (60% threshold when MARC has publisher data)
 - **Verification**: Use the source IDs to examine the original records in the datasets
 - **Country Unknown**: Records with `Copyright_Status = "Country Unknown"` will always have `Country_Classification = Unknown` and typically empty `Country_Code` fields
-- **Similarity Score Calculation**: All similarity scores are calculated using Levenshtein distance on normalized text
+- **Similarity Score Calculation**: Title/author use Levenshtein distance; publisher uses dual fuzzy matching strategies
 - **Threshold Enforcement**: All matches must meet similarity thresholds to be recorded, ensuring match quality

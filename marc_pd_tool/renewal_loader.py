@@ -4,6 +4,7 @@
 from csv import DictReader
 from logging import getLogger
 from pathlib import Path
+from re import search, sub
 from typing import List
 from typing import Optional
 
@@ -85,8 +86,9 @@ class RenewalDataLoader:
             entry_id = row.get("entry_id", "").strip()
             source_id = entry_id
 
-            # No publisher/place in renewal data, leave empty
-            publisher = ""
+            # Store full_text for publisher fuzzy matching (don't extract publisher)
+            full_text = row.get("full_text", "").strip()
+            publisher = ""  # Will be populated from full_text during fuzzy matching
             place = ""
 
             return Publication(
@@ -97,8 +99,58 @@ class RenewalDataLoader:
                 place=place,
                 source="Renewal",
                 source_id=source_id,
+                full_text=full_text,
             )
 
         except Exception as e:
             logger.debug(f"Error extracting from row: {e}")
             return None
+
+    def _extract_publisher_from_full_text(self, full_text: str) -> str:
+        """Extract publisher from the full_text field
+        
+        The full_text field typically contains publisher information after the renewal date.
+        Format examples:
+        - "TITLE © date, regnum. Rdate, renewal_date, Publisher Name (code)"
+        - "TITLE © date, regnum. Rdate, renewal_date, Publisher Name, successor to Other Publisher (code)"
+        """
+        if not full_text:
+            return ""
+            
+        try:
+            # Look for pattern: date, then publisher before final parentheses
+            # Common pattern: "Rxxxxxx, DDMmmYY, Publisher Name (CODE)"
+            
+            # Split on renewal ID pattern (R followed by numbers, then comma and date)
+            renewal_pattern = r"R\d+,\s*\d{1,2}[A-Za-z]{3}\d{2,4},"
+            match = search(renewal_pattern, full_text)
+            
+            if match:
+                # Get text after the renewal date
+                after_renewal = full_text[match.end():].strip()
+                
+                # Remove final parenthetical code (usually single letter in parens)
+                # Pattern: " (A)" or " (PWH)" at the end
+                after_renewal = sub(r'\s*\([^)]*\)\s*$', '', after_renewal)
+                
+                # Clean up common suffixes and prefixes
+                publisher = after_renewal.strip()
+                
+                # Remove common trailing punctuation
+                publisher = sub(r'[.,;]+$', '', publisher)
+                
+                return publisher.strip()
+            
+            # Fallback: try to extract anything that looks like publisher names
+            # Look for text after copyright symbol and dates
+            copyright_match = search(r'©.*?(\d{4}).*?R\d+.*?,\s*\d{1,2}[A-Za-z]{3}\d{2,4},\s*([^(]+)', full_text)
+            if copyright_match:
+                publisher_candidate = copyright_match.group(2).strip()
+                publisher_candidate = sub(r'[.,;]+$', '', publisher_candidate)
+                return publisher_candidate
+                
+            return ""
+            
+        except Exception as e:
+            logger.debug(f"Error extracting publisher from full_text: {e}")
+            return ""

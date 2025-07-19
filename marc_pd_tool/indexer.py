@@ -203,6 +203,61 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
     return keys
 
 
+def generate_publisher_keys(publisher: str) -> Set[str]:
+    """Generate multiple indexing keys for a publisher name
+    
+    Args:
+        publisher: The publisher name string
+        
+    Returns:
+        Set of indexing keys for the publisher
+    """
+    if not publisher:
+        return set()
+        
+    keys = set()
+    
+    # Normalize the publisher name
+    normalized = normalize_text(publisher)
+    words = normalized.split()
+    
+    if not words:
+        return set()
+    
+    # Remove common publishing terms that don't help with matching
+    publishing_stopwords = {
+        "inc", "corp", "corporation", "company", "co", "ltd", "limited", 
+        "publishers", "publisher", "publishing", "publications", "press", 
+        "books", "book", "house", "group", "media", "entertainment"
+    }
+    
+    # Filter out publishing stopwords but keep at least some words
+    significant_words = [w for w in words if w not in publishing_stopwords and len(w) >= 3]
+    if not significant_words and words:
+        # If all words were filtered, keep the longest non-stopword words
+        significant_words = [w for w in words if w not in STOPWORDS and len(w) >= 3][:3]
+    
+    # Single word keys (for exact word matches)
+    for word in significant_words:
+        if len(word) >= 3:
+            keys.add(word)
+    
+    # Multi-word combinations for better matching
+    if len(significant_words) >= 2:
+        # First two significant words
+        keys.add("_".join(significant_words[:2]))
+        # Last two significant words  
+        if len(significant_words) > 2:
+            keys.add("_".join(significant_words[-2:]))
+        # First three significant words
+        if len(significant_words) >= 3:
+            keys.add("_".join(significant_words[:3]))
+    
+    # Add full normalized name (without publishing stopwords) as a key
+    if significant_words:
+        keys.add("_".join(significant_words))
+    
+    return keys
 
 
 class PublicationIndex:
@@ -211,6 +266,7 @@ class PublicationIndex:
     def __init__(self):
         self.title_index: Dict[str, Set[int]] = defaultdict(set)
         self.author_index: Dict[str, Set[int]] = defaultdict(set)
+        self.publisher_index: Dict[str, Set[int]] = defaultdict(set)
         self.year_index: Dict[int, Set[int]] = defaultdict(set)
         self.publications: List[Publication] = []
 
@@ -229,6 +285,12 @@ class PublicationIndex:
             author_keys = generate_author_keys(pub.author)
             for key in author_keys:
                 self.author_index[key].add(pub_id)
+
+        # Index by publisher
+        if pub.publisher:
+            publisher_keys = generate_publisher_keys(pub.publisher)
+            for key in publisher_keys:
+                self.publisher_index[key].add(pub_id)
 
         # Index by year
         if pub.year:
@@ -253,6 +315,13 @@ class PublicationIndex:
             for key in author_keys:
                 author_candidates.update(self.author_index.get(key, set()))
 
+        # Find candidates by publisher (if available)
+        publisher_candidates = set()
+        if query_pub.publisher:
+            publisher_keys = generate_publisher_keys(query_pub.publisher)
+            for key in publisher_keys:
+                publisher_candidates.update(self.publisher_index.get(key, set()))
+
         # Find candidates by year (within tolerance)
         year_candidates = set()
         if query_pub.year:
@@ -269,12 +338,36 @@ class PublicationIndex:
                 intersection = title_candidates & author_candidates
                 if intersection:
                     candidates = intersection
+                    # If we also have publisher candidates, try triple intersection
+                    if publisher_candidates:
+                        triple_intersection = intersection & publisher_candidates
+                        if triple_intersection:
+                            candidates = triple_intersection
+                        else:
+                            # Add publisher candidates to existing intersection
+                            candidates.update(publisher_candidates)
                 else:
                     # No intersection, but add author candidates too
                     candidates.update(author_candidates)
+                    # Also add publisher candidates if available
+                    if publisher_candidates:
+                        candidates.update(publisher_candidates)
+            elif publisher_candidates:
+                # Have title and publisher but no author
+                intersection = title_candidates & publisher_candidates
+                if intersection:
+                    candidates = intersection
+                else:
+                    candidates.update(publisher_candidates)
         elif author_candidates:
             # No title candidates, use author candidates
             candidates.update(author_candidates)
+            # Also add publisher candidates if available
+            if publisher_candidates:
+                candidates.update(publisher_candidates)
+        elif publisher_candidates:
+            # Only publisher candidates available
+            candidates.update(publisher_candidates)
 
         # Filter by year if we have year info
         if year_candidates and candidates:
@@ -310,9 +403,11 @@ class PublicationIndex:
             "total_publications": len(self.publications),
             "title_keys": len(self.title_index),
             "author_keys": len(self.author_index),
+            "publisher_keys": len(self.publisher_index),
             "year_keys": len(self.year_index),
             "avg_title_keys_per_pub": len(self.title_index) / max(1, len(self.publications)),
             "avg_author_keys_per_pub": len(self.author_index) / max(1, len(self.publications)),
+            "avg_publisher_keys_per_pub": len(self.publisher_index) / max(1, len(self.publications)),
         }
 
 

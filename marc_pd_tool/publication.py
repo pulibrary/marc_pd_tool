@@ -81,6 +81,8 @@ class MatchResult:
     source_id: str
     source_type: str
     matched_date: str = ""  # Source publication/registration date
+    matched_publisher: str = ""  # Source publisher
+    publisher_score: float = 0.0  # Publisher similarity score
 
 
 class Publication:
@@ -95,6 +97,7 @@ class Publication:
         source_id: str = "",
         country_code: str = "",
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
+        full_text: str = "",
     ):
         self.title = self.normalize_text(title)
         self.author = self.normalize_text(author)
@@ -103,6 +106,7 @@ class Publication:
         self.place = self.normalize_text(place)
         self.source = source
         self.source_id = source_id
+        self.full_text = full_text  # Store original full_text for fuzzy matching
 
         # Store original values
         self.original_title = title
