@@ -210,6 +210,14 @@ class ParallelMarcExtractor:
                 )
             place = place_elem.text if place_elem is not None else ""
 
+            # Extract edition statement from field 250$a
+            edition_elem = record.find(".//datafield[@tag='250']/subfield[@code='a']")
+            if edition_elem is None:
+                edition_elem = record.find(
+                    ".//marc:datafield[@tag='250']/marc:subfield[@code='a']", ns
+                )
+            edition = edition_elem.text if edition_elem is not None else ""
+
             # Extract record ID
             control_001 = record.find(".//controlfield[@tag='001']")
             if control_001 is None:
@@ -222,6 +230,7 @@ class ParallelMarcExtractor:
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
+                edition=edition,
                 source="MARC",
                 source_id=source_id,
                 country_code=country_code,

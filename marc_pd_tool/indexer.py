@@ -260,6 +260,62 @@ def generate_publisher_keys(publisher: str) -> Set[str]:
     return keys
 
 
+def generate_edition_keys(edition: str) -> Set[str]:
+    """Generate multiple indexing keys for an edition statement
+    
+    Args:
+        edition: The edition statement string (e.g., "2nd ed.", "First edition", "Rev. ed.")
+        
+    Returns:
+        Set of indexing keys for the edition
+    """
+    if not edition:
+        return set()
+        
+    keys = set()
+    
+    # Normalize the edition statement
+    normalized = normalize_text(edition)
+    words = normalized.split()
+    
+    if not words:
+        return set()
+    
+    # Remove common edition stopwords that don't help with matching
+    edition_stopwords = {
+        "edition", "ed", "printing", "print", "impression", "issue", "vol", "volume"
+    }
+    
+    # Extract significant words for edition matching
+    significant_words = [w for w in words if w not in edition_stopwords and len(w) >= 2]
+    
+    # Add ordinal/numeric keys (e.g., "2nd", "first", "second", "revised")
+    ordinal_terms = {
+        "1st", "first", "2nd", "second", "3rd", "third", "4th", "fourth", "5th", "fifth",
+        "revised", "rev", "new", "updated", "enlarged", "expanded", "abridged", "complete"
+    }
+    
+    for word in words:
+        clean_word = word.replace(".", "").replace(",", "").lower()
+        if clean_word in ordinal_terms or clean_word.isdigit():
+            keys.add(clean_word)
+    
+    # Add significant words
+    for word in significant_words:
+        if len(word) >= 2:
+            keys.add(word)
+    
+    # Add combination keys for multi-word editions
+    if len(significant_words) >= 2:
+        keys.add("_".join(significant_words[:2]))
+    
+    # Add full normalized edition (without stopwords) as a key
+    if significant_words:
+        keys.add("_".join(significant_words))
+    
+    return keys
+
+
 class PublicationIndex:
     """Multi-key index for fast publication lookups"""
 
@@ -267,6 +323,7 @@ class PublicationIndex:
         self.title_index: Dict[str, Set[int]] = defaultdict(set)
         self.author_index: Dict[str, Set[int]] = defaultdict(set)
         self.publisher_index: Dict[str, Set[int]] = defaultdict(set)
+        self.edition_index: Dict[str, Set[int]] = defaultdict(set)
         self.year_index: Dict[int, Set[int]] = defaultdict(set)
         self.publications: List[Publication] = []
 
@@ -291,6 +348,12 @@ class PublicationIndex:
             publisher_keys = generate_publisher_keys(pub.publisher)
             for key in publisher_keys:
                 self.publisher_index[key].add(pub_id)
+
+        # Index by edition (gracefully handle missing edition data)
+        if pub.edition:
+            edition_keys = generate_edition_keys(pub.edition)
+            for key in edition_keys:
+                self.edition_index[key].add(pub_id)
 
         # Index by year
         if pub.year:
@@ -322,6 +385,13 @@ class PublicationIndex:
             for key in publisher_keys:
                 publisher_candidates.update(self.publisher_index.get(key, set()))
 
+        # Find candidates by edition (if available)
+        edition_candidates = set()
+        if query_pub.edition:
+            edition_keys = generate_edition_keys(query_pub.edition)
+            for key in edition_keys:
+                edition_candidates.update(self.edition_index.get(key, set()))
+
         # Find candidates by year (within tolerance)
         year_candidates = set()
         if query_pub.year:
@@ -329,7 +399,7 @@ class PublicationIndex:
                 target_year = query_pub.year + year_offset
                 year_candidates.update(self.year_index.get(target_year, set()))
 
-        # Combine candidates with priority
+        # Combine candidates with priority, including edition when available
         if title_candidates:
             candidates.update(title_candidates)
 
@@ -343,31 +413,76 @@ class PublicationIndex:
                         triple_intersection = intersection & publisher_candidates
                         if triple_intersection:
                             candidates = triple_intersection
+                            # If we also have edition candidates, try quadruple intersection
+                            if edition_candidates:
+                                quad_intersection = candidates & edition_candidates
+                                if quad_intersection:
+                                    candidates = quad_intersection
+                                else:
+                                    # Add edition candidates to existing intersection
+                                    candidates.update(edition_candidates)
                         else:
                             # Add publisher candidates to existing intersection
                             candidates.update(publisher_candidates)
+                            # Also add edition candidates if available
+                            if edition_candidates:
+                                candidates.update(edition_candidates)
+                    elif edition_candidates:
+                        # Have title+author and edition but no publisher
+                        triple_intersection = intersection & edition_candidates
+                        if triple_intersection:
+                            candidates = triple_intersection
+                        else:
+                            candidates.update(edition_candidates)
                 else:
                     # No intersection, but add author candidates too
                     candidates.update(author_candidates)
-                    # Also add publisher candidates if available
+                    # Also add publisher and edition candidates if available
                     if publisher_candidates:
                         candidates.update(publisher_candidates)
+                    if edition_candidates:
+                        candidates.update(edition_candidates)
             elif publisher_candidates:
                 # Have title and publisher but no author
                 intersection = title_candidates & publisher_candidates
                 if intersection:
                     candidates = intersection
+                    # Try to add edition if available
+                    if edition_candidates:
+                        triple_intersection = candidates & edition_candidates
+                        if triple_intersection:
+                            candidates = triple_intersection
+                        else:
+                            candidates.update(edition_candidates)
                 else:
                     candidates.update(publisher_candidates)
+                    # Add edition candidates if available
+                    if edition_candidates:
+                        candidates.update(edition_candidates)
+            elif edition_candidates:
+                # Have title and edition but no author or publisher
+                intersection = title_candidates & edition_candidates
+                if intersection:
+                    candidates = intersection
+                else:
+                    candidates.update(edition_candidates)
         elif author_candidates:
             # No title candidates, use author candidates
             candidates.update(author_candidates)
-            # Also add publisher candidates if available
+            # Also add publisher and edition candidates if available
             if publisher_candidates:
                 candidates.update(publisher_candidates)
+            if edition_candidates:
+                candidates.update(edition_candidates)
         elif publisher_candidates:
             # Only publisher candidates available
             candidates.update(publisher_candidates)
+            # Add edition candidates if available
+            if edition_candidates:
+                candidates.update(edition_candidates)
+        elif edition_candidates:
+            # Only edition candidates available
+            candidates.update(edition_candidates)
 
         # Filter by year if we have year info
         if year_candidates and candidates:
@@ -404,10 +519,12 @@ class PublicationIndex:
             "title_keys": len(self.title_index),
             "author_keys": len(self.author_index),
             "publisher_keys": len(self.publisher_index),
+            "edition_keys": len(self.edition_index),
             "year_keys": len(self.year_index),
             "avg_title_keys_per_pub": len(self.title_index) / max(1, len(self.publications)),
             "avg_author_keys_per_pub": len(self.author_index) / max(1, len(self.publications)),
             "avg_publisher_keys_per_pub": len(self.publisher_index) / max(1, len(self.publications)),
+            "avg_edition_keys_per_pub": len(self.edition_index) / max(1, len(self.publications)),
         }
 
 

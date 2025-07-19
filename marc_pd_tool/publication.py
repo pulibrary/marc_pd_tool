@@ -93,6 +93,7 @@ class Publication:
         pub_date: str = "",
         publisher: str = "",
         place: str = "",
+        edition: str = "",
         source: str = "",
         source_id: str = "",
         country_code: str = "",
@@ -104,6 +105,7 @@ class Publication:
         self.pub_date = pub_date
         self.publisher = self.normalize_text(publisher)
         self.place = self.normalize_text(place)
+        self.edition = self.normalize_text(edition)
         self.source = source
         self.source_id = source_id
         self.full_text = full_text  # Store original full_text for fuzzy matching
@@ -113,6 +115,7 @@ class Publication:
         self.original_author = author
         self.original_publisher = publisher
         self.original_place = place
+        self.original_edition = edition
 
         # Extract year
         self.year = self.extract_year()
@@ -197,6 +200,7 @@ class Publication:
             "pub_date": self.pub_date,
             "publisher": self.original_publisher,
             "place": self.original_place,
+            "edition": self.original_edition,
             "source": self.source,
             "source_id": self.source_id,
             "year": self.year,
