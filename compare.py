@@ -120,7 +120,7 @@ def main():
         "--min-year",
         type=int,
         default=None,
-        help="Minimum publication year to include (default: current year - 95)",
+        help="Minimum publication year to include (default: current year - 96)",
     )
     parser.add_argument(
         "--max-year",
@@ -143,7 +143,7 @@ def main():
     # Set minimum year if not provided
     if args.min_year is None:
         current_year = datetime.now().year
-        args.min_year = current_year - 95
+        args.min_year = current_year - 96
 
     # Validate year range
     if args.max_year is not None and args.max_year < args.min_year:

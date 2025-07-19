@@ -118,6 +118,7 @@ def process_batch(
                 ),
                 source_id=reg_match["copyright_record"]["source_id"],
                 source_type="registration",
+                matched_date=reg_match["copyright_record"]["pub_date"],
             )
             marc_pub.set_registration_match(match_result)
             stats["registration_matches_found"] += 1
@@ -150,6 +151,7 @@ def process_batch(
                 ),
                 source_id=ren_match["copyright_record"]["source_id"],
                 source_type="renewal",
+                matched_date=ren_match["copyright_record"]["pub_date"],
             )
             marc_pub.set_renewal_match(match_result)
             stats["renewal_matches_found"] += 1
@@ -252,20 +254,27 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
                 "Copyright Status",
                 "Registration Source ID",
                 "Renewal Entry ID",
+                "Registration Title",
+                "Registration Author",
+                "Registration Date",
                 "Registration Similarity Score",
-                "Renewal Similarity Score",
                 "Registration Title Score",
                 "Registration Author Score",
-                "Registration Combined Score",
+                "Renewal Title",
+                "Renewal Author",
+                "Renewal Date",
+                "Renewal Similarity Score",
                 "Renewal Title Score",
                 "Renewal Author Score",
-                "Renewal Combined Score",
             ]
         )
 
         for pub in marc_publications:
             # Get single match data for registration
             reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
+            reg_title = pub.registration_match.matched_title if pub.registration_match else ""
+            reg_author = pub.registration_match.matched_author if pub.registration_match else ""
+            reg_date = pub.registration_match.matched_date if pub.registration_match else ""
             reg_similarity_score = (
                 f"{pub.registration_match.similarity_score:.1f}" if pub.registration_match else ""
             )
@@ -275,19 +284,17 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
             reg_author_score = (
                 f"{pub.registration_match.author_score:.1f}" if pub.registration_match else ""
             )
-            reg_combined_score = (
-                f"{pub.registration_match.similarity_score:.1f}" if pub.registration_match else ""
-            )
+            
             # Get single match data for renewal
             ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
+            ren_title = pub.renewal_match.matched_title if pub.renewal_match else ""
+            ren_author = pub.renewal_match.matched_author if pub.renewal_match else ""
+            ren_date = pub.renewal_match.matched_date if pub.renewal_match else ""
             ren_similarity_score = (
                 f"{pub.renewal_match.similarity_score:.1f}" if pub.renewal_match else ""
             )
             ren_title_score = f"{pub.renewal_match.title_score:.1f}" if pub.renewal_match else ""
             ren_author_score = f"{pub.renewal_match.author_score:.1f}" if pub.renewal_match else ""
-            ren_combined_score = (
-                f"{pub.renewal_match.similarity_score:.1f}" if pub.renewal_match else ""
-            )
 
             csv_writer.writerow(
                 [
@@ -302,13 +309,17 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
                     pub.copyright_status.value,
                     reg_source_id,
                     ren_entry_id,
+                    reg_title,
+                    reg_author,
+                    reg_date,
                     reg_similarity_score,
-                    ren_similarity_score,
                     reg_title_score,
                     reg_author_score,
-                    reg_combined_score,
+                    ren_title,
+                    ren_author,
+                    ren_date,
+                    ren_similarity_score,
                     ren_title_score,
                     ren_author_score,
-                    ren_combined_score,
                 ]
             )

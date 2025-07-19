@@ -30,6 +30,7 @@ class TestConfidenceScores:
             year_difference=1,
             source_id="reg_001",
             source_type="registration",
+            matched_date="1950",
         )
 
         assert match.title_score == 90.0
@@ -58,6 +59,7 @@ class TestConfidenceScores:
             year_difference=1,
             source_id="reg_001",
             source_type="registration",
+            matched_date="1950",
         )
         pub.set_registration_match(match)
 
@@ -92,14 +94,18 @@ class TestConfidenceScores:
 
             # Check for confidence score headers
             expected_headers = [
+                "Registration Title",
+                "Registration Author",
+                "Registration Date",
                 "Registration Similarity Score",
-                "Renewal Similarity Score",
                 "Registration Title Score",
                 "Registration Author Score",
-                "Registration Combined Score",
+                "Renewal Title",
+                "Renewal Author",
+                "Renewal Date",
+                "Renewal Similarity Score",
                 "Renewal Title Score",
                 "Renewal Author Score",
-                "Renewal Combined Score",
             ]
 
             # Check for renewal entry ID header
@@ -137,6 +143,7 @@ class TestConfidenceScores:
             year_difference=0,
             source_id="b3ce7263-9e8b-5f9e-b1a0-190723af8d29",
             source_type="renewal",
+            matched_date="1950-01-01",
         )
         pub.set_renewal_match(ren_match)
 
@@ -181,6 +188,7 @@ class TestConfidenceScores:
             year_difference=1,
             source_id="reg_001",
             source_type="registration",
+            matched_date="1950",
         )
         pub.set_registration_match(reg_match)
 
@@ -194,6 +202,7 @@ class TestConfidenceScores:
             year_difference=0,
             source_id="ren_001",
             source_type="renewal",
+            matched_date="1950-01-01",
         )
         pub.set_renewal_match(ren_match)
 
@@ -215,15 +224,19 @@ class TestConfidenceScores:
             assert row_dict["Registration Similarity Score"] == "85.5"
             assert row_dict["Renewal Similarity Score"] == "88.2"
 
-            # Check registration scores
+            # Check registration scores and source data
+            assert row_dict["Registration Title"] == "Test Book (reg)"
+            assert row_dict["Registration Author"] == "Test Author (reg)"
+            assert row_dict["Registration Date"] == "1950"
             assert row_dict["Registration Title Score"] == "90.0"
             assert row_dict["Registration Author Score"] == "75.0"
-            assert row_dict["Registration Combined Score"] == "85.5"
 
-            # Check renewal scores
+            # Check renewal scores and source data
+            assert row_dict["Renewal Title"] == "Test Book (ren)"
+            assert row_dict["Renewal Author"] == "Test Author (ren)"
+            assert row_dict["Renewal Date"] == "1950-01-01"
             assert row_dict["Renewal Title Score"] == "92.0"
             assert row_dict["Renewal Author Score"] == "80.0"
-            assert row_dict["Renewal Combined Score"] == "88.2"
 
         finally:
             unlink(temp_file)
@@ -255,15 +268,19 @@ class TestConfidenceScores:
             # Create a mapping for easier access
             row_dict = dict(zip(headers, data_row))
 
-            # Check that score fields are empty
+            # Check that score fields and source data are empty
             assert row_dict["Registration Similarity Score"] == ""
             assert row_dict["Renewal Similarity Score"] == ""
+            assert row_dict["Registration Title"] == ""
+            assert row_dict["Registration Author"] == ""
+            assert row_dict["Registration Date"] == ""
             assert row_dict["Registration Title Score"] == ""
             assert row_dict["Registration Author Score"] == ""
-            assert row_dict["Registration Combined Score"] == ""
+            assert row_dict["Renewal Title"] == ""
+            assert row_dict["Renewal Author"] == ""
+            assert row_dict["Renewal Date"] == ""
             assert row_dict["Renewal Title Score"] == ""
             assert row_dict["Renewal Author Score"] == ""
-            assert row_dict["Renewal Combined Score"] == ""
 
         finally:
             unlink(temp_file)
@@ -289,6 +306,7 @@ class TestConfidenceScores:
             year_difference=0,
             source_id="reg_002",
             source_type="registration",
+            matched_date="1955",
         )
         pub.set_registration_match(match)
 
@@ -306,11 +324,21 @@ class TestConfidenceScores:
             # Create a mapping for easier access
             row_dict = dict(zip(headers, data_row))
 
-            # Should show scores from the single match
+            # Should show scores and source data from the single match
             assert row_dict["Registration Similarity Score"] == "90.0"
+            assert row_dict["Registration Title"] == "Test Book"
+            assert row_dict["Registration Author"] == "Test Author"
+            assert row_dict["Registration Date"] == "1955"
             assert row_dict["Registration Title Score"] == "95.0"
             assert row_dict["Registration Author Score"] == "80.0"
-            assert row_dict["Registration Combined Score"] == "90.0"
+
+            # Should show empty renewal data
+            assert row_dict["Renewal Similarity Score"] == ""
+            assert row_dict["Renewal Title"] == ""
+            assert row_dict["Renewal Author"] == ""
+            assert row_dict["Renewal Date"] == ""
+            assert row_dict["Renewal Title Score"] == ""
+            assert row_dict["Renewal Author Score"] == ""
 
         finally:
             unlink(temp_file)

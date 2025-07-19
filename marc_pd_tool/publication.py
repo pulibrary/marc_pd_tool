@@ -81,6 +81,7 @@ class MatchResult:
     year_difference: int
     source_id: str
     source_type: str
+    matched_date: str = ""  # Source publication/registration date
 
 
 class Publication:
