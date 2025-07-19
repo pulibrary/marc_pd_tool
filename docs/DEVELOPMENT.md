@@ -19,7 +19,7 @@ marc_pd_tool/
 ├── copyright_loader.py      # Copyright registration data loading
 ├── renewal_loader.py        # Renewal data loading (TSV format)
 ├── indexer.py               # Multi-key indexing system with author type support
-└── batch_processor.py       # Parallel dual-dataset matching with metaphone tracking
+└── batch_processor.py       # Parallel dual-dataset matching
 compare.py                   # Command-line application
 ```
 
@@ -50,7 +50,7 @@ class Publication:
         self.title = self.normalize_text(title)           # For matching
         self.original_title = title                       # For output
         
-        # Match tracking with metaphone usage
+        # Match tracking
         self.registration_matches: List[MatchResult] = []
         self.renewal_matches: List[MatchResult] = []
         
@@ -62,9 +62,9 @@ class Publication:
         self.author_type = author_type
 ```
 
-### MatchResult Class Enhancement
+### MatchResult Class
 
-The MatchResult class now tracks metaphone usage:
+The MatchResult class stores match information:
 
 ```python
 @dataclass
@@ -72,11 +72,12 @@ class MatchResult:
     matched_title: str
     matched_author: str
     similarity_score: float
+    title_score: float
+    author_score: float
     year_difference: int
     source_id: str
     source_type: str
-    used_metaphone_title: bool = False
-    used_metaphone_author: bool = False
+    matched_date: str = ""
 ```
 
 This design allows for:
@@ -181,12 +182,7 @@ def generate_title_keys(title: str) -> Set[str]:
         if len(words) >= 3:
             keys.add("_".join(words[:3])) # First three words
     
-    # Phonetic matching
-    for word in words[:2]:
-        metaphones = doublemetaphone(word)
-        for metaphone in metaphones:
-                if metaphone:
-                    keys.add(f"meta_{metaphone}")
+    # Note: Metaphone keys removed to reduce false positives
     
     return keys
 ```
@@ -205,14 +201,7 @@ def generate_author_keys(author: str, author_type: AuthorType = AuthorType.UNKNO
         # Unknown type: fall back to personal name parsing
         keys, words = _generate_personal_name_keys(author_lower)
     
-    # Add metaphone keys only for significant words
-    if words:
-        for word in words[:2]:
-            if len(word) >= 3:
-                metaphones = doublemetaphone(word)
-                for metaphone in metaphones:
-                    if metaphone:
-                        keys.add(f"meta_{metaphone}")
+    # Note: Metaphone keys removed to reduce false positives
     
     return keys
 ```
@@ -235,7 +224,6 @@ def _generate_personal_name_keys(author_lower: str) -> Tuple[Set[str], List[str]
         keys.add(f"{surname}_{given_names[0][0]}") # Surname + Initial
         keys.add(f"{given_names[0]}_{surname}")    # First + Surname
         
-        metaphone_words = [surname, given_names[0]]
     else:
         # "First Last" format
         words = normalize_text(author_lower).split()
@@ -243,15 +231,14 @@ def _generate_personal_name_keys(author_lower: str) -> Tuple[Set[str], List[str]
         keys.add(f"{words[0]}_{words[-1]}")       # First + Last
         keys.add(f"{words[-1]}_{words[0]}")       # Last + First
         
-        metaphone_words = [words[-1], words[0]]
     
-    return keys, metaphone_words
+    return keys
 ```
 
 **Corporate/Meeting Name Keys** (Fields 110/111):
 
 ```python
-def _generate_corporate_name_keys(author_lower: str) -> Tuple[Set[str], List[str]]:
+def _generate_corporate_name_keys(author_lower: str) -> Set[str]:
     keys = set()
     
     # Extract significant words (filters stopwords)
@@ -272,17 +259,16 @@ def _generate_corporate_name_keys(author_lower: str) -> Tuple[Set[str], List[str
         for i in range(len(words) - 2):
             keys.add(f"{words[i]}_{words[i+1]}_{words[i+2]}")
     
-    return keys, words
+    return keys
 ```
 
 The indexing handles:
 
 - **Author type-specific strategies**: Personal, corporate, and meeting names use appropriate parsing logic
 - **Different word orders and formats**: Handles variations in name presentation
-- **Enhanced phonetic matching**: C++ DoubleMetaphone implementation for performance
-- **Smart stopword filtering**: Metaphone keys only generated for significant words
+- **Smart stopword filtering**: Only significant words used for key generation
 - **Multi-level indexing**: Title, author (with type), and year dimensions
-- **Metaphone usage tracking**: Records when phonetic matching contributed to candidate selection
+- **False positive reduction**: Removed phonetic matching to eliminate excessive false matches
 
 ### 3.2 Candidate Filtering Strategy
 

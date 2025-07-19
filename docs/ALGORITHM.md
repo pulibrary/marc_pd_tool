@@ -77,7 +77,7 @@ Each MARC record can have at most one match in each dataset (registration and re
 
 ### 3. Copyright Status Determination
 
-Based on the pattern of matches found, we assign one of four copyright status categories:
+Based on the pattern of matches found, we assign one of five copyright status categories:
 
 **For US Publications:**
 
@@ -130,19 +130,24 @@ The tool produces a CSV file with comprehensive analysis results:
 - Registration Source ID, Renewal Entry ID (source IDs for lookup)
 - Registration Similarity Score, Renewal Similarity Score (overall match quality)
 
-**Detailed Similarity Scores:**
+**Complete CSV Column Headers:**
 
-- Registration Title Score, Registration Author Score, Registration Combined Score
-- Renewal Title Score, Renewal Author Score, Renewal Combined Score
+- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place
+- Country Code, Country Classification, Copyright Status
+- Registration Source ID, Renewal Entry ID
+- Registration Title, Registration Author, Registration Date
+- Registration Similarity Score, Registration Title Score, Registration Author Score
+- Renewal Title, Renewal Author, Renewal Date
+- Renewal Similarity Score, Renewal Title Score, Renewal Author Score
 
 **Sample Output:**
 
 ```csv
-MARC ID,MARC Title,MARC Author,Country Code,Country Classification,Copyright Status,Registration Source ID,Renewal Entry ID,Registration Similarity Score,Renewal Similarity Score
-99123456,The Great Novel,Smith John,xxu,US,POTENTIALLY_PD_DATE_VERIFY,R456789,,82.5,
-99789012,Another Book,Jones Mary,uk,Non-US,RESEARCH_US_STATUS,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,75.3
-99345678,Mystery Work,Author Unknown,,Unknown,Country Unknown,,,, 
-99111222,Popular Title,Common Author,xxu,US,POTENTIALLY_IN_COPYRIGHT,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,88.7,91.2
+MARC ID,MARC Title,MARC Author,MARC Year,Country Code,Country Classification,Copyright Status,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score
+99123456,The Great Novel,Smith John,1955,xxu,US,POTENTIALLY_PD_DATE_VERIFY,R456789,,The great novel,Smith John,1955,82.5,85.0,75.0
+99789012,Another Book,Jones Mary,1960,uk,Non-US,RESEARCH_US_STATUS,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,Another book,Jones Mary,75.3,78.0,70.0
+99345678,Mystery Work,Author Unknown,1950,,Unknown,Country Unknown,,,,,,,,
+99111222,Popular Title,Common Author,1965,xxu,US,POTENTIALLY_IN_COPYRIGHT,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Popular title,Common Author,1965,88.7,90.0,85.0
 ```
 
 **Important Notes:**
