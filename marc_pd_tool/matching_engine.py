@@ -14,7 +14,9 @@ from typing import Tuple
 from fuzzywuzzy import fuzz
 
 # Local imports
+from marc_pd_tool.default_matching import DefaultMatchingEngine
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
+from marc_pd_tool.matching_api import MatchingEngine
 from marc_pd_tool.publication import MatchResult
 from marc_pd_tool.publication import Publication
 
@@ -259,139 +261,32 @@ def find_best_match(
     early_exit_title: int = 95,
     early_exit_author: int = 90,
     generic_detector: GenericTitleDetector = None,
+    matching_engine: Optional[MatchingEngine] = None,
 ) -> Optional[Dict]:
-    """Find the best matching copyright publication for a MARC record"""
-    best_score = 0
-    best_match = None
-
-    for copyright_pub in copyright_pubs:
-        # Year filtering
-        if marc_pub.year and copyright_pub.year:
-            if abs(marc_pub.year - copyright_pub.year) > year_tolerance:
-                continue
-
-        # Calculate similarity scores - use full title for better part matching
-        title_score = fuzz.ratio(marc_pub.full_title_normalized, copyright_pub.title)
-
-        # Skip if title similarity is too low
-        if title_score < title_threshold:
-            continue
-
-        # Calculate author scores for both 245$c and 1xx fields, take the maximum
-        author_score_245c = (
-            fuzz.ratio(marc_pub.author, copyright_pub.author)
-            if marc_pub.author and copyright_pub.author
-            else 0
-        )
+    """Find the best matching copyright publication for a MARC record
+    
+    This function maintains backward compatibility while delegating to the new API.
+    
+    Args:
+        marc_pub: MARC publication to match
+        copyright_pubs: List of copyright/renewal publications to search
+        title_threshold: Minimum title similarity score (0-100)
+        author_threshold: Minimum author similarity score (0-100)
+        year_tolerance: Maximum year difference for matching
+        publisher_threshold: Minimum publisher similarity score (0-100)
+        early_exit_title: Title score for early termination (0-100)
+        early_exit_author: Author score for early termination (0-100)
+        generic_detector: Optional generic title detector
+        matching_engine: Optional custom matching engine (uses default if None)
         
-        author_score_1xx = (
-            fuzz.ratio(marc_pub.main_author, copyright_pub.author)
-            if marc_pub.main_author and copyright_pub.author
-            else 0
-        )
-        
-        # Use the higher of the two author scores
-        author_score = max(author_score_245c, author_score_1xx)
-
-        # Calculate publisher score - use different strategies for renewal vs registration
-        if marc_pub.publisher:
-            if copyright_pub.source == "Renewal" and copyright_pub.full_text:
-                # For renewals: fuzzy match MARC publisher against renewal full_text
-                publisher_score = fuzz.partial_ratio(marc_pub.publisher, copyright_pub.full_text)
-            elif copyright_pub.publisher:
-                # For registrations: direct publisher comparison
-                publisher_score = fuzz.ratio(marc_pub.publisher, copyright_pub.publisher)
-            else:
-                publisher_score = 0
-        else:
-            publisher_score = 0
-
-        # Dynamic weighted scoring based on generic title detection
-        # Check if either title is generic (MARC or copyright record)
-        marc_title_is_generic = False
-        copyright_title_is_generic = False
-
-        if generic_detector:
-            marc_title_is_generic = generic_detector.is_generic(
-                marc_pub.original_title, marc_pub.language_code
-            )
-            copyright_title_is_generic = generic_detector.is_generic(
-                copyright_pub.original_title, copyright_pub.language_code
-            )
-
-        # Determine if any title is generic
-        has_generic_title = marc_title_is_generic or copyright_title_is_generic
-
-        # Apply dynamic scoring weights
-        if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
-            if has_generic_title:
-                # Generic title detected: title=30%, author=45%, publisher=25%
-                combined_score = (
-                    (title_score * 0.3) + (author_score * 0.45) + (publisher_score * 0.25)
-                )
-            else:
-                # Normal scoring: title=60%, author=25%, publisher=15%
-                combined_score = (
-                    (title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)
-                )
-        else:
-            if has_generic_title:
-                # Generic title, no publisher: title=40%, author=60%
-                combined_score = (title_score * 0.4) + (author_score * 0.6)
-            else:
-                # Normal, no publisher: title=70%, author=30%
-                combined_score = (title_score * 0.7) + (author_score * 0.3)
-
-        # Apply thresholds: publisher threshold only matters if MARC has publisher data
-        publisher_threshold_met = not marc_pub.publisher or publisher_score >= publisher_threshold
-
-        if (
-            combined_score > best_score
-            and (
-                not marc_pub.author or not copyright_pub.author or author_score >= author_threshold
-            )
-            and publisher_threshold_met
-        ):
-
-            best_score = combined_score
-            best_match = {
-                "marc_record": marc_pub.to_dict(),
-                "copyright_record": copyright_pub.to_dict(),
-                "similarity_scores": {
-                    "title": title_score,
-                    "author": author_score,
-                    "publisher": publisher_score,
-                    "combined": combined_score,
-                },
-                "generic_title_info": {
-                    "marc_title_is_generic": marc_title_is_generic,
-                    "copyright_title_is_generic": copyright_title_is_generic,
-                    "has_generic_title": has_generic_title,
-                    "marc_detection_reason": (
-                        generic_detector.get_detection_reason(
-                            marc_pub.original_title, marc_pub.language_code
-                        )
-                        if generic_detector
-                        else "none"
-                    ),
-                    "copyright_detection_reason": (
-                        generic_detector.get_detection_reason(
-                            copyright_pub.original_title, copyright_pub.language_code
-                        )
-                        if generic_detector
-                        else "none"
-                    ),
-                },
-            }
-
-            # Early termination: Only exit if we have BOTH title and author with very high confidence
-            # Consider early exit if we have either author field with high confidence
-            has_author_data = (marc_pub.author and copyright_pub.author) or (marc_pub.main_author and copyright_pub.author)
-            if (
-                title_score >= early_exit_title
-                and has_author_data
-                and author_score >= early_exit_author
-            ):
-                break
-
-    return best_match
+    Returns:
+        Dictionary with match information or None if no match found
+    """
+    if matching_engine is None:
+        matching_engine = DefaultMatchingEngine()
+    
+    return matching_engine.find_best_match(
+        marc_pub, copyright_pubs, title_threshold, author_threshold,
+        year_tolerance, publisher_threshold, early_exit_title, early_exit_author,
+        generic_detector
+    )

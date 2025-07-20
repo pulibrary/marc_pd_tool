@@ -791,6 +791,277 @@ The system includes tests for:
 1. Track index effectiveness metrics
 1. Profile hot paths regularly
 
+## 10. Matching and Scoring API
+
+### 10.1 API Overview
+
+The system provides a pluggable matching and scoring API that allows alternative implementations without modifying the core application logic. This enables experimentation with different similarity algorithms, scoring strategies, and matching approaches.
+
+### 10.2 Abstract Base Classes
+
+**Core Interfaces (`matching_api.py`)**:
+
+```python
+from marc_pd_tool.matching_api import SimilarityCalculator, ScoreCombiner, MatchingEngine
+
+class SimilarityCalculator(ABC):
+    """Calculate similarity between text fields"""
+    
+    @abstractmethod
+    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
+        """Returns similarity score 0-100"""
+        pass
+    
+    @abstractmethod  
+    def calculate_author_similarity(self, marc_author: str, copyright_author: str) -> float:
+        """Returns similarity score 0-100"""
+        pass
+    
+    @abstractmethod
+    def calculate_publisher_similarity(self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = "") -> float:
+        """Returns similarity score 0-100"""
+        pass
+
+class ScoreCombiner(ABC):
+    """Combine individual similarity scores into final score"""
+    
+    @abstractmethod
+    def combine_scores(self, title_score: float, author_score: float, publisher_score: float, 
+                      marc_pub: Publication, copyright_pub: Publication, 
+                      generic_detector: Optional[GenericTitleDetector] = None) -> float:
+        """Returns combined score 0-100"""
+        pass
+
+class MatchingEngine(ABC):
+    """Complete matching process implementation"""
+    
+    @abstractmethod
+    def find_best_match(self, marc_pub: Publication, copyright_pubs: List[Publication], 
+                       title_threshold: int, author_threshold: int, year_tolerance: int,
+                       publisher_threshold: int, early_exit_title: int, early_exit_author: int,
+                       generic_detector: Optional[GenericTitleDetector] = None) -> Optional[Dict]:
+        """Returns match dictionary or None"""
+        pass
+```
+
+### 10.3 Default Implementations
+
+**Current Algorithm (`default_matching.py`)**:
+
+```python
+from marc_pd_tool.default_matching import (
+    FuzzyWuzzySimilarityCalculator,
+    DynamicWeightingCombiner, 
+    DefaultMatchingEngine
+)
+
+# Use default components
+engine = DefaultMatchingEngine()
+
+# Or compose custom combinations
+engine = DefaultMatchingEngine(
+    similarity_calculator=FuzzyWuzzySimilarityCalculator(),
+    score_combiner=DynamicWeightingCombiner()
+)
+```
+
+**Key Features of Default Implementation**:
+
+- **FuzzyWuzzySimilarityCalculator**: Uses `fuzzywuzzy` library with Levenshtein distance
+- **DynamicWeightingCombiner**: Adjusts weights based on generic title detection and available data
+- **DefaultMatchingEngine**: Implements current dual-author scoring, thresholds, and early termination
+
+### 10.4 Creating Custom Implementations
+
+**Example: Exact Match Calculator**:
+
+```python
+class ExactMatchCalculator(SimilarityCalculator):
+    """Simple exact string matching"""
+    
+    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
+        return 100.0 if marc_title.lower() == copyright_title.lower() else 0.0
+    
+    def calculate_author_similarity(self, marc_author: str, copyright_author: str) -> float:
+        return 100.0 if marc_author.lower() == copyright_author.lower() else 0.0
+    
+    def calculate_publisher_similarity(self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = "") -> float:
+        if copyright_full_text:
+            return 100.0 if marc_publisher.lower() in copyright_full_text.lower() else 0.0
+        return 100.0 if marc_publisher.lower() == copyright_publisher.lower() else 0.0
+
+# Use custom calculator with default combiner
+engine = DefaultMatchingEngine(
+    similarity_calculator=ExactMatchCalculator(),
+    score_combiner=DynamicWeightingCombiner()
+)
+```
+
+**Example: Custom Score Combiner**:
+
+```python
+class EqualWeightCombiner(ScoreCombiner):
+    """Equal weighting for all components"""
+    
+    def combine_scores(self, title_score, author_score, publisher_score, marc_pub, copyright_pub, generic_detector=None):
+        # Simple equal weighting regardless of generic titles
+        if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
+            return (title_score + author_score + publisher_score) / 3
+        else:
+            return (title_score + author_score) / 2
+
+# Use custom combiner with default calculator
+engine = DefaultMatchingEngine(
+    similarity_calculator=FuzzyWuzzySimilarityCalculator(),
+    score_combiner=EqualWeightCombiner()
+)
+```
+
+### 10.5 Backward Compatibility
+
+**Existing Code Continues to Work**:
+
+```python
+from marc_pd_tool.matching_engine import find_best_match
+
+# This function signature is unchanged
+result = find_best_match(
+    marc_pub, copyright_pubs, 
+    title_threshold=80, author_threshold=70, year_tolerance=2,
+    publisher_threshold=60, early_exit_title=95, early_exit_author=90,
+    generic_detector=detector
+)
+```
+
+**New API Parameter (Optional)**:
+
+```python
+# Optionally specify custom engine
+result = find_best_match(
+    marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90, detector,
+    matching_engine=custom_engine  # NEW: Optional parameter
+)
+```
+
+### 10.6 Advanced Use Cases
+
+**Machine Learning Integration**:
+
+```python
+class MLSimilarityCalculator(SimilarityCalculator):
+    """Use pre-trained models for similarity"""
+    
+    def __init__(self, model_path: str):
+        self.model = load_similarity_model(model_path)
+    
+    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
+        return self.model.predict_similarity(marc_title, copyright_title) * 100
+```
+
+**Semantic Similarity**:
+
+```python
+class SemanticSimilarityCalculator(SimilarityCalculator):
+    """Use word embeddings for semantic similarity"""
+    
+    def __init__(self):
+        import sentence_transformers
+        self.model = sentence_transformers.SentenceTransformer('all-MiniLM-L6-v2')
+    
+    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
+        embeddings = self.model.encode([marc_title, copyright_title])
+        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
+        return similarity * 100
+```
+
+**Domain-Specific Scoring**:
+
+```python
+class LibraryScienceCombiner(ScoreCombiner):
+    """Scoring optimized for library science use cases"""
+    
+    def combine_scores(self, title_score, author_score, publisher_score, marc_pub, copyright_pub, generic_detector=None):
+        # Higher emphasis on author for academic works
+        if self._is_academic_work(marc_pub):
+            return (title_score * 0.3) + (author_score * 0.6) + (publisher_score * 0.1)
+        else:
+            return (title_score * 0.7) + (author_score * 0.2) + (publisher_score * 0.1)
+    
+    def _is_academic_work(self, pub: Publication) -> bool:
+        academic_publishers = {"academic press", "university press", "mit press"}
+        return any(ap in pub.publisher.lower() for ap in academic_publishers)
+```
+
+### 10.7 Testing Custom Implementations
+
+**Contract Testing**:
+
+All custom implementations should pass the API contract tests:
+
+```python
+# Your custom implementation
+calculator = YourCustomCalculator()
+
+# Test basic contracts
+assert isinstance(calculator.calculate_title_similarity("test", "test"), (int, float))
+assert 0 <= calculator.calculate_title_similarity("test", "test") <= 100
+```
+
+**Integration Testing**:
+
+```python
+from marc_pd_tool.default_matching import DefaultMatchingEngine
+
+# Test with real data
+engine = DefaultMatchingEngine(
+    similarity_calculator=YourCustomCalculator(),
+    score_combiner=YourCustomCombiner()
+)
+
+# Run against known test cases
+result = engine.find_best_match(test_marc_pub, test_copyright_pubs, ...)
+assert result is not None  # Should find expected matches
+```
+
+### 10.8 Performance Considerations
+
+**Optimization Tips**:
+
+1. **Caching**: Cache expensive similarity calculations
+2. **Early Termination**: Implement early exit when scores are very low
+3. **Batch Processing**: Process multiple comparisons efficiently  
+4. **Memory Management**: Avoid loading large models repeatedly
+
+**Profiling Custom Implementations**:
+
+```python
+import time
+
+class ProfilingCalculator(SimilarityCalculator):
+    def __init__(self, base_calculator):
+        self.base = base_calculator
+        self.timings = []
+    
+    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
+        start = time.time()
+        result = self.base.calculate_title_similarity(marc_title, copyright_title)
+        self.timings.append(time.time() - start)
+        return result
+```
+
+### 10.9 Migration Guide
+
+**From Hardcoded Logic to API**:
+
+1. **Identify Custom Logic**: Find where you need different behavior
+2. **Choose Component**: Determine if you need custom calculator, combiner, or full engine
+3. **Implement Interface**: Create class implementing appropriate abstract base class
+4. **Test Thoroughly**: Ensure new implementation handles edge cases
+5. **Performance Test**: Compare performance with default implementation
+6. **Deploy Gradually**: Test with subset of data before full deployment
+
 ## Conclusion
 
 The system achieves performance through multi-key indexing, parallel processing, memory management, early termination, and hierarchical filtering. This architecture processes 190K records against 2.5M reference records in 6-20 hours on modern hardware.
+
+The new matching and scoring API provides a clean extension point for alternative algorithms while maintaining full backward compatibility and enabling experimentation with advanced techniques like machine learning and semantic similarity.

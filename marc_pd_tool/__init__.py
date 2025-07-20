@@ -3,12 +3,19 @@
 # Local imports
 from marc_pd_tool.copyright_loader import CopyrightDataLoader
 from marc_pd_tool.csv_exporter import save_matches_csv
+from marc_pd_tool.default_matching import DefaultMatchingEngine
+from marc_pd_tool.default_matching import DynamicWeightingCombiner
+from marc_pd_tool.default_matching import FuzzyWuzzySimilarityCalculator
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.indexer import PublicationIndex
 from marc_pd_tool.indexer import build_index
 from marc_pd_tool.marc_extractor import ParallelMarcExtractor
 from marc_pd_tool.marc_utilities import extract_country_from_marc_008
+from marc_pd_tool.matching_api import MatchingEngine
+from marc_pd_tool.matching_api import ScoreCombiner
+from marc_pd_tool.matching_api import SimilarityCalculator
+from marc_pd_tool.matching_api import SimilarityScores
 from marc_pd_tool.matching_engine import find_best_match
 from marc_pd_tool.matching_engine import process_batch
 from marc_pd_tool.publication import MatchResult
@@ -16,17 +23,31 @@ from marc_pd_tool.publication import Publication
 from marc_pd_tool.renewal_loader import RenewalDataLoader
 
 __all__ = [
+    # Core data structures
     "Publication",
     "MatchResult",
-    "ParallelMarcExtractor",
+    "CopyrightStatus",
+    "CountryClassification",
+    # Data loaders
     "CopyrightDataLoader",
     "RenewalDataLoader",
-    "CountryClassification",
-    "CopyrightStatus",
-    "extract_country_from_marc_008",
+    "ParallelMarcExtractor",
+    # Processing functions
     "process_batch",
     "find_best_match",
-    "save_matches_csv",
-    "build_index",
+    # Indexing
     "PublicationIndex",
+    "build_index",
+    # Utilities
+    "save_matches_csv",
+    "extract_country_from_marc_008",
+    # Matching and Scoring API
+    "SimilarityCalculator",
+    "ScoreCombiner",
+    "MatchingEngine",
+    "SimilarityScores",
+    # Default Implementations
+    "FuzzyWuzzySimilarityCalculator",
+    "DynamicWeightingCombiner",
+    "DefaultMatchingEngine",
 ]
