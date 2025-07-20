@@ -36,6 +36,8 @@ For each MARC record, we search for similar entries in both the registration and
 - **Author Type Recognition**: Personal names (field 100), corporate names (field 110), and meeting names (field 111) are handled with appropriate parsing strategies
 - **Publisher Indexing**: Multi-key indexing includes publisher information with specialized stopword filtering
 - **Edition Indexing**: Multi-key indexing includes edition information when available, with ordinal and descriptive term recognition
+- **Generic Title Detection**: Dynamic scoring adjustments for generic titles like "collected works" (English-only)
+- **Language-Aware Processing**: Uses MARC language codes to apply appropriate detection strategies
 - **Intelligent Indexing**: Multi-key indexing reduces search space from billions to thousands of candidates per query
 - **Smart Word Filtering**: Only significant words are used for key generation, with publishing and edition-specific stopwords removed
 
@@ -51,13 +53,15 @@ For each MARC record, we search for similar entries in both the registration and
 
 **Matching Criteria:**
 
-- Title similarity (weighted 60% or 70%, calculated using Levenshtein distance)
-- Author similarity (weighted 25% or 30%, calculated using Levenshtein distance) - using author type-specific parsing
-- Publisher similarity (weighted 15%, calculated using fuzzy matching strategies)
+- Title similarity (weighted 30-70%, calculated using Levenshtein distance)
+- Author similarity (weighted 25-60%, calculated using Levenshtein distance) - using author type-specific parsing
+- Publisher similarity (weighted 15-25%, calculated using fuzzy matching strategies)
 - Publication year (within ±2 years)
-- Combined score (adaptive weighting based on available data):
-  - **With publisher data**: `(title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)`
-  - **Without publisher data**: `(title_score * 0.7) + (author_score * 0.3)` (redistributes publisher weight)
+- Combined score (adaptive weighting based on available data and generic title detection):
+  - **Normal titles with publisher**: `(title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)`
+  - **Generic titles with publisher**: `(title_score * 0.3) + (author_score * 0.45) + (publisher_score * 0.25)`
+  - **Normal titles without publisher**: `(title_score * 0.7) + (author_score * 0.3)`
+  - **Generic titles without publisher**: `(title_score * 0.4) + (author_score * 0.6)`
 
 **Important: Scoring Method**
 
@@ -80,12 +84,33 @@ Each MARC record can have at most one match in each dataset (registration and re
 
 **MARC Fields Used for Extraction:**
 
-- **Field 008**: Country codes (positions 15-17) and publication dates
+- **Field 008**: Country codes (positions 15-17), language codes (positions 35-37), and publication dates
+- **Field 041$a**: Language codes (fallback if not in field 008)
 - **Fields 264/260**: Publication data (RDA and AACR2 formats)
 - **Field 245$c**: Author information from statement of responsibility (more likely to match copyright data format than formal authority fields)
 - **Field 250$a**: Edition statements (e.g., "2nd ed.", "Revised edition", "First printing")
 
-### 3. Copyright Status Determination
+### 3. Generic Title Detection
+
+Before applying similarity scoring, the system detects generic titles that would provide poor discrimination between different works.
+
+**Detection Methods:**
+
+1. **Pattern Matching**: Recognizes common generic title patterns:
+
+   - Collections: "collected works", "selected writings", "complete works"
+   - Genre-specific: "poems", "essays", "short stories", "plays", "letters"
+   - Academic: "proceedings", "transactions", "papers", "studies"
+
+1. **Frequency Analysis**: Identifies titles appearing frequently across the dataset (configurable threshold, default: 10+ occurrences)
+
+1. **Linguistic Patterns**: Detects short titles with high stopword ratios or single genre words
+
+**Language Limitation**: Generic title detection currently works only for English titles (language codes 'eng', 'en'). Non-English titles bypass generic detection using a conservative approach to prevent false positives.
+
+**Scoring Adjustment**: When generic titles are detected, the algorithm reduces title weight and increases author/publisher weights to emphasize more discriminating fields.
+
+### 4. Copyright Status Determination
 
 Based on the pattern of matches found, we assign one of five copyright status categories:
 
@@ -128,7 +153,7 @@ The tool produces a CSV file with comprehensive analysis results:
 
 **MARC Record Data:**
 
-- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition
+- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition, Language Code
 
 **Country Classification:**
 
@@ -137,13 +162,16 @@ The tool produces a CSV file with comprehensive analysis results:
 **Copyright Analysis Results:**
 
 - Copyright Status (algorithmic determination)
+- Generic Title Detected, Generic Detection Reason (scoring adjustment tracking)
+- Registration Generic Title, Renewal Generic Title (per-dataset detection)
 - Registration Source ID, Renewal Entry ID (source IDs for lookup)
 - Registration Similarity Score, Renewal Similarity Score (overall match quality)
 
 **Complete CSV Column Headers:**
 
-- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition
+- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition, Language Code
 - Country Code, Country Classification, Copyright Status
+- Generic Title Detected, Generic Detection Reason, Registration Generic Title, Renewal Generic Title
 - Registration Source ID, Renewal Entry ID
 - Registration Title, Registration Author, Registration Publisher, Registration Date
 - Registration Similarity Score, Registration Title Score, Registration Author Score, Registration Publisher Score
@@ -153,11 +181,11 @@ The tool produces a CSV file with comprehensive analysis results:
 **Sample Output:**
 
 ```csv
-MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,Country Code,Country Classification,Copyright Status,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Publisher,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score,Registration Publisher Score,Renewal Title,Renewal Author,Renewal Publisher,Renewal Date,Renewal Similarity Score,Renewal Title Score,Renewal Author Score,Renewal Publisher Score
-99123456,The Great Novel,Smith John,1955,Great Books Inc,New York,First edition,xxu,US,POTENTIALLY_PD_DATE_VERIFY,R456789,,The great novel,Smith John,Great Books Inc,1955,82.5,85.0,75.0,90.0,,,,,,,,
-99789012,Another Book,Jones Mary,1960,Academic Press,London,2nd ed.,uk,Non-US,RESEARCH_US_STATUS,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,,Academic Press snippet,1960,75.3,78.0,70.0,,Another book,Jones Mary,Academic Press,1960,82.1,85.0,72.0,75.0
-99345678,Mystery Work,Author Unknown,1950,,,,,Unknown,Country Unknown,,,,,,,,,,,,,,,,
-99111222,Popular Title,Common Author,1965,Popular Publishers,Boston,Rev. ed.,xxu,US,POTENTIALLY_IN_COPYRIGHT,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Popular title,Common Author,Popular Publishers,1965,88.7,90.0,85.0,95.0,Popular title,Common Author,Popular Publishers,1965,89.2,91.0,86.0,92.0
+MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,Language Code,Country Code,Country Classification,Copyright Status,Generic Title Detected,Generic Detection Reason,Registration Generic Title,Renewal Generic Title,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Publisher,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score,Registration Publisher Score,Renewal Title,Renewal Author,Renewal Publisher,Renewal Date,Renewal Similarity Score,Renewal Title Score,Renewal Author Score,Renewal Publisher Score
+99123456,The Great Novel,Smith John,1955,Great Books Inc,New York,First edition,eng,xxu,US,POTENTIALLY_PD_DATE_VERIFY,False,none,False,False,R456789,,The great novel,Smith John,Great Books Inc,1955,82.5,85.0,75.0,90.0,,,,,,,,
+99789012,Complete Works,Jones Mary,1960,Academic Press,London,2nd ed.,fre,uk,Non-US,RESEARCH_US_STATUS,False,skipped_non_english_fre,False,False,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,,Academic Press snippet,1960,75.3,78.0,70.0,,Complete works,Jones Mary,Academic Press,1960,82.1,85.0,72.0,75.0
+99345678,Mystery Work,Author Unknown,1950,,,,,,,Country Unknown,False,none,False,False,,,,,,,,,,,,,,,,
+99111222,Collected Poems,Common Author,1965,Popular Publishers,Boston,Rev. ed.,eng,xxu,US,POTENTIALLY_IN_COPYRIGHT,True,pattern,True,True,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Collected poems,Common Author,Popular Publishers,1965,65.3,50.0,85.0,95.0,Collected poems,Common Author,Popular Publishers,1965,66.8,52.0,86.0,92.0
 ```
 
 **Important Notes:**
@@ -167,7 +195,7 @@ MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,
   - **Registration Source ID**: Direct lookup in copyright registration XML files
   - **Renewal Entry ID**: UUID for direct lookup in renewal TSV files (finds exact row)
 - **Score Fields**: All score fields show values from the single best match found
-- **Publisher Matching**: 
+- **Publisher Matching**:
   - **Registration Publisher**: Direct text comparison of MARC publisher vs registration publisher
   - **Renewal Publisher**: Extracted snippet from renewal full_text that best matches MARC publisher
   - **Publisher Score**: Reflects quality of publisher match (60% threshold when MARC has publisher data)
@@ -176,6 +204,11 @@ MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,
   - **Edition Indexing**: Used for candidate filtering when available, improves precision for multi-edition works
   - **No Edition Scoring**: Copyright datasets lack reliable edition information, so edition similarity is not calculated
   - **Candidate Enhancement**: Edition data helps distinguish between different editions of the same work when multiple candidates exist
+- **Generic Title Detection**:
+  - **Language Limitation**: Only applied to English titles (language codes 'eng', 'en')
+  - **Detection Reason**: Shows why generic detection was applied (pattern/frequency/linguistic) or skipped (non-English)
+  - **Scoring Impact**: Generic titles receive reduced title weight and increased author/publisher weight
+  - **Conservative Approach**: Non-English titles bypass detection to prevent false positives
 - **Verification**: Use the source IDs to examine the original records in the datasets
 - **Country Unknown**: Records with `Copyright_Status = "Country Unknown"` will always have `Country_Classification = Unknown` and typically empty `Country_Code` fields
 - **Similarity Score Calculation**: Title/author use Levenshtein distance; publisher uses dual fuzzy matching strategies

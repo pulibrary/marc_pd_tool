@@ -20,24 +20,15 @@ class TestYearFiltering:
 
         # Create test publications with different years
         pub_1940 = Publication(
-            "Test 1940",
-            pub_date="1940",
-            country_classification=CountryClassification.US,
+            "Test 1940", pub_date="1940", country_classification=CountryClassification.US
         )
         pub_1955 = Publication(
-            "Test 1955",
-            pub_date="1955",
-            country_classification=CountryClassification.US,
+            "Test 1955", pub_date="1955", country_classification=CountryClassification.US
         )
         pub_2020 = Publication(
-            "Test 2020",
-            pub_date="2020",
-            country_classification=CountryClassification.US,
+            "Test 2020", pub_date="2020", country_classification=CountryClassification.US
         )
-        pub_no_year = Publication(
-            "Test No Year",
-            country_classification=CountryClassification.US,
-        )
+        pub_no_year = Publication("Test No Year", country_classification=CountryClassification.US)
 
         # All should be included when no filters are set
         assert extractor._should_include_record(pub_1940) is True
@@ -50,19 +41,13 @@ class TestYearFiltering:
         extractor = ParallelMarcExtractor("dummy_path", min_year=1950)
 
         pub_1940 = Publication(
-            "Test 1940",
-            pub_date="1940",
-            country_classification=CountryClassification.US,
+            "Test 1940", pub_date="1940", country_classification=CountryClassification.US
         )
         pub_1950 = Publication(
-            "Test 1950",
-            pub_date="1950",
-            country_classification=CountryClassification.US,
+            "Test 1950", pub_date="1950", country_classification=CountryClassification.US
         )
         pub_1960 = Publication(
-            "Test 1960",
-            pub_date="1960",
-            country_classification=CountryClassification.US,
+            "Test 1960", pub_date="1960", country_classification=CountryClassification.US
         )
 
         assert extractor._should_include_record(pub_1940) is False  # Too old
@@ -74,19 +59,13 @@ class TestYearFiltering:
         extractor = ParallelMarcExtractor("dummy_path", max_year=1960)
 
         pub_1940 = Publication(
-            "Test 1940",
-            pub_date="1940",
-            country_classification=CountryClassification.US,
+            "Test 1940", pub_date="1940", country_classification=CountryClassification.US
         )
         pub_1960 = Publication(
-            "Test 1960",
-            pub_date="1960",
-            country_classification=CountryClassification.US,
+            "Test 1960", pub_date="1960", country_classification=CountryClassification.US
         )
         pub_1970 = Publication(
-            "Test 1970",
-            pub_date="1970",
-            country_classification=CountryClassification.US,
+            "Test 1970", pub_date="1970", country_classification=CountryClassification.US
         )
 
         assert extractor._should_include_record(pub_1940) is True  # Before max year
@@ -98,29 +77,19 @@ class TestYearFiltering:
         extractor = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
 
         pub_1940 = Publication(
-            "Test 1940",
-            pub_date="1940",
-            country_classification=CountryClassification.US,
+            "Test 1940", pub_date="1940", country_classification=CountryClassification.US
         )
         pub_1950 = Publication(
-            "Test 1950",
-            pub_date="1950",
-            country_classification=CountryClassification.US,
+            "Test 1950", pub_date="1950", country_classification=CountryClassification.US
         )
         pub_1955 = Publication(
-            "Test 1955",
-            pub_date="1955",
-            country_classification=CountryClassification.US,
+            "Test 1955", pub_date="1955", country_classification=CountryClassification.US
         )
         pub_1960 = Publication(
-            "Test 1960",
-            pub_date="1960",
-            country_classification=CountryClassification.US,
+            "Test 1960", pub_date="1960", country_classification=CountryClassification.US
         )
         pub_1970 = Publication(
-            "Test 1970",
-            pub_date="1970",
-            country_classification=CountryClassification.US,
+            "Test 1970", pub_date="1970", country_classification=CountryClassification.US
         )
 
         assert extractor._should_include_record(pub_1940) is False  # Too old
@@ -134,19 +103,13 @@ class TestYearFiltering:
         extractor = ParallelMarcExtractor("dummy_path", min_year=1955, max_year=1955)
 
         pub_1954 = Publication(
-            "Test 1954",
-            pub_date="1954",
-            country_classification=CountryClassification.US,
+            "Test 1954", pub_date="1954", country_classification=CountryClassification.US
         )
         pub_1955 = Publication(
-            "Test 1955",
-            pub_date="1955",
-            country_classification=CountryClassification.US,
+            "Test 1955", pub_date="1955", country_classification=CountryClassification.US
         )
         pub_1956 = Publication(
-            "Test 1956",
-            pub_date="1956",
-            country_classification=CountryClassification.US,
+            "Test 1956", pub_date="1956", country_classification=CountryClassification.US
         )
 
         assert extractor._should_include_record(pub_1954) is False  # Before target year
@@ -159,10 +122,7 @@ class TestYearFiltering:
         extractor_max = ParallelMarcExtractor("dummy_path", max_year=1960)
         extractor_range = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
 
-        pub_no_year = Publication(
-            "Test No Year",
-            country_classification=CountryClassification.US,
-        )
+        pub_no_year = Publication("Test No Year", country_classification=CountryClassification.US)
 
         # Records without years should always be included regardless of filters
         assert extractor_min._should_include_record(pub_no_year) is True
@@ -197,14 +157,10 @@ class TestYearFiltering:
 
         # Test exact boundaries
         pub_min_boundary = Publication(
-            "Test Min Boundary",
-            pub_date="1950",
-            country_classification=CountryClassification.US,
+            "Test Min Boundary", pub_date="1950", country_classification=CountryClassification.US
         )
         pub_max_boundary = Publication(
-            "Test Max Boundary",
-            pub_date="1960",
-            country_classification=CountryClassification.US,
+            "Test Max Boundary", pub_date="1960", country_classification=CountryClassification.US
         )
 
         # Boundary values should be included (inclusive range)
@@ -213,14 +169,10 @@ class TestYearFiltering:
 
         # Just outside boundaries should be excluded
         pub_below_min = Publication(
-            "Test Below Min",
-            pub_date="1949",
-            country_classification=CountryClassification.US,
+            "Test Below Min", pub_date="1949", country_classification=CountryClassification.US
         )
         pub_above_max = Publication(
-            "Test Above Max",
-            pub_date="1961",
-            country_classification=CountryClassification.US,
+            "Test Above Max", pub_date="1961", country_classification=CountryClassification.US
         )
 
         assert extractor._should_include_record(pub_below_min) is False
@@ -232,19 +184,13 @@ class TestYearFiltering:
 
         # Test different date formats that should all extract to year 1955
         pub_year_only = Publication(
-            "Test Year Only",
-            pub_date="1955",
-            country_classification=CountryClassification.US,
+            "Test Year Only", pub_date="1955", country_classification=CountryClassification.US
         )
         pub_full_date = Publication(
-            "Test Full Date",
-            pub_date="1955-06-15",
-            country_classification=CountryClassification.US,
+            "Test Full Date", pub_date="1955-06-15", country_classification=CountryClassification.US
         )
         pub_complex_date = Publication(
-            "Test Complex Date",
-            pub_date="c1955",
-            country_classification=CountryClassification.US,
+            "Test Complex Date", pub_date="c1955", country_classification=CountryClassification.US
         )
 
         # All should be included as they're in the 1950-1960 range

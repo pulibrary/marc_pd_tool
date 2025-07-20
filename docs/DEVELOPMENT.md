@@ -19,6 +19,7 @@ marc_pd_tool/
 ├── copyright_loader.py      # Copyright registration data loading
 ├── renewal_loader.py        # Renewal data loading (TSV format)
 ├── indexer.py               # Multi-key indexing system
+├── generic_title_detector.py # Language-aware generic title detection
 └── batch_processor.py       # Parallel dual-dataset matching
 compare.py                   # Command-line application
 ```
@@ -41,6 +42,7 @@ git submodule update --init --recursive
 ```
 
 **Submodules included:**
+
 - `nypl-reg/` - Copyright registration data (1923-1977) from [NYPL Catalog of Copyright Entries Project](https://github.com/NYPL/catalog_of_copyright_entries_project)
 - `nypl-ren/` - Copyright renewal data (1950-1991) from [NYPL CCE Renewals Project](https://github.com/NYPL/cce-renewals)
 
@@ -132,6 +134,41 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
     return country_code, classification
 ```
 
+### Generic Title Detection System (`generic_title_detector.py`)
+
+The system includes sophisticated generic title detection to improve matching accuracy by reducing the weight of non-discriminating titles like "collected works" or "poems":
+
+**Architecture**:
+
+```python
+class GenericTitleDetector:
+    # Predefined patterns for generic titles
+    GENERIC_PATTERNS = {
+        "collected works", "complete works", "selected works",
+        "poems", "essays", "stories", "plays", "letters",
+        "proceedings", "transactions", "papers", "studies"
+    }
+    
+    def is_generic(self, title: str, language_code: str = "") -> bool:
+        # Only apply to English titles to prevent false positives
+        if not self._is_english_language(language_code):
+            return False
+        return self._detect_generic(normalized_title)
+```
+
+**Detection Methods**:
+
+1. **Pattern Matching**: Recognizes known generic title patterns
+1. **Frequency Analysis**: Identifies titles appearing frequently in the dataset
+1. **Linguistic Patterns**: Detects short titles with high stopword ratios
+
+**Language Support**: Currently supports English only (language codes 'eng', 'en'). Non-English titles bypass detection to prevent false positives.
+
+**Dynamic Scoring Impact**: When generic titles are detected, scoring weights are adjusted:
+
+- **Normal titles**: title=60%, author=25%, publisher=15%
+- **Generic titles**: title=30%, author=45%, publisher=25%
+
 ### Author Extraction from MARC 245$c
 
 The system extracts author information from MARC field 245$c (statement of responsibility), which is more likely to match copyright registration data than the traditional 1xx author fields:
@@ -156,6 +193,34 @@ Since 245$c contains statement of responsibility text (which is typically person
 - **Personal name parsing**: Surname/given name parsing with initials handling
 - **Format handling**: "Last, First" and "First Last" name formats
 - **Simplified approach**: One consistent strategy instead of type-specific parsing
+
+### Publisher and Edition Matching
+
+The system extracts and matches publisher and edition information to improve accuracy:
+
+**Publisher Extraction (MARC fields 264$b/260$b)**:
+
+```python
+# Try 264 (RDA) first, then fallback to 260 (AACR2)
+publisher_elem = record.find(".//datafield[@tag='264']/subfield[@code='b']")
+if publisher_elem is None:
+    publisher_elem = record.find(".//datafield[@tag='260']/subfield[@code='b']")
+```
+
+**Edition Extraction (MARC field 250$a)**:
+
+```python
+# Extract edition statement (e.g., "2nd ed.", "Revised edition")
+edition_elem = record.find(".//datafield[@tag='250']/subfield[@code='a']")
+```
+
+**Publisher Matching Strategies**:
+
+- **Registration matches**: Direct comparison using `fuzz.ratio()` (MARC publisher vs registration publisher)
+- **Renewal matches**: Fuzzy matching using `fuzz.partial_ratio()` (MARC publisher vs renewal full_text)
+- **Threshold**: 60% similarity required when MARC has publisher data
+
+**Edition Indexing**: Used for candidate filtering to distinguish between different editions of the same work, but not scored since copyright datasets lack reliable edition information.
 
 ## 3. Performance Optimizations
 
@@ -228,7 +293,6 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
         
     return keys
 ```
-
 
 The indexing handles:
 
@@ -457,19 +521,39 @@ def extract_all_batches(self):
 
 ## 4. Scoring and Matching Logic
 
-### 4.1 Similarity Scoring Strategy
+### 4.1 Dynamic Similarity Scoring Strategy
+
+The system uses adaptive scoring weights based on available data and generic title detection:
 
 ```python
 title_score = fuzz.ratio(marc_pub.title, copyright_pub.title)
 author_score = fuzz.ratio(marc_pub.author, copyright_pub.author)
-combined_score = (title_score * 0.7) + (author_score * 0.3)
+publisher_score = calculate_publisher_score(marc_pub, copyright_pub)
+
+# Dynamic scoring based on generic title detection and available data
+if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
+    if has_generic_title:
+        # Generic title: title=30%, author=45%, publisher=25%
+        combined_score = (title_score * 0.3) + (author_score * 0.45) + (publisher_score * 0.25)
+    else:
+        # Normal title: title=60%, author=25%, publisher=15%
+        combined_score = (title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)
+else:
+    # No publisher data available
+    if has_generic_title:
+        # Generic title: title=40%, author=60%
+        combined_score = (title_score * 0.4) + (author_score * 0.6)
+    else:
+        # Normal title: title=70%, author=30%
+        combined_score = (title_score * 0.7) + (author_score * 0.3)
 ```
 
-70/30 weighting reflects that:
+**Scoring Philosophy**:
 
-- Titles are more distinctive and reliable
-- Author names have many format variations
-- This ratio provides good precision/recall balance
+- **Normal titles**: Titles are most distinctive and reliable
+- **Generic titles**: Authors and publishers become more important for discrimination
+- **Publisher data**: Adds valuable verification when available
+- **Dynamic weighting**: Adapts to data quality and availability
 
 ### 4.2 Threshold Management
 
@@ -477,6 +561,7 @@ combined_score = (title_score * 0.7) + (author_score * 0.3)
 
 - `title_threshold`: Minimum title similarity (default: 80)
 - `author_threshold`: Minimum author similarity (default: 70)
+- `publisher_threshold`: Minimum publisher similarity (default: 60, when MARC has publisher data)
 - `year_tolerance`: Maximum year difference (default: ±2 years)
 
 **Filtering Order**:
@@ -484,7 +569,8 @@ combined_score = (title_score * 0.7) + (author_score * 0.3)
 1. Year filter eliminates chronologically impossible matches
 1. Title filter (primary discriminator)
 1. Author filter (secondary validation)
-1. Combined score for final ranking
+1. Publisher filter (when MARC has publisher data)
+1. Combined score for final ranking with dynamic weighting
 
 ### 4.3 Year Range Filtering
 

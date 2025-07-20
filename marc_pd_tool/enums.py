@@ -20,5 +20,3 @@ class CopyrightStatus(Enum):
     RESEARCH_US_STATUS = "Research for US status"
     RESEARCH_US_ONLY_PD = "Research for potential US-only PD status"
     COUNTRY_UNKNOWN = "Country Unknown"
-
-

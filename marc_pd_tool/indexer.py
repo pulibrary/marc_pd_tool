@@ -8,45 +8,19 @@ from typing import List
 from typing import Set
 from typing import Tuple
 
-# Third party imports
-# (none currently needed)
-
 # Local imports
 from marc_pd_tool.publication import Publication
 
+# fmt: off
 # Common stopwords to filter from titles
-STOPWORDS = {
-    "a",
-    "an",
-    "and",
-    "are",
-    "as",
-    "at",
-    "be",
-    "by",
-    "for",
-    "from",
-    "has",
-    "he",
-    "in",
-    "is",
-    "it",
-    "its",
-    "of",
-    "on",
-    "or",
-    "that",
-    "the",
-    "to",
-    "was",
-    "were",
-    "will",
-    "with",
-    "the",
+STOPWORDS = { "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", 
+    "has", "he", "in", "is", "it", "its", "of", "on", "or", "that", "the", "to", 
+    "was", "were", "will", "with"
 }
+# fmt: on
 
 # Common title prefixes to normalize
-TITLE_PREFIXES = {"the", "a", "an"}
+TITLE_PREFIXES = {"the" "a", "an"}
 
 
 def normalize_text(text: str) -> str:
@@ -205,114 +179,152 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
 
 def generate_publisher_keys(publisher: str) -> Set[str]:
     """Generate multiple indexing keys for a publisher name
-    
+
     Args:
         publisher: The publisher name string
-        
+
     Returns:
         Set of indexing keys for the publisher
     """
     if not publisher:
         return set()
-        
+
     keys = set()
-    
+
     # Normalize the publisher name
     normalized = normalize_text(publisher)
     words = normalized.split()
-    
+
     if not words:
         return set()
-    
+
     # Remove common publishing terms that don't help with matching
     publishing_stopwords = {
-        "inc", "corp", "corporation", "company", "co", "ltd", "limited", 
-        "publishers", "publisher", "publishing", "publications", "press", 
-        "books", "book", "house", "group", "media", "entertainment"
+        "inc",
+        "corp",
+        "corporation",
+        "company",
+        "co",
+        "ltd",
+        "limited",
+        "publishers",
+        "publisher",
+        "publishing",
+        "publications",
+        "press",
+        "books",
+        "book",
+        "house",
+        "group",
+        "media",
+        "entertainment",
     }
-    
+
     # Filter out publishing stopwords but keep at least some words
     significant_words = [w for w in words if w not in publishing_stopwords and len(w) >= 3]
     if not significant_words and words:
         # If all words were filtered, keep the longest non-stopword words
         significant_words = [w for w in words if w not in STOPWORDS and len(w) >= 3][:3]
-    
+
     # Single word keys (for exact word matches)
     for word in significant_words:
         if len(word) >= 3:
             keys.add(word)
-    
+
     # Multi-word combinations for better matching
     if len(significant_words) >= 2:
         # First two significant words
         keys.add("_".join(significant_words[:2]))
-        # Last two significant words  
+        # Last two significant words
         if len(significant_words) > 2:
             keys.add("_".join(significant_words[-2:]))
         # First three significant words
         if len(significant_words) >= 3:
             keys.add("_".join(significant_words[:3]))
-    
+
     # Add full normalized name (without publishing stopwords) as a key
     if significant_words:
         keys.add("_".join(significant_words))
-    
+
     return keys
 
 
 def generate_edition_keys(edition: str) -> Set[str]:
     """Generate multiple indexing keys for an edition statement
-    
+
     Args:
         edition: The edition statement string (e.g., "2nd ed.", "First edition", "Rev. ed.")
-        
+
     Returns:
         Set of indexing keys for the edition
     """
     if not edition:
         return set()
-        
+
     keys = set()
-    
+
     # Normalize the edition statement
     normalized = normalize_text(edition)
     words = normalized.split()
-    
+
     if not words:
         return set()
-    
+
     # Remove common edition stopwords that don't help with matching
     edition_stopwords = {
-        "edition", "ed", "printing", "print", "impression", "issue", "vol", "volume"
+        "edition",
+        "ed",
+        "printing",
+        "print",
+        "impression",
+        "issue",
+        "vol",
+        "volume",
     }
-    
+
     # Extract significant words for edition matching
     significant_words = [w for w in words if w not in edition_stopwords and len(w) >= 2]
-    
+
     # Add ordinal/numeric keys (e.g., "2nd", "first", "second", "revised")
     ordinal_terms = {
-        "1st", "first", "2nd", "second", "3rd", "third", "4th", "fourth", "5th", "fifth",
-        "revised", "rev", "new", "updated", "enlarged", "expanded", "abridged", "complete"
+        "1st",
+        "first",
+        "2nd",
+        "second",
+        "3rd",
+        "third",
+        "4th",
+        "fourth",
+        "5th",
+        "fifth",
+        "revised",
+        "rev",
+        "new",
+        "updated",
+        "enlarged",
+        "expanded",
+        "abridged",
+        "complete",
     }
-    
+
     for word in words:
         clean_word = word.replace(".", "").replace(",", "").lower()
         if clean_word in ordinal_terms or clean_word.isdigit():
             keys.add(clean_word)
-    
+
     # Add significant words
     for word in significant_words:
         if len(word) >= 2:
             keys.add(word)
-    
+
     # Add combination keys for multi-word editions
     if len(significant_words) >= 2:
         keys.add("_".join(significant_words[:2]))
-    
+
     # Add full normalized edition (without stopwords) as a key
     if significant_words:
         keys.add("_".join(significant_words))
-    
+
     return keys
 
 
@@ -523,7 +535,9 @@ class PublicationIndex:
             "year_keys": len(self.year_index),
             "avg_title_keys_per_pub": len(self.title_index) / max(1, len(self.publications)),
             "avg_author_keys_per_pub": len(self.author_index) / max(1, len(self.publications)),
-            "avg_publisher_keys_per_pub": len(self.publisher_index) / max(1, len(self.publications)),
+            "avg_publisher_keys_per_pub": (
+                len(self.publisher_index) / max(1, len(self.publications))
+            ),
             "avg_edition_keys_per_pub": len(self.edition_index) / max(1, len(self.publications)),
         }
 

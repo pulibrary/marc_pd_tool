@@ -16,6 +16,7 @@ from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 
 # Local imports
+from marc_pd_tool.generic_title_detector import GenericTitleDetector
 from marc_pd_tool.publication import MatchResult
 from marc_pd_tool.publication import Publication
 
@@ -26,29 +27,31 @@ def extract_best_publisher_match(marc_publisher: str, full_text: str) -> str:
     """Extract the best matching publisher snippet from full_text"""
     if not marc_publisher or not full_text:
         return ""
-    
+
     # Split full_text into potential publisher segments (around commas, periods)
+    # Standard library imports
     import re
+
     # Split on common delimiters while keeping some context
-    segments = re.split(r'[,.;]\s*', full_text)
-    
+    segments = re.split(r"[,.;]\s*", full_text)
+
     # Find the segment that best matches the MARC publisher
     best_match = ""
     best_score = 0
-    
+
     for segment in segments:
         if len(segment.strip()) > 5:  # Skip very short segments
             score = fuzz.partial_ratio(marc_publisher, segment)
             if score > best_score:
                 best_score = score
                 best_match = segment.strip()
-    
+
     # If we found a good match, return it; otherwise return the MARC publisher
     return best_match if best_score > 70 else marc_publisher
 
 
 def process_batch(
-    batch_info: Tuple[int, List[Publication], str, str, int, int, int, int, int, int],
+    batch_info: Tuple[int, List[Publication], str, str, str, int, int, int, int, int, int],
 ) -> Tuple[int, List[Publication], Dict]:
     """
     Process a single batch of MARC records against pre-built indexes.
@@ -59,6 +62,7 @@ def process_batch(
         marc_batch,
         registration_index_file,
         renewal_index_file,
+        generic_detector_file,
         total_batches,
         title_threshold,
         author_threshold,
@@ -98,6 +102,12 @@ def process_batch(
     with open(renewal_index_file, "rb") as f:
         renewal_index = load(f)
 
+    process_logger.info(
+        f"Batch {batch_id}/{total_batches}: Loading generic title detector from {generic_detector_file}"
+    )
+    with open(generic_detector_file, "rb") as f:
+        generic_detector = load(f)
+
     process_logger.debug(
         f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_index.size():,} renewal entries"
     )
@@ -127,6 +137,7 @@ def process_batch(
             60,  # publisher_threshold
             early_exit_title,
             early_exit_author,
+            generic_detector,
         )
 
         # Note: Metaphone fallback matching removed to reduce false positives
@@ -150,6 +161,21 @@ def process_batch(
                 matched_date=reg_match["copyright_record"]["pub_date"],
             )
             marc_pub.set_registration_match(match_result)
+
+            # Store generic title detection info for registration match
+            if "generic_title_info" in reg_match:
+                generic_info = reg_match["generic_title_info"]
+                if generic_info["has_generic_title"]:
+                    marc_pub.generic_title_detected = True
+                    marc_pub.registration_generic_title = True
+                    # Use MARC detection reason if MARC title is generic, otherwise copyright reason
+                    if generic_info["marc_title_is_generic"]:
+                        marc_pub.generic_detection_reason = generic_info["marc_detection_reason"]
+                    else:
+                        marc_pub.generic_detection_reason = generic_info[
+                            "copyright_detection_reason"
+                        ]
+
             stats["registration_matches_found"] += 1
 
         # Find renewal candidates using index
@@ -163,6 +189,7 @@ def process_batch(
             60,  # publisher_threshold
             early_exit_title,
             early_exit_author,
+            generic_detector,
         )
 
         # Note: Metaphone fallback matching removed to reduce false positives
@@ -181,11 +208,34 @@ def process_batch(
                     else 0
                 ),
                 source_id=ren_match["copyright_record"]["source_id"],
-                matched_publisher=extract_best_publisher_match(marc_pub.original_publisher, ren_match["copyright_record"]["full_text"]),
+                matched_publisher=extract_best_publisher_match(
+                    marc_pub.original_publisher, ren_match["copyright_record"]["full_text"]
+                ),
                 source_type="renewal",
                 matched_date=ren_match["copyright_record"]["pub_date"],
             )
             marc_pub.set_renewal_match(match_result)
+
+            # Store generic title detection info for renewal match
+            if "generic_title_info" in ren_match:
+                generic_info = ren_match["generic_title_info"]
+                if generic_info["has_generic_title"]:
+                    marc_pub.generic_title_detected = True
+                    marc_pub.renewal_generic_title = True
+                    # Update detection reason if not already set, or if MARC title is generic
+                    if (
+                        marc_pub.generic_detection_reason == "none"
+                        or generic_info["marc_title_is_generic"]
+                    ):
+                        if generic_info["marc_title_is_generic"]:
+                            marc_pub.generic_detection_reason = generic_info[
+                                "marc_detection_reason"
+                            ]
+                        else:
+                            marc_pub.generic_detection_reason = generic_info[
+                                "copyright_detection_reason"
+                            ]
+
             stats["renewal_matches_found"] += 1
 
         stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
@@ -214,6 +264,7 @@ def find_best_match(
     publisher_threshold: int = 60,
     early_exit_title: int = 95,
     early_exit_author: int = 90,
+    generic_detector: GenericTitleDetector = None,
 ) -> Optional[Dict]:
     """Find the best matching copyright publication for a MARC record"""
     best_score = 0
@@ -237,7 +288,7 @@ def find_best_match(
             if marc_pub.author and copyright_pub.author
             else 0
         )
-        
+
         # Calculate publisher score - use different strategies for renewal vs registration
         if marc_pub.publisher:
             if copyright_pub.source == "Renewal" and copyright_pub.full_text:
@@ -250,22 +301,53 @@ def find_best_match(
                 publisher_score = 0
         else:
             publisher_score = 0
-        
-        # Weighted scoring: title=60%, author=25%, publisher=15%
-        # If publisher is missing, redistribute weight to title (70%) and author (30%)
+
+        # Dynamic weighted scoring based on generic title detection
+        # Check if either title is generic (MARC or copyright record)
+        marc_title_is_generic = False
+        copyright_title_is_generic = False
+
+        if generic_detector:
+            marc_title_is_generic = generic_detector.is_generic(
+                marc_pub.original_title, marc_pub.language_code
+            )
+            copyright_title_is_generic = generic_detector.is_generic(
+                copyright_pub.original_title, copyright_pub.language_code
+            )
+
+        # Determine if any title is generic
+        has_generic_title = marc_title_is_generic or copyright_title_is_generic
+
+        # Apply dynamic scoring weights
         if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
-            combined_score = (title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)
+            if has_generic_title:
+                # Generic title detected: title=30%, author=45%, publisher=25%
+                combined_score = (
+                    (title_score * 0.3) + (author_score * 0.45) + (publisher_score * 0.25)
+                )
+            else:
+                # Normal scoring: title=60%, author=25%, publisher=15%
+                combined_score = (
+                    (title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)
+                )
         else:
-            combined_score = (title_score * 0.7) + (author_score * 0.3)
+            if has_generic_title:
+                # Generic title, no publisher: title=40%, author=60%
+                combined_score = (title_score * 0.4) + (author_score * 0.6)
+            else:
+                # Normal, no publisher: title=70%, author=30%
+                combined_score = (title_score * 0.7) + (author_score * 0.3)
 
         # Apply thresholds: publisher threshold only matters if MARC has publisher data
-        publisher_threshold_met = (
-            not marc_pub.publisher or publisher_score >= publisher_threshold
-        )
-        
-        if combined_score > best_score and (
-            not marc_pub.author or not copyright_pub.author or author_score >= author_threshold
-        ) and publisher_threshold_met:
+        publisher_threshold_met = not marc_pub.publisher or publisher_score >= publisher_threshold
+
+        if (
+            combined_score > best_score
+            and (
+                not marc_pub.author or not copyright_pub.author or author_score >= author_threshold
+            )
+            and publisher_threshold_met
+        ):
 
             best_score = combined_score
             best_match = {
@@ -276,6 +358,25 @@ def find_best_match(
                     "author": author_score,
                     "publisher": publisher_score,
                     "combined": combined_score,
+                },
+                "generic_title_info": {
+                    "marc_title_is_generic": marc_title_is_generic,
+                    "copyright_title_is_generic": copyright_title_is_generic,
+                    "has_generic_title": has_generic_title,
+                    "marc_detection_reason": (
+                        generic_detector.get_detection_reason(
+                            marc_pub.original_title, marc_pub.language_code
+                        )
+                        if generic_detector
+                        else "none"
+                    ),
+                    "copyright_detection_reason": (
+                        generic_detector.get_detection_reason(
+                            copyright_pub.original_title, copyright_pub.language_code
+                        )
+                        if generic_detector
+                        else "none"
+                    ),
                 },
             }
 
@@ -294,7 +395,6 @@ def find_best_match(
 # find_best_metaphone_match function removed to reduce false positives
 
 
-
 def save_matches_csv(marc_publications: List[Publication], csv_file: str):
     """Save results to CSV file with country and status information"""
     with open(csv_file, "w", newline="", encoding="utf-8") as f:
@@ -308,9 +408,14 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
                 "MARC Publisher",
                 "MARC Place",
                 "MARC Edition",
+                "Language Code",
                 "Country Code",
                 "Country Classification",
                 "Copyright Status",
+                "Generic Title Detected",
+                "Generic Detection Reason",
+                "Registration Generic Title",
+                "Renewal Generic Title",
                 "Registration Source ID",
                 "Renewal Entry ID",
                 "Registration Title",
@@ -347,11 +452,13 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
             reg_author_score = (
                 f"{pub.registration_match.author_score:.1f}" if pub.registration_match else ""
             )
-            reg_publisher = pub.registration_match.matched_publisher if pub.registration_match else ""
+            reg_publisher = (
+                pub.registration_match.matched_publisher if pub.registration_match else ""
+            )
             reg_publisher_score = (
                 f"{pub.registration_match.publisher_score:.1f}" if pub.registration_match else ""
             )
-            
+
             # Get single match data for renewal
             ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
             ren_title = pub.renewal_match.matched_title if pub.renewal_match else ""
@@ -363,7 +470,7 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
             ren_title_score = f"{pub.renewal_match.title_score:.1f}" if pub.renewal_match else ""
             ren_author_score = f"{pub.renewal_match.author_score:.1f}" if pub.renewal_match else ""
 
-            # Get renewal publisher data 
+            # Get renewal publisher data
             ren_publisher = pub.renewal_match.matched_publisher if pub.renewal_match else ""
             ren_publisher_score = (
                 f"{pub.renewal_match.publisher_score:.1f}" if pub.renewal_match else ""
@@ -378,9 +485,14 @@ def save_matches_csv(marc_publications: List[Publication], csv_file: str):
                     pub.original_publisher,
                     pub.original_place,
                     pub.original_edition,
+                    pub.language_code,
                     pub.country_code,
                     pub.country_classification.value,
                     pub.copyright_status.value,
+                    pub.generic_title_detected,
+                    pub.generic_detection_reason,
+                    pub.registration_generic_title,
+                    pub.renewal_generic_title,
                     reg_source_id,
                     ren_entry_id,
                     reg_title,

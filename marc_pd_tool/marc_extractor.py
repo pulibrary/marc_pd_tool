@@ -17,7 +17,12 @@ logger = getLogger(__name__)
 
 class ParallelMarcExtractor:
     def __init__(
-        self, marc_path: str, batch_size: int = 1000, min_year: int = None, max_year: int = None, us_only: bool = False
+        self,
+        marc_path: str,
+        batch_size: int = 1000,
+        min_year: int = None,
+        max_year: int = None,
+        us_only: bool = False,
     ):
         self.marc_path = Path(marc_path)
         self.batch_size = batch_size
@@ -145,7 +150,7 @@ class ParallelMarcExtractor:
                 author_elem = record.find(
                     ".//marc:datafield[@tag='245']/marc:subfield[@code='c']", ns
                 )
-            
+
             author = author_elem.text if author_elem is not None else ""
 
             # Extract publication date (try 264 first, then 260)
@@ -177,10 +182,24 @@ class ParallelMarcExtractor:
             # Extract country information from 008 field
             country_code = ""
             country_classification = CountryClassification.UNKNOWN
+            language_code = ""
             if control_008 is not None and control_008.text:
                 country_code, country_classification = extract_country_from_marc_008(
                     control_008.text
                 )
+                # Extract language code from positions 35-37
+                if len(control_008.text) >= 38:
+                    language_code = control_008.text[35:38].strip().lower()
+
+            # Fallback to field 041$a if no language in 008
+            if not language_code:
+                lang_041_elem = record.find(".//datafield[@tag='041']/subfield[@code='a']")
+                if lang_041_elem is None:
+                    lang_041_elem = record.find(
+                        ".//marc:datafield[@tag='041']/marc:subfield[@code='a']", ns
+                    )
+                if lang_041_elem is not None and lang_041_elem.text:
+                    language_code = lang_041_elem.text.strip().lower()[:3]  # Take first 3 chars
 
             # Extract publisher (try 264 first, then 260)
             publisher_elem = record.find(".//datafield[@tag='264']/subfield[@code='b']")
@@ -231,6 +250,7 @@ class ParallelMarcExtractor:
                 publisher=publisher,
                 place=place,
                 edition=edition,
+                language_code=language_code,
                 source="MARC",
                 source_id=source_id,
                 country_code=country_code,

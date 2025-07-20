@@ -19,9 +19,9 @@ from logging import getLogger
 from multiprocessing import cpu_count
 from os import rmdir
 from os import unlink
-from os.path import join
 from os.path import abspath
 from os.path import dirname
+from os.path import join
 from pickle import dump
 from tempfile import mkdtemp
 from time import time
@@ -32,6 +32,7 @@ from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import RenewalDataLoader
 from marc_pd_tool import process_batch
 from marc_pd_tool import save_matches_csv
+from marc_pd_tool.generic_title_detector import GenericTitleDetector
 from marc_pd_tool.indexer import build_index
 
 
@@ -103,20 +104,20 @@ def generate_output_filename(args):
     # If user specified custom output, use it unchanged
     if args.output != "matches.csv":  # Not using default
         return args.output
-    
+
     # Build dynamic filename from filters
     parts = ["matches"]
-    
+
     # Add country filter
     if args.us_only:
         parts.append("us-only")
-    
+
     # Add year filter
     if args.min_year is not None or args.max_year is not None:
         year_part = build_year_part(args.min_year, args.max_year)
         if year_part:
             parts.append(year_part)
-    
+
     return "_".join(parts) + ".csv"
 
 
@@ -129,10 +130,19 @@ def main():
         "--marcxml", required=True, help="Path to MARC XML file or directory of MARC files"
     )
     parser.add_argument(
-        "--copyright-dir", default=f"{cwd}/nypl-reg/xml", help="Path to copyright registration XML directory"
+        "--copyright-dir",
+        default=f"{cwd}/nypl-reg/xml",
+        help="Path to copyright registration XML directory",
     )
-    parser.add_argument("--renewal-dir", default=f"{cwd}/nypl-ren/data", help="Path to renewal TSV directory")
-    parser.add_argument("--output", "-o", default="matches.csv", help="Output CSV file (default auto-generates descriptive names based on filters)")
+    parser.add_argument(
+        "--renewal-dir", default=f"{cwd}/nypl-ren/data", help="Path to renewal TSV directory"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="matches.csv",
+        help="Output CSV file (default auto-generates descriptive names based on filters)",
+    )
     parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
     parser.add_argument(
         "--max-workers", type=int, default=None, help="Number of processes (default: CPU count)"
@@ -178,6 +188,17 @@ def main():
     parser.add_argument(
         "--debug", action="store_true", help="Enable DEBUG level logging for verbose details"
     )
+    parser.add_argument(
+        "--generic-title-threshold",
+        type=int,
+        default=10,
+        help="Minimum occurrences for a title to be considered generic (default: 10)",
+    )
+    parser.add_argument(
+        "--disable-generic-detection",
+        action="store_true",
+        help="Disable generic title detection and use normal scoring for all titles",
+    )
 
     args = parser.parse_args()
 
@@ -205,11 +226,17 @@ def main():
     logger.info(
         f"Thresholds: title={args.title_threshold}, author={args.author_threshold}, year_tolerance={args.year_tolerance}"
     )
+    if args.disable_generic_detection:
+        logger.info("Generic title detection: DISABLED")
+    else:
+        logger.info(
+            f"Generic title detection: ENABLED (frequency threshold: {args.generic_title_threshold})"
+        )
     if args.max_year is not None:
         logger.info(f"Publication year range: {args.min_year} - {args.max_year}")
     else:
         logger.info(f"Minimum publication year: {args.min_year} (no maximum)")
-    
+
     if args.us_only:
         logger.info("Country filter: US publications only (non-US records will be excluded)")
 
@@ -242,23 +269,58 @@ def main():
         logger.error("No renewal data loaded. Exiting.")
         return
 
-    # Phase 3.5: Build indexes once and serialize to temp files
-    logger.info("=== PHASE 3.5: BUILDING AND SERIALIZING INDEXES ===")
+    # Phase 3.5: Create and populate generic title detector
+    logger.info("=== PHASE 3.5: CREATING GENERIC TITLE DETECTOR ===")
+    if args.disable_generic_detection:
+        logger.info("Generic title detection disabled via CLI flag")
+        generic_detector = None
+    else:
+        logger.info(
+            f"Generic title detection enabled (frequency threshold: {args.generic_title_threshold})"
+        )
+        generic_detector = GenericTitleDetector(frequency_threshold=args.generic_title_threshold)
+
+    if generic_detector:
+        # Populate detector with titles from all datasets for frequency analysis
+        logger.info("Populating generic title detector with MARC titles...")
+        for batch in marc_batches:
+            for pub in batch:
+                generic_detector.add_title(pub.original_title)
+
+        logger.info("Populating generic title detector with registration titles...")
+        for pub in registration_publications:
+            generic_detector.add_title(pub.original_title)
+
+        logger.info("Populating generic title detector with renewal titles...")
+        for pub in renewal_publications:
+            generic_detector.add_title(pub.original_title)
+
+        detector_stats = generic_detector.get_stats()
+        logger.info(
+            f"Generic title detector: {detector_stats['total_unique_titles']} unique titles, "
+            f"{detector_stats['generic_by_frequency']} generic by frequency (>{detector_stats['frequency_threshold']} occurrences)"
+        )
+
+    # Phase 3.6: Build indexes once and serialize to temp files
+    logger.info("=== PHASE 3.6: BUILDING AND SERIALIZING INDEXES ===")
     logger.info("Building registration index...")
     registration_index = build_index(registration_publications)
     logger.info("Building renewal index...")
     renewal_index = build_index(renewal_publications)
 
-    # Create temporary files for serialized indexes
+    # Create temporary files for serialized indexes and detector
     temp_dir = mkdtemp(prefix="marc_indexes_")
     registration_index_file = join(temp_dir, "registration_index.pkl")
     renewal_index_file = join(temp_dir, "renewal_index.pkl")
+    generic_detector_file = join(temp_dir, "generic_detector.pkl")
 
-    logger.info(f"Serializing indexes to temporary files: {temp_dir}")
+    logger.info(f"Serializing indexes and detector to temporary files: {temp_dir}")
     with open(registration_index_file, "wb") as f:
         dump(registration_index, f)
     with open(renewal_index_file, "wb") as f:
         dump(renewal_index, f)
+    with open(generic_detector_file, "wb") as f:
+        dump(generic_detector, f)  # Note: May be None if disabled
 
     reg_stats = registration_index.get_stats()
     ren_stats = renewal_index.get_stats()
@@ -287,6 +349,7 @@ def main():
             batch,
             registration_index_file,
             renewal_index_file,
+            generic_detector_file,
             total_batches,
             args.title_threshold,
             args.author_threshold,
@@ -338,11 +401,12 @@ def main():
                 except Exception as e:
                     logger.error(f"Batch {batch_id} failed: {e}")
     finally:
-        # Clean up temporary index files
-        logger.info("Cleaning up temporary index files...")
+        # Clean up temporary files
+        logger.info("Cleaning up temporary files...")
         try:
             unlink(registration_index_file)
             unlink(renewal_index_file)
+            unlink(generic_detector_file)
             rmdir(temp_dir)
             logger.info("Temporary files cleaned up successfully")
         except Exception as e:

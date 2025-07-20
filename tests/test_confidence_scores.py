@@ -110,15 +110,19 @@ class TestConfidenceScores:
 
             for header in expected_headers:
                 assert header in headers, f"Missing header: {header}"
-                
+
             # Ensure old headers are not present
-            assert "Renewal Source ID" not in headers, "Old 'Renewal Source ID' header should not be present"
+            assert (
+                "Renewal Source ID" not in headers
+            ), "Old 'Renewal Source ID' header should not be present"
             assert "Renewal ID" not in headers, "Old 'Renewal ID' header should not be present"
-            assert "Original Registration ID" not in headers, "Old 'Original Registration ID' header should not be present"
+            assert (
+                "Original Registration ID" not in headers
+            ), "Old 'Original Registration ID' header should not be present"
 
         finally:
             unlink(temp_file)
-    
+
     def test_csv_output_with_renewal_entry_id(self):
         """Test that CSV output correctly shows renewal entry ID"""
         pub = Publication(

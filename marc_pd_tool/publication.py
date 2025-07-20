@@ -94,6 +94,7 @@ class Publication:
         publisher: str = "",
         place: str = "",
         edition: str = "",
+        language_code: str = "",
         source: str = "",
         source_id: str = "",
         country_code: str = "",
@@ -106,6 +107,7 @@ class Publication:
         self.publisher = self.normalize_text(publisher)
         self.place = self.normalize_text(place)
         self.edition = self.normalize_text(edition)
+        self.language_code = language_code.lower() if language_code else ""
         self.source = source
         self.source_id = source_id
         self.full_text = full_text  # Store original full_text for fuzzy matching
@@ -127,6 +129,12 @@ class Publication:
         # Match tracking - single best match only
         self.registration_match: Optional[MatchResult] = None
         self.renewal_match: Optional[MatchResult] = None
+
+        # Generic title detection info (populated during matching)
+        self.generic_title_detected = False
+        self.generic_detection_reason = "none"
+        self.registration_generic_title = False
+        self.renewal_generic_title = False
 
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
@@ -201,6 +209,7 @@ class Publication:
             "publisher": self.original_publisher,
             "place": self.original_place,
             "edition": self.original_edition,
+            "language_code": self.language_code,
             "source": self.source,
             "source_id": self.source_id,
             "year": self.year,

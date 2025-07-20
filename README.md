@@ -29,13 +29,13 @@ This tool implements a comprehensive algorithm to classify publications by copyr
    git submodule update --init --recursive
    ```
 
-2. **Install dependencies:**
+1. **Install dependencies:**
 
    ```bash
    pdm install
    ```
 
-3. **Run analysis:**
+1. **Run analysis:**
 
    ```bash
    pdm run python compare.py \
@@ -44,7 +44,7 @@ This tool implements a comprehensive algorithm to classify publications by copyr
        --renewal-dir path/to/cce-renewals/data/
    ```
 
-3. **Results:**
+1. **Results:**
 
    - `matches.csv` - CSV with copyright status classifications
    - Country classification (US/Non-US/Unknown)
@@ -56,8 +56,10 @@ This tool implements a comprehensive algorithm to classify publications by copyr
 The tool compares MARC bibliographic records against U.S. copyright registration and renewal data to determine likely copyright status. It uses:
 
 1. **Country Classification**: Identifies US vs. non-US publications using MARC country codes
-2. **Fuzzy Matching**: Compares titles and authors against both registration (1923-1977) and renewal (1950-1991) datasets
-3. **Status Determination**: Assigns one of five copyright status categories based on match patterns
+1. **Enhanced Fuzzy Matching**: Compares titles, authors, and publishers against both registration (1923-1977) and renewal (1950-1991) datasets
+1. **Generic Title Detection**: Adjusts scoring for generic titles like "collected works" to improve accuracy (English titles only)
+1. **Dynamic Scoring**: Adapts match weighting based on available data and title genericness
+1. **Status Determination**: Assigns one of five copyright status categories based on match patterns
 
 For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
 
@@ -120,6 +122,7 @@ When using the default output, filenames are automatically generated based on ap
 - `matches_before-1970.csv` - Maximum year only
 
 To override automatic naming, specify a custom filename with `--output`.
+
 - `--us-only` - Only process US publications (significantly faster for US-focused research)
 - `--min-year` - Minimum publication year to include (default: current year - 95)
 - `--max-year` - Maximum publication year to include (default: no limit)
@@ -146,10 +149,12 @@ The tool automatically uses all available CPU cores and includes several optimiz
 
 The tool generates a CSV file with copyright analysis results for each MARC record, including:
 
-- Original bibliographic data (title, author, year, publisher, place)
+- Original bibliographic data (title, author, year, publisher, place, edition, language)
 - Country classification (US/Non-US/Unknown)
 - Copyright status determination
+- Generic title detection information and scoring adjustments
 - Match details and confidence scores for the best match found
+- Source data from matched registration and renewal records
 
 For complete output format details and sample data, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
 
