@@ -199,6 +199,11 @@ def main():
         action="store_true",
         help="Disable generic title detection and use normal scoring for all titles",
     )
+    parser.add_argument(
+        "--single-file",
+        action="store_true",
+        help="Save all results to a single file instead of separate files by copyright status (legacy behavior)",
+    )
 
     args = parser.parse_args()
 
@@ -414,8 +419,12 @@ def main():
 
     # Phase 5: Save results
     logger.info("=== PHASE 5: SAVING RESULTS ===")
+    if args.single_file:
+        logger.info("Saving results to single file (legacy mode)")
+    else:
+        logger.info("Saving results to separate files by copyright status (default mode)")
     output_filename = generate_output_filename(args)
-    save_matches_csv(all_processed_marc, output_filename)
+    save_matches_csv(all_processed_marc, output_filename, single_file=args.single_file)
 
     # Final summary
     total_time = time() - start_time
@@ -455,7 +464,22 @@ def main():
     print(f"  Workers used: {args.max_workers}")
     print(f"  Total time: {format_time_duration(total_time)}")
     print(f"  Speed: {total_marc/(total_time/60):.0f} records/minute")
-    print(f"  Output: {output_filename}")
+
+    if args.single_file:
+        print(f"  Output: {output_filename}")
+    else:
+        print(f"  Output files (by copyright status):")
+        # Import here to avoid circular import
+        # Standard library imports
+        from os.path import splitext
+
+        base_name, ext = splitext(output_filename)
+        for status, count in status_counts.items():
+            if count > 0:  # Only show files that actually contain records
+                status_filename = status.lower()
+                status_file = f"{base_name}_{status_filename}{ext}"
+                print(f"    {status_file} ({count:,} records)")
+
     print(f"{'='*80}")
 
 

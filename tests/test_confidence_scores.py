@@ -84,7 +84,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file)
+            save_matches_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 headers = f.readline().strip().split(",")
@@ -151,7 +151,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file)
+            save_matches_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -209,7 +209,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file)
+            save_matches_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -256,7 +256,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file)
+            save_matches_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -311,7 +311,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file)
+            save_matches_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
