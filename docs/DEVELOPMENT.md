@@ -14,7 +14,7 @@ The codebase is organized as a Python package with one class per file:
 marc_pd_tool/
 ├── __init__.py              # Package interface with explicit imports
 ├── enums.py                 # Copyright status and country classification enums
-├── publication.py           # Publication data model with country and match tracking
+├── publication.py           # Publication data model with dual author support and match tracking
 ├── marc_extractor.py        # MARC XML extraction with country detection
 ├── copyright_loader.py      # Copyright registration data loading
 ├── renewal_loader.py        # Renewal data loading (TSV format)
@@ -63,14 +63,20 @@ git submodule update --init --recursive
 
 ### Publication Class (`publication.py`)
 
-The Publication class stores both normalized and original data:
+The Publication class stores both normalized and original data with dual author support:
 
 ```python
 class Publication:
-    def __init__(self, title, author, ...):
+    def __init__(self, title, author, main_author, ...):
         # Store both normalized and original data
         self.title = self.normalize_text(title)           # For matching
         self.original_title = title                       # For output
+        
+        # Dual author support
+        self.author = self.normalize_text(author)         # 245$c transcribed
+        self.main_author = self.normalize_text(main_author)  # 1xx normalized
+        self.original_author = author                     # For output
+        self.original_main_author = main_author           # For output
         
         # Match tracking - single best match only
         self.registration_match: Optional[MatchResult] = None
@@ -103,6 +109,8 @@ This design allows for:
 
 - Normalized text for matching algorithms
 - Original text preserved for output
+- **Dual author support**: Both controlled vocabulary (1xx) and transcribed (245$c) authors
+- **Enhanced part support**: Full title construction with part numbers and names
 - Single best match stored for registration and renewal
 - Built-in country classification for copyright analysis
 
@@ -170,19 +178,24 @@ class GenericTitleDetector:
 
 ### Author Extraction from MARC 245$c
 
-The system extracts author information from MARC field 245$c (statement of responsibility), which is more likely to match copyright registration data than the traditional 1xx author fields:
+The system extracts dual author information from both 1xx fields (normalized controlled vocabulary) and 245$c (transcribed statement of responsibility) to maximize matching potential:
 
-**MARC Extraction Logic**:
+**Dual Author Extraction Logic**:
 
 ```python
 def _extract_from_record(self, record) -> Optional[Publication]:
-    # Extract author from 245$c (statement of responsibility)
-    # This format is more likely to match copyright registration data
+    # Extract main author from 1xx fields (priority: 100 → 110 → 111)
+    main_author = ""
+    main_author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
+    if main_author_elem is not None:
+        main_author = main_author_elem.text
+        # Clean dates from personal names (e.g., "Smith, John, 1945-" → "Smith, John")
+    elif not main_author:
+        # Try 110$a (corporate) then 111$a (meeting names)
+        
+    # Extract statement of responsibility from 245$c
     author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
-    if author_elem is not None:
-        author = author_elem.text
-    else:
-        author = ""
+    author = author_elem.text if author_elem is not None else ""
 ```
 
 **Indexing Strategy**:
@@ -338,16 +351,21 @@ def find_best_match(marc_pub, copyright_pubs, ..., early_exit_title=95, early_ex
         if title_score < title_threshold:
             continue
         
-        author_score = fuzz.ratio(marc_pub.author, copyright_pub.author)
+        # Dual author scoring - use max of both author types
+        author_score_245c = fuzz.ratio(marc_pub.author, copyright_pub.author)
+        author_score_1xx = fuzz.ratio(marc_pub.main_author, copyright_pub.author)
+        author_score = max(author_score_245c, author_score_1xx)
+        
         combined_score = (title_score * 0.7) + (author_score * 0.3)
         
         if combined_score > best_score:
             best_score = combined_score
             best_match = {...}
             
-            # Early exit for high-confidence matches
+            # Early exit for high-confidence matches (considers both author types)
+            has_author_data = (marc_pub.author and copyright_pub.author) or (marc_pub.main_author and copyright_pub.author)
             if (title_score >= early_exit_title and 
-                marc_pub.author and copyright_pub.author and 
+                has_author_data and 
                 author_score >= early_exit_author):
                 break
 ```
@@ -355,7 +373,8 @@ def find_best_match(marc_pub, copyright_pubs, ..., early_exit_title=95, early_ex
 Early termination occurs only when:
 
 - Title score ≥95% AND author score ≥90%
-- Both title and author are present
+- Either author type (245$c or 1xx) is present with sufficient data
+- Uses best score from dual author matching
 - Thresholds are configurable
 
 ### 3.4 Parallel Processing Architecture
@@ -525,8 +544,11 @@ def extract_all_batches(self):
 The system uses adaptive scoring weights based on available data and generic title detection:
 
 ```python
-title_score = fuzz.ratio(marc_pub.title, copyright_pub.title)
-author_score = fuzz.ratio(marc_pub.author, copyright_pub.author)
+title_score = fuzz.ratio(marc_pub.full_title_normalized, copyright_pub.title)  # Includes parts
+# Dual author scoring - use best match from either author type
+author_score_245c = fuzz.ratio(marc_pub.author, copyright_pub.author)
+author_score_1xx = fuzz.ratio(marc_pub.main_author, copyright_pub.author)
+author_score = max(author_score_245c, author_score_1xx)
 publisher_score = calculate_publisher_score(marc_pub, copyright_pub)
 
 # Dynamic scoring based on generic title detection and available data

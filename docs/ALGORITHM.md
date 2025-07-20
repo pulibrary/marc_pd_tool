@@ -33,6 +33,8 @@ For each MARC record, we search for similar entries in both the registration and
 
 **Enhanced Matching Features:**
 
+- **Dual Author Extraction**: Leverages both MARC 1xx fields (normalized controlled vocabulary) and 245$c (transcribed statement of responsibility) for optimal author matching
+- **Enhanced Part Support**: Extracts part numbers from MARC 245$n and part names from 245$p, plus volume information from copyright/renewal data for improved multi-part work identification
 - **Author Type Recognition**: Personal names (field 100), corporate names (field 110), and meeting names (field 111) are handled with appropriate parsing strategies
 - **Publisher Indexing**: Multi-key indexing includes publisher information with specialized stopword filtering
 - **Edition Indexing**: Multi-key indexing includes edition information when available, with ordinal and descriptive term recognition
@@ -63,11 +65,31 @@ For each MARC record, we search for similar entries in both the registration and
   - **Normal titles without publisher**: `(title_score * 0.7) + (author_score * 0.3)`
   - **Generic titles without publisher**: `(title_score * 0.4) + (author_score * 0.6)`
 
+**Dual Author Matching Strategy**
+
+The system now extracts and utilizes two types of author information from MARC records:
+
+1. **Main Author (1xx fields)**: Normalized controlled vocabulary entries
+   - **100$a**: Personal names in "Last, First, dates" format (dates automatically cleaned)
+   - **110$a**: Corporate names 
+   - **111$a**: Meeting names
+   - **Priority order**: 100 → 110 → 111 (uses first available)
+
+2. **Statement of Responsibility (245$c)**: Transcribed directly from title page
+   - Natural language format as published
+   - May include roles, multiple contributors, etc.
+
+**Author Scoring Algorithm**: 
+- Calculates similarity scores for both author types against copyright data
+- Uses `max(score_245c, score_1xx)` to leverage whichever format matches better
+- Provides optimal matching for both controlled vocabulary and natural language variants
+
 **Important: Scoring Method**
 
 All similarity scores are calculated using fuzzy string matching on normalized text:
 
-- **Title & Author Similarity**: Direct comparison using Levenshtein distance (`fuzz.ratio()`)
+- **Title Similarity**: Includes part information for comprehensive multi-part work matching
+- **Author Similarity**: Dual scoring as described above using Levenshtein distance (`fuzz.ratio()`)
 - **Publisher Similarity**: Uses different strategies based on data source:
   - **Registration matches**: Direct comparison using `fuzz.ratio()` (MARC publisher vs registration publisher)
   - **Renewal matches**: Fuzzy matching using `fuzz.partial_ratio()` (MARC publisher vs renewal full_text)

@@ -344,15 +344,21 @@ class PublicationIndex:
         pub_id = len(self.publications)
         self.publications.append(pub)
 
-        # Index by title
-        title_keys = generate_title_keys(pub.title)
+        # Index by title - use full title for better part matching
+        title_keys = generate_title_keys(pub.full_title_normalized)
         for key in title_keys:
             self.title_index[key].add(pub_id)
 
-        # Index by author
+        # Index by author - index both 245$c and 1xx fields
         if pub.author:
             author_keys = generate_author_keys(pub.author)
             for key in author_keys:
+                self.author_index[key].add(pub_id)
+        
+        # Also index main author (1xx fields) if available
+        if pub.main_author:
+            main_author_keys = generate_author_keys(pub.main_author)
+            for key in main_author_keys:
                 self.author_index[key].add(pub_id)
 
         # Index by publisher
@@ -377,17 +383,23 @@ class PublicationIndex:
         """Find candidate publication IDs that might match the query"""
         candidates = set()
 
-        # Find candidates by title
-        title_keys = generate_title_keys(query_pub.title)
+        # Find candidates by title - use full title for better part matching
+        title_keys = generate_title_keys(query_pub.full_title_normalized)
         title_candidates = set()
         for key in title_keys:
             title_candidates.update(self.title_index.get(key, set()))
 
-        # Find candidates by author (if available)
+        # Find candidates by author (if available) - search both author fields
         author_candidates = set()
         if query_pub.author:
             author_keys = generate_author_keys(query_pub.author)
             for key in author_keys:
+                author_candidates.update(self.author_index.get(key, set()))
+        
+        # Also search by main author if available
+        if query_pub.main_author:
+            main_author_keys = generate_author_keys(query_pub.main_author)
+            for key in main_author_keys:
                 author_candidates.update(self.author_index.get(key, set()))
 
         # Find candidates by publisher (if available)

@@ -35,10 +35,13 @@ class Publication:
         self,
         title: str,
         author: str = "",
+        main_author: str = "",
         pub_date: str = "",
         publisher: str = "",
         place: str = "",
         edition: str = "",
+        part_number: str = "",
+        part_name: str = "",
         language_code: str = "",
         source: str = "",
         source_id: str = "",
@@ -48,10 +51,13 @@ class Publication:
     ):
         self.title = self.normalize_text(title)
         self.author = self.normalize_text(author)
+        self.main_author = self.normalize_text(main_author)
         self.pub_date = pub_date
         self.publisher = self.normalize_text(publisher)
         self.place = self.normalize_text(place)
         self.edition = self.normalize_text(edition)
+        self.part_number = self.normalize_text(part_number)
+        self.part_name = self.normalize_text(part_name)
         self.language_code = language_code.lower() if language_code else ""
         self.source = source
         self.source_id = source_id
@@ -60,9 +66,12 @@ class Publication:
         # Store original values
         self.original_title = title
         self.original_author = author
+        self.original_main_author = main_author
         self.original_publisher = publisher
         self.original_place = place
         self.original_edition = edition
+        self.original_part_number = part_number
+        self.original_part_name = part_name
 
         # Extract year
         self.year = self.extract_year()
@@ -99,6 +108,24 @@ class Publication:
         if year_match:
             return int(year_match.group())
         return None
+
+    @property
+    def full_title(self) -> str:
+        """Construct full title including part number and part name"""
+        parts = [self.original_title]
+        
+        if self.original_part_number:
+            parts.append(f"Part {self.original_part_number}")
+        
+        if self.original_part_name:
+            parts.append(self.original_part_name)
+        
+        return ". ".join(parts)
+
+    @property
+    def full_title_normalized(self) -> str:
+        """Normalized version of full title for matching"""
+        return self.normalize_text(self.full_title)
 
     def set_registration_match(self, match: MatchResult) -> None:
         """Set the best registration match"""
@@ -162,10 +189,14 @@ class Publication:
         return {
             "title": self.original_title,
             "author": self.original_author,
+            "main_author": self.original_main_author,
             "pub_date": self.pub_date,
             "publisher": self.original_publisher,
             "place": self.original_place,
             "edition": self.original_edition,
+            "part_number": self.original_part_number,
+            "part_name": self.original_part_name,
+            "full_title": self.full_title,
             "language_code": self.language_code,
             "source": self.source,
             "source_id": self.source_id,

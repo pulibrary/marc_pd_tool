@@ -270,18 +270,28 @@ def find_best_match(
             if abs(marc_pub.year - copyright_pub.year) > year_tolerance:
                 continue
 
-        # Calculate similarity scores
-        title_score = fuzz.ratio(marc_pub.title, copyright_pub.title)
+        # Calculate similarity scores - use full title for better part matching
+        title_score = fuzz.ratio(marc_pub.full_title_normalized, copyright_pub.title)
 
         # Skip if title similarity is too low
         if title_score < title_threshold:
             continue
 
-        author_score = (
+        # Calculate author scores for both 245$c and 1xx fields, take the maximum
+        author_score_245c = (
             fuzz.ratio(marc_pub.author, copyright_pub.author)
             if marc_pub.author and copyright_pub.author
             else 0
         )
+        
+        author_score_1xx = (
+            fuzz.ratio(marc_pub.main_author, copyright_pub.author)
+            if marc_pub.main_author and copyright_pub.author
+            else 0
+        )
+        
+        # Use the higher of the two author scores
+        author_score = max(author_score_245c, author_score_1xx)
 
         # Calculate publisher score - use different strategies for renewal vs registration
         if marc_pub.publisher:
@@ -375,10 +385,11 @@ def find_best_match(
             }
 
             # Early termination: Only exit if we have BOTH title and author with very high confidence
+            # Consider early exit if we have either author field with high confidence
+            has_author_data = (marc_pub.author and copyright_pub.author) or (marc_pub.main_author and copyright_pub.author)
             if (
                 title_score >= early_exit_title
-                and marc_pub.author
-                and copyright_pub.author
+                and has_author_data
                 and author_score >= early_exit_author
             ):
                 break

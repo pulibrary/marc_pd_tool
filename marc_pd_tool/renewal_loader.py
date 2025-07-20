@@ -87,6 +87,14 @@ class RenewalDataLoader:
             entry_id = row.get("entry_id", "").strip()
             source_id = entry_id
 
+            # Extract volume and part information from TSV columns
+            volume = row.get("volume", "").strip()
+            part = row.get("part", "").strip()
+            
+            # Use volume as part_number and part as part_name if available
+            part_number = volume if volume else ""
+            part_name = part if part else ""
+
             # Store full_text for publisher fuzzy matching (don't extract publisher)
             full_text = row.get("full_text", "").strip()
             publisher = ""  # Will be populated from full_text during fuzzy matching
@@ -95,9 +103,12 @@ class RenewalDataLoader:
             return Publication(
                 title=title,
                 author=author,
+                main_author="",  # Renewal data doesn't have separate main author field
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
+                part_number=part_number,  # Extracted from volume column
+                part_name=part_name,      # Extracted from part column
                 source="Renewal",
                 source_id=source_id,
                 full_text=full_text,

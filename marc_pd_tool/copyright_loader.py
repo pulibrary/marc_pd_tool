@@ -115,15 +115,44 @@ class CopyrightDataLoader:
             place_elem = entry.find(".//publisher/pubPlace")
             place = place_elem.text if place_elem is not None else ""
 
+            # Extract volume information from <vol> tag
+            vol_elem = entry.find(".//vol")
+            volume_info = vol_elem.text if vol_elem is not None else ""
+
+            # Parse volume info to extract part number and name
+            part_number = ""
+            part_name = ""
+            if volume_info:
+                # Handle formats like "Vol.3", "Vol.5", "Volume 2", etc.
+                volume_info_clean = volume_info.strip()
+                if volume_info_clean.lower().startswith(("vol.", "vol ", "volume ")):
+                    # Extract the number/name after "Vol." or "Volume"
+                    if volume_info_clean.lower().startswith("vol."):
+                        part_info = volume_info_clean[4:].strip()
+                    elif volume_info_clean.lower().startswith("vol "):
+                        part_info = volume_info_clean[4:].strip()
+                    else:  # starts with "volume "
+                        part_info = volume_info_clean[7:].strip()
+                    
+                    # Use the extracted info as part_number for now
+                    # (could be more sophisticated parsing later)
+                    part_number = part_info
+                else:
+                    # If it doesn't start with Vol/Volume, use the whole thing
+                    part_number = volume_info_clean
+
             # Extract entry ID
             source_id = entry.get("id", entry.get("regnum", ""))
 
             return Publication(
                 title=title,
                 author=author,
+                main_author="",  # Copyright data doesn't have separate main author field
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
+                part_number=part_number,  # Extracted from <vol> tag
+                part_name=part_name,      # Currently empty, could be enhanced
                 source="Copyright",
                 source_id=source_id,
             )

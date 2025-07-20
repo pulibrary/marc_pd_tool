@@ -144,6 +144,22 @@ class ParallelMarcExtractor:
             if not title:
                 return None
 
+            # Extract part number from 245$n
+            part_number_elem = record.find(".//datafield[@tag='245']/subfield[@code='n']")
+            if part_number_elem is None:
+                part_number_elem = record.find(
+                    ".//marc:datafield[@tag='245']/marc:subfield[@code='n']", ns
+                )
+            part_number = part_number_elem.text if part_number_elem is not None else ""
+
+            # Extract part name from 245$p
+            part_name_elem = record.find(".//datafield[@tag='245']/subfield[@code='p']")
+            if part_name_elem is None:
+                part_name_elem = record.find(
+                    ".//marc:datafield[@tag='245']/marc:subfield[@code='p']", ns
+                )
+            part_name = part_name_elem.text if part_name_elem is not None else ""
+
             # Extract author from 245$c (statement of responsibility)
             author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
             if author_elem is None:
@@ -152,6 +168,50 @@ class ParallelMarcExtractor:
                 )
 
             author = author_elem.text if author_elem is not None else ""
+
+            # Extract main author from 1xx fields (100, 110, 111) - priority order
+            main_author = ""
+            
+            # Try 100$a (personal name) first
+            main_author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
+            if main_author_elem is None:
+                main_author_elem = record.find(
+                    ".//marc:datafield[@tag='100']/marc:subfield[@code='a']", ns
+                )
+            
+            if main_author_elem is not None:
+                main_author = main_author_elem.text
+                # Clean up dates from personal names (e.g., "Smith, John, 1945-" -> "Smith, John")
+                if main_author and "," in main_author:
+                    parts = main_author.split(",")
+                    if len(parts) >= 3:
+                        # Check if the last part looks like a date
+                        last_part = parts[-1].strip()
+                        if last_part and (last_part[0].isdigit() or last_part.endswith("-")):
+                            main_author = ",".join(parts[:-1]).strip()
+            
+            # If no 100, try 110$a (corporate name)
+            if not main_author:
+                main_author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
+                if main_author_elem is None:
+                    main_author_elem = record.find(
+                        ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
+                    )
+                if main_author_elem is not None:
+                    main_author = main_author_elem.text
+            
+            # If no 100 or 110, try 111$a (meeting name)
+            if not main_author:
+                main_author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
+                if main_author_elem is None:
+                    main_author_elem = record.find(
+                        ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
+                    )
+                if main_author_elem is not None:
+                    main_author = main_author_elem.text
+
+            # Ensure main_author is a string
+            main_author = main_author if main_author else ""
 
             # Extract publication date (try 264 first, then 260)
             pub_date_elem = record.find(".//datafield[@tag='264']/subfield[@code='c']")
@@ -246,10 +306,13 @@ class ParallelMarcExtractor:
             return Publication(
                 title=title,
                 author=author,
+                main_author=main_author,
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
                 edition=edition,
+                part_number=part_number,
+                part_name=part_name,
                 language_code=language_code,
                 source="MARC",
                 source_id=source_id,
