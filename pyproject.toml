@@ -60,5 +60,7 @@ extensions = [
 black = { cmd = "black ." }
 isort = { cmd = "isort ." }
 mdformat = { cmd = "mdformat ." }
-format = { composite = [ "black", "isort", "mdformat" ] }
 test = { cmd = "pytest tests/ -v" }
+# Black can't ignore submodules. Below is the hack:
+submod_clean = { shell = "cd ./nypl-ren ; git checkout . -q ; cd ../nypl-reg ; git checkout . -q ; cd ../" }
+format = { composite = [ "black", "isort", "mdformat", "submod_clean" ] }

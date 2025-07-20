@@ -15,8 +15,9 @@ class CountryClassification(Enum):
 class CopyrightStatus(Enum):
     """Final copyright status classification based on registration/renewal patterns"""
 
-    POTENTIALLY_PD_DATE_VERIFY = "Potentially PD (date verify)"
-    POTENTIALLY_IN_COPYRIGHT = "Potentially In-Copyright"
-    RESEARCH_US_STATUS = "Research for US status"
-    RESEARCH_US_ONLY_PD = "Research for potential US-only PD status"
-    COUNTRY_UNKNOWN = "Country Unknown"
+    PD_DATE_VERIFY = "PD_DATE_VERIFY"
+    PD_NO_RENEWAL = "PD_NO_RENEWAL"
+    IN_COPYRIGHT = "IN_COPYRIGHT"
+    RESEARCH_US_STATUS = "RESEARCH_US_STATUS"
+    RESEARCH_US_ONLY_PD = "RESEARCH_US_ONLY_PD"
+    COUNTRY_UNKNOWN = "COUNTRY_UNKNOWN"

@@ -174,20 +174,32 @@ class Publication:
         return self.renewal_match is not None
 
     def determine_copyright_status(self) -> CopyrightStatus:
-        """Determine final copyright status based on matches and country"""
+        """Determine final copyright status based on matches, country, and publication year"""
         has_reg = self.has_registration_match()
         has_ren = self.has_renewal_match()
 
         if self.country_classification == CountryClassification.US:
-            # US records logic
-            if has_reg and not has_ren:
-                self.copyright_status = CopyrightStatus.POTENTIALLY_PD_DATE_VERIFY
-            elif has_ren and not has_reg:
-                self.copyright_status = CopyrightStatus.POTENTIALLY_IN_COPYRIGHT
-            elif not has_reg and not has_ren:
-                self.copyright_status = CopyrightStatus.POTENTIALLY_PD_DATE_VERIFY
-            else:  # has both
-                self.copyright_status = CopyrightStatus.POTENTIALLY_IN_COPYRIGHT
+            # Special rule for US works published 1930-1963
+            if self.year and 1930 <= self.year <= 1963:
+                if has_reg and not has_ren:
+                    # US works 1930-1963 with registration but no renewal are PD
+                    self.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+                elif has_ren:
+                    # US works 1930-1963 that were renewed are likely still copyrighted
+                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                else:
+                    # US works 1930-1963 with no registration/renewal need verification
+                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+            else:
+                # General US records logic for other years
+                if has_reg and not has_ren:
+                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+                elif has_ren and not has_reg:
+                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                elif not has_reg and not has_ren:
+                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+                else:  # has both
+                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
 
         elif self.country_classification == CountryClassification.NON_US:
             # Non-US records logic
@@ -216,6 +228,7 @@ class Publication:
             "country_code": self.country_code,
             "country_classification": self.country_classification.value,
             "copyright_status": self.copyright_status.value,
+            "full_text": self.full_text,
             "registration_match": (
                 {
                     "matched_title": self.registration_match.matched_title,

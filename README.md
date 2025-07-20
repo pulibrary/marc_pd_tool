@@ -59,7 +59,7 @@ The tool compares MARC bibliographic records against U.S. copyright registration
 1. **Enhanced Fuzzy Matching**: Compares titles, authors, and publishers against both registration (1923-1977) and renewal (1950-1991) datasets
 1. **Generic Title Detection**: Adjusts scoring for generic titles like "collected works" to improve accuracy (English titles only)
 1. **Dynamic Scoring**: Adapts match weighting based on available data and title genericness
-1. **Status Determination**: Assigns one of five copyright status categories based on match patterns
+1. **Status Determination**: Assigns one of six copyright status categories based on match patterns, including definitive public domain determination for US works published 1930-1963
 
 For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
 

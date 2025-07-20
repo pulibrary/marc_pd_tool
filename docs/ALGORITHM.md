@@ -112,14 +112,22 @@ Before applying similarity scoring, the system detects generic titles that would
 
 ### 4. Copyright Status Determination
 
-Based on the pattern of matches found, we assign one of five copyright status categories:
+Based on the pattern of matches found, we assign one of six copyright status categories:
 
 **For US Publications:**
 
-- **Registration but no renewal found** → `POTENTIALLY_PD_DATE_VERIFY`: The work was registered but we found no renewal, suggesting it may be public domain (verify renewal deadline)
-- **Renewal found** → `POTENTIALLY_IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
-- **Both registration and renewal found** → `POTENTIALLY_IN_COPYRIGHT`: The work followed the full copyright process
-- **Neither found** → `POTENTIALLY_PD_DATE_VERIFY`: No registration found, may be public domain or never registered
+**Special Rule for US Works Published 1930-1963:**
+
+- **Registration but no renewal found** → `PD_NO_RENEWAL`: Public domain (renewal was required but not done)
+- **Renewal found** → `IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
+- **Neither registration nor renewal found** → `PD_DATE_VERIFY`: No registration found, may be public domain or never registered
+
+**For US Works from Other Years:**
+
+- **Registration but no renewal found** → `PD_DATE_VERIFY`: The work was registered but we found no renewal, suggesting it may be public domain (verify renewal deadline)
+- **Renewal found** → `IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
+- **Both registration and renewal found** → `IN_COPYRIGHT`: The work followed the full copyright process
+- **Neither found** → `PD_DATE_VERIFY`: No registration found, may be public domain or never registered
 
 **For Non-US Publications:**
 
@@ -137,9 +145,11 @@ Based on the pattern of matches found, we assign one of five copyright status ca
 
 ### What the Status Categories Mean
 
-**POTENTIALLY_PD_DATE_VERIFY**: These works show patterns suggesting they may be in the public domain, but date verification is needed. For pre-1978 works, check if renewal was required and whether the 28-year deadline was met.
+**PD_NO_RENEWAL**: These works are in the public domain. This applies specifically to US works published 1930-1963 that were registered for copyright but not renewed within the required 28-year period.
 
-**POTENTIALLY_IN_COPYRIGHT**: These works show evidence of copyright renewal or other indicators suggesting they may still be under copyright protection. Assume these are copyrighted unless proven otherwise.
+**PD_DATE_VERIFY**: These works show patterns suggesting they may be in the public domain, but date verification is needed. For pre-1978 works, check if renewal was required and whether the 28-year deadline was met.
+
+**IN_COPYRIGHT**: These works show evidence of copyright renewal or other indicators suggesting they may still be under copyright protection. Assume these are copyrighted unless proven otherwise.
 
 **RESEARCH_US_STATUS**: Foreign works with some US copyright registration. The copyright status depends on complex factors including publication date, registration timing, and international copyright treaties.
 
@@ -182,10 +192,11 @@ The tool produces a CSV file with comprehensive analysis results:
 
 ```csv
 MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,Language Code,Country Code,Country Classification,Copyright Status,Generic Title Detected,Generic Detection Reason,Registration Generic Title,Renewal Generic Title,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Publisher,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score,Registration Publisher Score,Renewal Title,Renewal Author,Renewal Publisher,Renewal Date,Renewal Similarity Score,Renewal Title Score,Renewal Author Score,Renewal Publisher Score
-99123456,The Great Novel,Smith John,1955,Great Books Inc,New York,First edition,eng,xxu,US,POTENTIALLY_PD_DATE_VERIFY,False,none,False,False,R456789,,The great novel,Smith John,Great Books Inc,1955,82.5,85.0,75.0,90.0,,,,,,,,
+99123456,The Great Novel,Smith John,1955,Great Books Inc,New York,First edition,eng,xxu,US,PD_DATE_VERIFY,False,none,False,False,R456789,,The great novel,Smith John,Great Books Inc,1955,82.5,85.0,75.0,90.0,,,,,,,,
+99234567,American Classic,Brown Alice,1947,US Publishers,Chicago,1st ed.,eng,xxu,US,PD_NO_RENEWAL,False,none,False,False,R789123,,American classic,Brown Alice,US Publishers,1947,88.2,92.0,81.0,88.0,,,,,,,,
 99789012,Complete Works,Jones Mary,1960,Academic Press,London,2nd ed.,fre,uk,Non-US,RESEARCH_US_STATUS,False,skipped_non_english_fre,False,False,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,,Academic Press snippet,1960,75.3,78.0,70.0,,Complete works,Jones Mary,Academic Press,1960,82.1,85.0,72.0,75.0
-99345678,Mystery Work,Author Unknown,1950,,,,,,,Country Unknown,False,none,False,False,,,,,,,,,,,,,,,,
-99111222,Collected Poems,Common Author,1965,Popular Publishers,Boston,Rev. ed.,eng,xxu,US,POTENTIALLY_IN_COPYRIGHT,True,pattern,True,True,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Collected poems,Common Author,Popular Publishers,1965,65.3,50.0,85.0,95.0,Collected poems,Common Author,Popular Publishers,1965,66.8,52.0,86.0,92.0
+99345678,Mystery Work,Author Unknown,1950,,,,,,,COUNTRY_UNKNOWN,False,none,False,False,,,,,,,,,,,,,,,,
+99111222,Collected Poems,Common Author,1965,Popular Publishers,Boston,Rev. ed.,eng,xxu,US,IN_COPYRIGHT,True,pattern,True,True,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Collected poems,Common Author,Popular Publishers,1965,65.3,50.0,85.0,95.0,Collected poems,Common Author,Popular Publishers,1965,66.8,52.0,86.0,92.0
 ```
 
 **Important Notes:**
