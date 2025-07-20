@@ -9,8 +9,8 @@ import xml.etree.ElementTree as ET
 
 # Local imports
 from marc_pd_tool.enums import CountryClassification
+from marc_pd_tool.marc_utilities import extract_country_from_marc_008
 from marc_pd_tool.publication import Publication
-from marc_pd_tool.publication import extract_country_from_marc_008
 
 logger = getLogger(__name__)
 

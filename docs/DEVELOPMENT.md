@@ -19,8 +19,7 @@ marc_pd_tool/
 ├── copyright_loader.py      # Copyright registration data loading
 ├── renewal_loader.py        # Renewal data loading (TSV format)
 ├── indexer.py               # Multi-key indexing system
-├── generic_title_detector.py # Language-aware generic title detection
-└── batch_processor.py       # Parallel dual-dataset matching
+└── generic_title_detector.py # Language-aware generic title detection
 compare.py                   # Command-line application
 ```
 
@@ -758,7 +757,7 @@ The system includes tests for:
 
 ### 9.2 Modifying Scoring Logic
 
-1. Update `find_best_match()` in `batch_processor.py`
+1. Update `find_best_match()` in `matching_engine.py`
 1. Add configuration parameters to argument parser
 1. Update tests to validate new behavior
 1. Document threshold recommendations

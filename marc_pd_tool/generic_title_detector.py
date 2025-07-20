@@ -243,19 +243,6 @@ class GenericTitleDetector:
             if stopword_ratio > 0.6:
                 return True
 
-        # Single word genre titles
-        if len(words) == 1 and words[0] in {
-            "poems",
-            "essays",
-            "stories",
-            "novels",
-            "plays",
-            "letters",
-            "works",
-            "writings",
-        }:
-            return True
-
         return False
 
     def get_stats(self) -> Dict:
@@ -286,10 +273,10 @@ class GenericTitleDetector:
             language_code: MARC language code
 
         Returns:
-            True if English or unspecified (conservative default)
+            True if English or unspecified (defaults to English patterns)
         """
         if not language_code:
-            # No language specified - assume English for backward compatibility
+            # No language specified - default to English patterns
             return True
 
         # Check for English language codes

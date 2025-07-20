@@ -6,7 +6,7 @@ from os import unlink
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.batch_processor import save_matches_csv
+from marc_pd_tool.csv_exporter import save_matches_csv
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.publication import MatchResult

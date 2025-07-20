@@ -242,8 +242,10 @@ class TestEarlyTermination:
                 "1925",
                 "Scribner",
                 "New York",
-                "REG",
-                "EARLY_EXIT",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "EARLY_EXIT",  # source_id
             ),
             # These should not be reached due to early termination
             Publication(
@@ -252,12 +254,14 @@ class TestEarlyTermination:
                 "1925",
                 "Scribner",
                 "New York",
-                "REG",
-                "LATER_MATCH",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "LATER_MATCH",  # source_id
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 95, 90)
+        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "EARLY_EXIT"
@@ -284,8 +288,10 @@ class TestEarlyTermination:
                 "1920",
                 "Scribner",
                 "New York",
-                "REG",
-                "DIFFERENT_TITLE",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "DIFFERENT_TITLE",  # source_id
             ),
             # The actual match should be found
             Publication(
@@ -294,12 +300,14 @@ class TestEarlyTermination:
                 "1925",
                 "Scribner",
                 "New York",
-                "REG",
-                "CORRECT_MATCH",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "CORRECT_MATCH",  # source_id
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 95, 90)
+        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "CORRECT_MATCH"
@@ -329,7 +337,7 @@ class TestEarlyTermination:
         ]
 
         # Should not crash and should handle missing authors gracefully
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 95, 90)
+        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         # Either finding a match or not is acceptable - just shouldn't crash
         if match:
@@ -357,8 +365,10 @@ class TestEarlyTermination:
                 "1925",
                 "Publisher",
                 "Place",
-                "REG",
-                "HIGH_TITLE_LOW_AUTHOR",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "HIGH_TITLE_LOW_AUTHOR",  # source_id
             ),
             # Low title, high author - should not trigger early exit
             Publication(
@@ -367,16 +377,26 @@ class TestEarlyTermination:
                 "1925",
                 "Publisher",
                 "Place",
-                "REG",
-                "LOW_TITLE_HIGH_AUTHOR",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "LOW_TITLE_HIGH_AUTHOR",  # source_id
             ),
             # High title, high author - should trigger early exit
             Publication(
-                "Test Title", "Test Author", "1925", "Publisher", "Place", "REG", "BOTH_HIGH"
+                "Test Title",
+                "Test Author",
+                "1925",
+                "Publisher",
+                "Place",
+                "",  # edition
+                "",  # language_code
+                "REG",  # source
+                "BOTH_HIGH",  # source_id
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 95, 90)
+        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "BOTH_HIGH"

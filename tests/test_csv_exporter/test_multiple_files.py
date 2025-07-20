@@ -8,7 +8,7 @@ from os.path import splitext
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.batch_processor import save_matches_csv
+from marc_pd_tool.csv_exporter import save_matches_csv
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.publication import Publication
@@ -143,8 +143,8 @@ class TestCSVMultipleFiles:
         finally:
             unlink(temp_file)
 
-    def test_single_file_flag_maintains_legacy_behavior(self):
-        """Test that single_file=True maintains the original single file behavior"""
+    def test_single_file_flag_creates_single_output(self):
+        """Test that single_file=True creates a single output file with all records"""
         pub1 = Publication(
             title="Book 1",
             author="Author 1",

@@ -30,10 +30,10 @@ from time import time
 from marc_pd_tool import CopyrightDataLoader
 from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import RenewalDataLoader
-from marc_pd_tool import process_batch
-from marc_pd_tool import save_matches_csv
+from marc_pd_tool.csv_exporter import save_matches_csv
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
 from marc_pd_tool.indexer import build_index
+from marc_pd_tool.matching_engine import process_batch
 
 
 def setup_logging(log_file: str = None, debug: bool = False):
@@ -202,7 +202,7 @@ def main():
     parser.add_argument(
         "--single-file",
         action="store_true",
-        help="Save all results to a single file instead of separate files by copyright status (legacy behavior)",
+        help="Save all results to a single file instead of separate files by copyright status",
     )
 
     args = parser.parse_args()
