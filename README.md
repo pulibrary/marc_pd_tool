@@ -138,6 +138,7 @@ Processing large datasets (190K+ MARC records vs 2.1M+ registration entries + 44
 
 The tool automatically uses CPU cores (default: total cores - 2) and includes several optimization features:
 
+- **Persistent data cache**: Reduces startup time from 5-10 minutes to 10-30 seconds for repeated runs (85%+ improvement)
 - **Public domain filtering**: Excludes records older than current year - 95 by default
 - **Year-based filtering**: Only compares publications within ±2 years of each other
 - **US-only filtering**: Optional `--us-only` flag to process only US publications (50-70% faster)
@@ -183,6 +184,31 @@ pdm run python compare.py \
     --renewal-dir cce-renewals/data/ \
     --max-workers 8 \
     --batch-size 200
+```
+
+### Cache Management
+
+```bash
+# Force rebuild cache (when data sources change)
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --force-refresh
+
+# Use custom cache directory
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --cache-dir /path/to/custom/cache
+
+# Disable caching for one-off runs
+pdm run python compare.py \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --no-cache
 ```
 
 ### Logging

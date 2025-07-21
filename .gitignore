@@ -11,6 +11,10 @@ matches*.json
 matches*.csv
 *_matches.*
 
+# Cache directories - do not commit cached data
+.marcpd_cache/
+*_cache/
+
 # Misc
 notes.md
 

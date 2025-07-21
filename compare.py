@@ -30,6 +30,7 @@ from time import time
 from marc_pd_tool import CopyrightDataLoader
 from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import RenewalDataLoader
+from marc_pd_tool.cache_manager import CacheManager
 from marc_pd_tool.config_loader import ConfigLoader
 from marc_pd_tool.csv_exporter import save_matches_csv
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
@@ -225,6 +226,20 @@ def main():
         default=None,
         help="Path to JSON configuration file for scoring weights, thresholds, and word lists",
     )
+    parser.add_argument(
+        "--cache-dir",
+        type=str,
+        default=".marcpd_cache",
+        help="Directory for persistent data cache (default: .marcpd_cache)",
+    )
+    parser.add_argument(
+        "--force-refresh",
+        action="store_true",
+        help="Force refresh of all cached data (bypass cache)",
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Disable caching entirely (useful for one-off runs)"
+    )
 
     args = parser.parse_args()
 
@@ -246,6 +261,16 @@ def main():
     # Configure logging
     setup_logging(args.log_file, args.debug)
 
+    # Initialize cache manager
+    if not args.no_cache:
+        cache_manager = CacheManager(args.cache_dir)
+        if args.force_refresh:
+            logger.info("Force refresh requested - clearing all caches")
+            cache_manager.clear_all_caches()
+    else:
+        cache_manager = None
+        logger.info("Caching disabled via --no-cache flag")
+
     start_time = time()
     logger.info("=== STARTING PUBLICATION COMPARISON ===")
     logger.info(f"Configuration: {args.max_workers} workers, batch_size={args.batch_size}")
@@ -266,6 +291,18 @@ def main():
     if args.us_only:
         logger.info("Country filter: US publications only (non-US records will be excluded)")
 
+    # Log cache information
+    if cache_manager:
+        logger.info(f"Cache directory: {args.cache_dir}")
+        cache_info = cache_manager.get_cache_info()
+        cached_components = [
+            name for name, info in cache_info["components"].items() if info["cached"]
+        ]
+        if cached_components:
+            logger.info(f"Cached components available: {', '.join(cached_components)}")
+        else:
+            logger.info("No cached components available - will build cache during run")
+
     # Phase 1: Extract all MARC records into batches
     logger.info("=== PHASE 1: EXTRACTING MARC RECORDS ===")
     marc_extractor = ParallelMarcExtractor(
@@ -279,8 +316,23 @@ def main():
 
     # Phase 2: Load copyright registration data
     logger.info("=== PHASE 2: LOADING COPYRIGHT REGISTRATION DATA ===")
-    copyright_loader = CopyrightDataLoader(args.copyright_dir)
-    registration_publications = copyright_loader.load_all_copyright_data()
+
+    # Try to load from cache first
+    registration_publications = None
+    if cache_manager and not args.force_refresh:
+        registration_publications = cache_manager.get_cached_copyright_data(args.copyright_dir)
+
+    if registration_publications is None:
+        # Load from source files
+        logger.info("Loading copyright registration data from source files...")
+        copyright_loader = CopyrightDataLoader(args.copyright_dir)
+        registration_publications = copyright_loader.load_all_copyright_data()
+
+        # Cache the loaded data
+        if cache_manager and registration_publications:
+            cache_manager.cache_copyright_data(args.copyright_dir, registration_publications)
+    else:
+        logger.info(f"Loaded {len(registration_publications):,} copyright publications from cache")
 
     if not registration_publications:
         logger.error("No copyright registration data loaded. Exiting.")
@@ -288,8 +340,23 @@ def main():
 
     # Phase 3: Load renewal data
     logger.info("=== PHASE 3: LOADING RENEWAL DATA ===")
-    renewal_loader = RenewalDataLoader(args.renewal_dir)
-    renewal_publications = renewal_loader.load_all_renewal_data()
+
+    # Try to load from cache first
+    renewal_publications = None
+    if cache_manager and not args.force_refresh:
+        renewal_publications = cache_manager.get_cached_renewal_data(args.renewal_dir)
+
+    if renewal_publications is None:
+        # Load from source files
+        logger.info("Loading renewal data from source files...")
+        renewal_loader = RenewalDataLoader(args.renewal_dir)
+        renewal_publications = renewal_loader.load_all_renewal_data()
+
+        # Cache the loaded data
+        if cache_manager and renewal_publications:
+            cache_manager.cache_renewal_data(args.renewal_dir, renewal_publications)
+    else:
+        logger.info(f"Loaded {len(renewal_publications):,} renewal publications from cache")
 
     if not renewal_publications:
         logger.error("No renewal data loaded. Exiting.")
@@ -304,24 +371,45 @@ def main():
         logger.info(
             f"Generic title detection enabled (frequency threshold: {args.generic_title_threshold})"
         )
-        generic_detector = GenericTitleDetector(
-            frequency_threshold=args.generic_title_threshold, config=config_loader
-        )
 
-    if generic_detector:
-        # Populate detector with titles from all datasets for frequency analysis
-        logger.info("Populating generic title detector with MARC titles...")
-        for batch in marc_batches:
-            for pub in batch:
+        # Try to load from cache first
+        detector_config = {
+            "frequency_threshold": args.generic_title_threshold,
+            "disabled": args.disable_generic_detection,
+        }
+
+        generic_detector = None
+        if cache_manager and not args.force_refresh:
+            generic_detector = cache_manager.get_cached_generic_detector(
+                args.copyright_dir, args.renewal_dir, detector_config
+            )
+
+        if generic_detector is None:
+            # Create and populate detector from scratch
+            logger.info("Building generic title detector from source data...")
+            generic_detector = GenericTitleDetector(
+                frequency_threshold=args.generic_title_threshold, config=config_loader
+            )
+
+            # Populate detector with titles from all datasets for frequency analysis
+            logger.info("Populating generic title detector with MARC titles...")
+            for batch in marc_batches:
+                for pub in batch:
+                    generic_detector.add_title(pub.original_title)
+
+            logger.info("Populating generic title detector with registration titles...")
+            for pub in registration_publications:
                 generic_detector.add_title(pub.original_title)
 
-        logger.info("Populating generic title detector with registration titles...")
-        for pub in registration_publications:
-            generic_detector.add_title(pub.original_title)
+            logger.info("Populating generic title detector with renewal titles...")
+            for pub in renewal_publications:
+                generic_detector.add_title(pub.original_title)
 
-        logger.info("Populating generic title detector with renewal titles...")
-        for pub in renewal_publications:
-            generic_detector.add_title(pub.original_title)
+            # Cache the populated detector
+            if cache_manager:
+                cache_manager.cache_generic_detector(
+                    args.copyright_dir, args.renewal_dir, detector_config, generic_detector
+                )
 
         detector_stats = generic_detector.get_stats()
         logger.info(
@@ -331,10 +419,40 @@ def main():
 
     # Phase 3.6: Build indexes once and serialize to temp files
     logger.info("=== PHASE 3.6: BUILDING AND SERIALIZING INDEXES ===")
-    logger.info("Building registration index...")
-    registration_index = build_index(registration_publications, config_loader)
-    logger.info("Building renewal index...")
-    renewal_index = build_index(renewal_publications, config_loader)
+
+    # Create configuration hash for cache validation
+    # Standard library imports
+    from hashlib import md5
+
+    config_data = {
+        "title_threshold": args.title_threshold,
+        "author_threshold": args.author_threshold,
+        "year_tolerance": args.year_tolerance,
+    }
+    config_hash = md5(str(config_data).encode()).hexdigest()
+
+    # Try to load indexes from cache first
+    cached_indexes = None
+    if cache_manager and not args.force_refresh:
+        cached_indexes = cache_manager.get_cached_indexes(
+            args.copyright_dir, args.renewal_dir, config_hash
+        )
+
+    if cached_indexes is not None:
+        registration_index, renewal_index = cached_indexes
+        logger.info("Loaded indexes from cache")
+    else:
+        # Build indexes from scratch
+        logger.info("Building registration index...")
+        registration_index = build_index(registration_publications, config_loader)
+        logger.info("Building renewal index...")
+        renewal_index = build_index(renewal_publications, config_loader)
+
+        # Cache the built indexes
+        if cache_manager:
+            cache_manager.cache_indexes(
+                args.copyright_dir, args.renewal_dir, config_hash, registration_index, renewal_index
+            )
 
     # Create temporary files for serialized indexes and detector
     temp_dir = mkdtemp(prefix="marc_indexes_")
