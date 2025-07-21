@@ -400,10 +400,12 @@ def main():
             future_to_batch = {}
             for batch_info in batch_infos:
                 batch_id = batch_info[0]
-                batch_size = len(batch_info[1])  # batch_info[1] is the marc_batch
-                logger.info(f"Starting batch {batch_id}/{total_batches}: {batch_size} records")
                 future = executor.submit(process_batch, batch_info)
                 future_to_batch[future] = batch_id
+
+            logger.info(
+                f"Submitted {total_batches} batches for processing with {args.max_workers} workers"
+            )
 
             # Collect results as they complete
             for future in as_completed(future_to_batch):

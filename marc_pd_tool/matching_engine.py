@@ -1,6 +1,9 @@
 """Publication matching engine for parallel batch processing"""
 
 # Standard library imports
+from logging import Formatter
+from logging import INFO
+from logging import StreamHandler
 from logging import getLogger
 from os import getpid
 from pickle import load
@@ -67,8 +70,26 @@ def process_batch(
         early_exit_author,
     ) = batch_info
 
-    # Set up logging for this process
+    # Set up logging for this process - needed for multiprocessing
+    root_logger = getLogger()
+    if not root_logger.handlers:
+        # Configure logging in worker process if not already configured
+        console_handler = StreamHandler()
+        console_handler.setLevel(INFO)
+        formatter = Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+        root_logger.setLevel(INFO)
+
     process_logger = getLogger(f"batch_{batch_id}")
+
+    # Configure the batch logger to use the same handler as root logger
+    if not process_logger.handlers and root_logger.handlers:
+        for handler in root_logger.handlers:
+            process_logger.addHandler(handler)
+        process_logger.setLevel(root_logger.level)
+        # Prevent propagation to avoid duplicate messages
+        process_logger.propagate = False
 
     stats = {
         "batch_id": batch_id,
@@ -81,24 +102,25 @@ def process_batch(
         "unknown_country_records": 0,
     }
 
+    # Log batch start with process logger (same as completion messages)
     process_logger.info(
         f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
     )
 
     # Load pre-built indexes from pickle files
-    process_logger.info(
+    process_logger.debug(
         f"Batch {batch_id}/{total_batches}: Loading registration index from {registration_index_file}"
     )
     with open(registration_index_file, "rb") as f:
         registration_index = load(f)
 
-    process_logger.info(
+    process_logger.debug(
         f"Batch {batch_id}/{total_batches}: Loading renewal index from {renewal_index_file}"
     )
     with open(renewal_index_file, "rb") as f:
         renewal_index = load(f)
 
-    process_logger.info(
+    process_logger.debug(
         f"Batch {batch_id}/{total_batches}: Loading generic title detector from {generic_detector_file}"
     )
     with open(generic_detector_file, "rb") as f:
@@ -239,11 +261,11 @@ def process_batch(
         # Determine copyright status based on matches and country
         marc_pub.determine_copyright_status()
 
-    process_logger.info(
+    process_logger.debug(
         f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
         f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records"
     )
-    process_logger.info(
+    process_logger.debug(
         f"Batch {batch_id}/{total_batches} country breakdown: {stats['us_records']} US, "
         f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
     )
