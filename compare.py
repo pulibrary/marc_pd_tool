@@ -154,9 +154,9 @@ def main():
         default="matches.csv",
         help="Output CSV file (default auto-generates descriptive names based on filters)",
     )
-    parser.add_argument("--batch-size", type=int, default=500, help="MARC records per batch")
+    parser.add_argument("--batch-size", type=int, default=200, help="MARC records per batch")
     parser.add_argument(
-        "--max-workers", type=int, default=None, help="Number of processes (default: CPU count)"
+        "--max-workers", type=int, default=None, help="Number of processes (default: CPU count - 2)"
     )
     parser.add_argument("--title-threshold", type=int, default=config_loader.get_threshold("title"))
     parser.add_argument(
@@ -241,7 +241,7 @@ def main():
 
     # Set number of workers
     if args.max_workers is None:
-        args.max_workers = cpu_count()
+        args.max_workers = max(1, cpu_count() - 2)  # Use all cores minus 2, minimum 1
 
     # Configure logging
     setup_logging(args.log_file, args.debug)
@@ -397,10 +397,13 @@ def main():
     try:
         with ProcessPoolExecutor(max_workers=args.max_workers) as executor:
             # Submit all jobs
-            future_to_batch = {
-                executor.submit(process_batch, batch_info): batch_info[0]
-                for batch_info in batch_infos
-            }
+            future_to_batch = {}
+            for batch_info in batch_infos:
+                batch_id = batch_info[0]
+                batch_size = len(batch_info[1])  # batch_info[1] is the marc_batch
+                logger.info(f"Starting batch {batch_id}/{total_batches}: {batch_size} records")
+                future = executor.submit(process_batch, batch_info)
+                future_to_batch[future] = batch_id
 
             # Collect results as they complete
             for future in as_completed(future_to_batch):

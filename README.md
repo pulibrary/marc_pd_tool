@@ -136,7 +136,7 @@ For complete command line options and advanced configuration, see the detailed u
 **Expected Performance:**
 Processing large datasets (190K+ MARC records vs 2.1M+ registration entries + 445K+ renewal entries) typically takes several hours, depending on system specifications and dataset size.
 
-The tool automatically uses all available CPU cores and includes several optimization features:
+The tool automatically uses CPU cores (default: total cores - 2) and includes several optimization features:
 
 - **Public domain filtering**: Excludes records older than current year - 95 by default
 - **Year-based filtering**: Only compares publications within ±2 years of each other
@@ -181,8 +181,8 @@ pdm run python compare.py \
     --marcxml data.xml \
     --copyright-dir copyright_xml/ \
     --renewal-dir cce-renewals/data/ \
-    --max-workers 16 \
-    --batch-size 1000
+    --max-workers 8 \
+    --batch-size 200
 ```
 
 ### Logging

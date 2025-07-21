@@ -601,7 +601,7 @@ else:
 
 ```python
 class ParallelMarcExtractor:
-    def __init__(self, marc_path: str, batch_size: int = 1000, min_year: int = None, max_year: int = None):
+    def __init__(self, marc_path: str, batch_size: int = 200, min_year: int = None, max_year: int = None):
         self.min_year = min_year
         self.max_year = max_year
 
