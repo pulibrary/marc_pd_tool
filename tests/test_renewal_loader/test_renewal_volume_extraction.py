@@ -1,5 +1,6 @@
 """Test volume/part extraction from renewal TSV data"""
 
+# Local imports
 from marc_pd_tool.renewal_loader import RenewalDataLoader
 
 
@@ -18,9 +19,9 @@ class TestRenewalVolumeExtraction:
             "part": "14A",
             "odat": "1922-12-30",
             "entry_id": "test-id-1",
-            "full_text": "Test full text"
+            "full_text": "Test full text",
         }
-        
+
         pub1 = loader._extract_from_row(row1)
         assert pub1 is not None
         assert pub1.original_title == "Test Series"
@@ -33,14 +34,14 @@ class TestRenewalVolumeExtraction:
 
         row = {
             "title": "Another Series",
-            "author": "Another Author", 
+            "author": "Another Author",
             "volume": "7",
             "part": "",
             "odat": "1923-01-15",
             "entry_id": "test-id-2",
-            "full_text": "Another test"
+            "full_text": "Another test",
         }
-        
+
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_part_number == "7"
@@ -57,9 +58,9 @@ class TestRenewalVolumeExtraction:
             "part": "B",
             "odat": "1924-02-10",
             "entry_id": "test-id-3",
-            "full_text": "Third test"
+            "full_text": "Third test",
         }
-        
+
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_part_number == ""
@@ -76,9 +77,9 @@ class TestRenewalVolumeExtraction:
             "part": "",
             "odat": "1925-03-20",
             "entry_id": "test-id-4",
-            "full_text": "Simple test"
+            "full_text": "Simple test",
         }
-        
+
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_title == "Simple Book"
@@ -94,12 +95,12 @@ class TestRenewalVolumeExtraction:
             "author": "Legacy Author",
             "odat": "1926-04-15",
             "entry_id": "test-id-5",
-            "full_text": "Legacy test"
+            "full_text": "Legacy test",
             # No volume or part columns
         }
-        
+
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_title == "Legacy Book"
         assert pub.original_part_number == ""  # Should default to empty
-        assert pub.original_part_name == ""    # Should default to empty
+        assert pub.original_part_name == ""  # Should default to empty

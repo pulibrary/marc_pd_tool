@@ -4,10 +4,10 @@
 # pytest imported automatically by test runner
 
 # Local imports
-from marc_pd_tool.indexer import extract_significant_words
 from marc_pd_tool.indexer import generate_author_keys
 from marc_pd_tool.indexer import generate_title_keys
-from marc_pd_tool.indexer import normalize_text
+from marc_pd_tool.text_utils import extract_significant_words
+from marc_pd_tool.text_utils import normalize_text
 
 
 class TestTextNormalization:

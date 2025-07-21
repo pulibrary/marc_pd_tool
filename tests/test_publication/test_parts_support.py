@@ -1,5 +1,6 @@
 """Test part number and part name support in Publication class"""
 
+# Local imports
 from marc_pd_tool.publication import Publication
 
 
@@ -29,25 +30,15 @@ class TestPartSupport:
     def test_full_title_construction(self):
         """Test full title construction with parts"""
         # Title with both part number and name
-        pub1 = Publication(
-            title="Complete Works",
-            part_number="2",
-            part_name="Novels",
-        )
+        pub1 = Publication(title="Complete Works", part_number="2", part_name="Novels")
         assert pub1.full_title == "Complete Works. Part 2. Novels"
 
         # Title with only part number
-        pub2 = Publication(
-            title="Complete Works",
-            part_number="2",
-        )
+        pub2 = Publication(title="Complete Works", part_number="2")
         assert pub2.full_title == "Complete Works. Part 2"
 
         # Title with only part name
-        pub3 = Publication(
-            title="Complete Works",
-            part_name="Novels",
-        )
+        pub3 = Publication(title="Complete Works", part_name="Novels")
         assert pub3.full_title == "Complete Works. Novels"
 
         # Title with no parts
@@ -56,20 +47,13 @@ class TestPartSupport:
 
     def test_full_title_normalized(self):
         """Test normalized full title construction"""
-        pub = Publication(
-            title="Complete Works!",
-            part_number="2nd",
-            part_name="The Novels",
-        )
+        pub = Publication(title="Complete Works!", part_number="2nd", part_name="The Novels")
         assert pub.full_title_normalized == "complete works part 2nd the novels"
 
     def test_parts_in_to_dict(self):
         """Test that part fields are included in to_dict output"""
         pub = Publication(
-            title="Complete Works",
-            part_number="2",
-            part_name="Novels",
-            author="Jane Doe",
+            title="Complete Works", part_number="2", part_name="Novels", author="Jane Doe"
         )
 
         result = pub.to_dict()
@@ -84,11 +68,7 @@ class TestPartSupport:
 
     def test_empty_parts(self):
         """Test handling of empty part values"""
-        pub = Publication(
-            title="Complete Works",
-            part_number="",
-            part_name="",
-        )
+        pub = Publication(title="Complete Works", part_number="", part_name="")
 
         assert pub.original_part_number == ""
         assert pub.original_part_name == ""
@@ -99,11 +79,7 @@ class TestPartSupport:
 
     def test_parts_with_whitespace(self):
         """Test part handling with whitespace"""
-        pub = Publication(
-            title="Complete Works",
-            part_number="  2  ",
-            part_name="  The Novels  ",
-        )
+        pub = Publication(title="Complete Works", part_number="  2  ", part_name="  The Novels  ")
 
         # Original values preserve whitespace
         assert pub.original_part_number == "  2  "

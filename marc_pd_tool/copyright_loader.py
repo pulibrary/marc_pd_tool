@@ -133,7 +133,7 @@ class CopyrightDataLoader:
                         part_info = volume_info_clean[4:].strip()
                     else:  # starts with "volume "
                         part_info = volume_info_clean[7:].strip()
-                    
+
                     # Use the extracted info as part_number for now
                     # (could be more sophisticated parsing later)
                     part_number = part_info
@@ -152,7 +152,7 @@ class CopyrightDataLoader:
                 publisher=publisher,
                 place=place,
                 part_number=part_number,  # Extracted from <vol> tag
-                part_name=part_name,      # Currently empty, could be enhanced
+                part_name=part_name,  # Currently empty, could be enhanced
                 source="Copyright",
                 source_id=source_id,
             )

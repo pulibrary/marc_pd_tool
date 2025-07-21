@@ -264,9 +264,9 @@ def find_best_match(
     matching_engine: Optional[MatchingEngine] = None,
 ) -> Optional[Dict]:
     """Find the best matching copyright publication for a MARC record
-    
+
     This function maintains backward compatibility while delegating to the new API.
-    
+
     Args:
         marc_pub: MARC publication to match
         copyright_pubs: List of copyright/renewal publications to search
@@ -278,15 +278,21 @@ def find_best_match(
         early_exit_author: Author score for early termination (0-100)
         generic_detector: Optional generic title detector
         matching_engine: Optional custom matching engine (uses default if None)
-        
+
     Returns:
         Dictionary with match information or None if no match found
     """
     if matching_engine is None:
         matching_engine = DefaultMatchingEngine()
-    
+
     return matching_engine.find_best_match(
-        marc_pub, copyright_pubs, title_threshold, author_threshold,
-        year_tolerance, publisher_threshold, early_exit_title, early_exit_author,
-        generic_detector
+        marc_pub,
+        copyright_pubs,
+        title_threshold,
+        author_threshold,
+        year_tolerance,
+        publisher_threshold,
+        early_exit_title,
+        early_exit_author,
+        generic_detector,
     )

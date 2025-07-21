@@ -2,63 +2,28 @@
 
 # Standard library imports
 from collections import defaultdict
-from re import sub
 from typing import Dict
 from typing import List
 from typing import Set
 from typing import Tuple
 
 # Local imports
+from marc_pd_tool.config_loader import get_config
 from marc_pd_tool.publication import Publication
-
-# fmt: off
-# Common stopwords to filter from titles
-STOPWORDS = { "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", 
-    "has", "he", "in", "is", "it", "its", "of", "on", "or", "that", "the", "to", 
-    "was", "were", "will", "with"
-}
-# fmt: on
-
-# Common title prefixes to normalize
-TITLE_PREFIXES = {"the" "a", "an"}
+from marc_pd_tool.text_utils import extract_significant_words
+from marc_pd_tool.text_utils import normalize_text
 
 
-def normalize_text(text: str) -> str:
-    """Normalize text for indexing by removing punctuation and converting to lowercase"""
-    if not text:
-        return ""
-
-    # Convert to lowercase and remove punctuation except spaces and hyphens
-    normalized = sub(r"[^\w\s\-]", " ", text.lower())
-    # Normalize whitespace and hyphens
-    normalized = sub(r"[\s\-]+", " ", normalized)
-    return normalized.strip()
-
-
-def extract_significant_words(text: str, max_words: int = 5) -> List[str]:
-    """Extract significant words from text, filtering stopwords"""
-    if not text:
-        return []
-
-    normalized = normalize_text(text)
-    words = normalized.split()
-
-    # Filter stopwords and short words (length >= 3)
-    significant = [w for w in words if w not in STOPWORDS and len(w) >= 3]
-    if not significant and words:
-        # If all words were filtered, keep the first word with length >= 2
-        significant = [w for w in words if len(w) >= 2][:1]
-
-    return significant[:max_words]
-
-
-def generate_title_keys(title: str) -> Set[str]:
+def generate_title_keys(title: str, config=None) -> Set[str]:
     """Generate multiple indexing keys for a title"""
     if not title:
         return set()
 
+    if config is None:
+        config = get_config()
+
     keys = set()
-    words = extract_significant_words(title, max_words=4)
+    words = extract_significant_words(title, max_words=4, config=config)
 
     if not words:
         return set()
@@ -177,7 +142,7 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
     return keys
 
 
-def generate_publisher_keys(publisher: str) -> Set[str]:
+def generate_publisher_keys(publisher: str, config=None) -> Set[str]:
     """Generate multiple indexing keys for a publisher name
 
     Args:
@@ -189,6 +154,9 @@ def generate_publisher_keys(publisher: str) -> Set[str]:
     if not publisher:
         return set()
 
+    if config is None:
+        config = get_config()
+
     keys = set()
 
     # Normalize the publisher name
@@ -198,33 +166,15 @@ def generate_publisher_keys(publisher: str) -> Set[str]:
     if not words:
         return set()
 
-    # Remove common publishing terms that don't help with matching
-    publishing_stopwords = {
-        "inc",
-        "corp",
-        "corporation",
-        "company",
-        "co",
-        "ltd",
-        "limited",
-        "publishers",
-        "publisher",
-        "publishing",
-        "publications",
-        "press",
-        "books",
-        "book",
-        "house",
-        "group",
-        "media",
-        "entertainment",
-    }
+    # Get stopwords from configuration
+    publishing_stopwords = config.get_publisher_stopwords()
+    general_stopwords = config.get_stopwords()
 
     # Filter out publishing stopwords but keep at least some words
     significant_words = [w for w in words if w not in publishing_stopwords and len(w) >= 3]
     if not significant_words and words:
         # If all words were filtered, keep the longest non-stopword words
-        significant_words = [w for w in words if w not in STOPWORDS and len(w) >= 3][:3]
+        significant_words = [w for w in words if w not in general_stopwords and len(w) >= 3][:3]
 
     # Single word keys (for exact word matches)
     for word in significant_words:
@@ -249,7 +199,7 @@ def generate_publisher_keys(publisher: str) -> Set[str]:
     return keys
 
 
-def generate_edition_keys(edition: str) -> Set[str]:
+def generate_edition_keys(edition: str, config=None) -> Set[str]:
     """Generate multiple indexing keys for an edition statement
 
     Args:
@@ -261,6 +211,9 @@ def generate_edition_keys(edition: str) -> Set[str]:
     if not edition:
         return set()
 
+    if config is None:
+        config = get_config()
+
     keys = set()
 
     # Normalize the edition statement
@@ -270,42 +223,14 @@ def generate_edition_keys(edition: str) -> Set[str]:
     if not words:
         return set()
 
-    # Remove common edition stopwords that don't help with matching
-    edition_stopwords = {
-        "edition",
-        "ed",
-        "printing",
-        "print",
-        "impression",
-        "issue",
-        "vol",
-        "volume",
-    }
+    # Get stopwords from configuration
+    edition_stopwords = config.get_edition_stopwords()
 
     # Extract significant words for edition matching
     significant_words = [w for w in words if w not in edition_stopwords and len(w) >= 2]
 
-    # Add ordinal/numeric keys (e.g., "2nd", "first", "second", "revised")
-    ordinal_terms = {
-        "1st",
-        "first",
-        "2nd",
-        "second",
-        "3rd",
-        "third",
-        "4th",
-        "fourth",
-        "5th",
-        "fifth",
-        "revised",
-        "rev",
-        "new",
-        "updated",
-        "enlarged",
-        "expanded",
-        "abridged",
-        "complete",
-    }
+    # Get ordinal terms from configuration
+    ordinal_terms = config.get_ordinal_terms()
 
     for word in words:
         clean_word = word.replace(".", "").replace(",", "").lower()
@@ -354,7 +279,7 @@ class PublicationIndex:
             author_keys = generate_author_keys(pub.author)
             for key in author_keys:
                 self.author_index[key].add(pub_id)
-        
+
         # Also index main author (1xx fields) if available
         if pub.main_author:
             main_author_keys = generate_author_keys(pub.main_author)
@@ -395,7 +320,7 @@ class PublicationIndex:
             author_keys = generate_author_keys(query_pub.author)
             for key in author_keys:
                 author_candidates.update(self.author_index.get(key, set()))
-        
+
         # Also search by main author if available
         if query_pub.main_author:
             main_author_keys = generate_author_keys(query_pub.main_author)

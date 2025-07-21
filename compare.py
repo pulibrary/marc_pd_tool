@@ -30,6 +30,7 @@ from time import time
 from marc_pd_tool import CopyrightDataLoader
 from marc_pd_tool import ParallelMarcExtractor
 from marc_pd_tool import RenewalDataLoader
+from marc_pd_tool.config_loader import ConfigLoader
 from marc_pd_tool.csv_exporter import save_matches_csv
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
 from marc_pd_tool.indexer import build_index
@@ -123,6 +124,16 @@ def generate_output_filename(args):
 
 def main():
     cwd = dirname(abspath(__file__))
+
+    # First pass: parse only config argument to load configuration
+    config_parser = ArgumentParser(add_help=False)
+    config_parser.add_argument("--config", type=str, default=None)
+    config_args, _ = config_parser.parse_known_args()
+
+    # Load configuration to set defaults
+    config_loader = ConfigLoader(config_args.config)
+
+    # Main parser with configuration-based defaults
     parser = ArgumentParser(
         description="MARC data comparison with registration and renewal matching"
     )
@@ -147,20 +158,24 @@ def main():
     parser.add_argument(
         "--max-workers", type=int, default=None, help="Number of processes (default: CPU count)"
     )
-    parser.add_argument("--title-threshold", type=int, default=80)
-    parser.add_argument("--author-threshold", type=int, default=70)
-    parser.add_argument("--year-tolerance", type=int, default=2)
+    parser.add_argument("--title-threshold", type=int, default=config_loader.get_threshold("title"))
+    parser.add_argument(
+        "--author-threshold", type=int, default=config_loader.get_threshold("author")
+    )
+    parser.add_argument(
+        "--year-tolerance", type=int, default=config_loader.get_threshold("year_tolerance")
+    )
     parser.add_argument(
         "--early-exit-title",
         type=int,
-        default=95,
-        help="Title score for early termination (default: 95)",
+        default=config_loader.get_threshold("early_exit_title"),
+        help="Title score for early termination (default: from config)",
     )
     parser.add_argument(
         "--early-exit-author",
         type=int,
-        default=90,
-        help="Author score for early termination (default: 90)",
+        default=config_loader.get_threshold("early_exit_author"),
+        help="Author score for early termination (default: from config)",
     )
     parser.add_argument(
         "--min-year",
@@ -191,8 +206,8 @@ def main():
     parser.add_argument(
         "--generic-title-threshold",
         type=int,
-        default=10,
-        help="Minimum occurrences for a title to be considered generic (default: 10)",
+        default=config_loader.get_generic_detector_config()["frequency_threshold"],
+        help="Minimum occurrences for a title to be considered generic (default: from config)",
     )
     parser.add_argument(
         "--disable-generic-detection",
@@ -203,6 +218,12 @@ def main():
         "--single-file",
         action="store_true",
         help="Save all results to a single file instead of separate files by copyright status",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to JSON configuration file for scoring weights, thresholds, and word lists",
     )
 
     args = parser.parse_args()
@@ -283,7 +304,9 @@ def main():
         logger.info(
             f"Generic title detection enabled (frequency threshold: {args.generic_title_threshold})"
         )
-        generic_detector = GenericTitleDetector(frequency_threshold=args.generic_title_threshold)
+        generic_detector = GenericTitleDetector(
+            frequency_threshold=args.generic_title_threshold, config=config_loader
+        )
 
     if generic_detector:
         # Populate detector with titles from all datasets for frequency analysis

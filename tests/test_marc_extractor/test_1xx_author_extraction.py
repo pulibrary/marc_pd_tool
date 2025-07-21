@@ -1,6 +1,9 @@
 """Test extraction of 1xx author fields from MARC records"""
 
+# Standard library imports
 import xml.etree.ElementTree as ET
+
+# Local imports
 from marc_pd_tool.marc_extractor import ParallelMarcExtractor
 
 
@@ -26,14 +29,14 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
         assert pub.original_author == "by John Smith."
         assert pub.original_main_author == "Smith, John,"  # Date cleaned
-        
+
     def test_100_with_full_dates(self):
         """Test cleaning dates from 100$a field"""
         extractor = ParallelMarcExtractor("dummy_path")
@@ -50,7 +53,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
@@ -73,7 +76,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
@@ -96,7 +99,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
@@ -122,7 +125,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
@@ -143,7 +146,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
@@ -168,7 +171,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>
         """
-        
+
         record = ET.fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 

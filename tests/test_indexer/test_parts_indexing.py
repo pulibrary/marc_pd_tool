@@ -1,5 +1,6 @@
 """Test indexing with part number and part name support"""
 
+# Local imports
 from marc_pd_tool.indexer import PublicationIndex
 from marc_pd_tool.publication import Publication
 
@@ -27,10 +28,7 @@ class TestPartsIndexing:
         assert index.size() == 1
 
         # Test that we can find it using parts in the title
-        query_pub = Publication(
-            title="Complete Works Part 2 Novels",
-            author="Jane Doe",
-        )
+        query_pub = Publication(title="Complete Works Part 2 Novels", author="Jane Doe")
 
         candidates = index.get_candidates_list(query_pub)
         assert len(candidates) == 1
@@ -42,17 +40,11 @@ class TestPartsIndexing:
 
         # Add publications with different parts
         pub1 = Publication(
-            title="Complete Works",
-            part_number="1",
-            part_name="Poetry",
-            author="Jane Doe",
+            title="Complete Works", part_number="1", part_name="Poetry", author="Jane Doe"
         )
 
         pub2 = Publication(
-            title="Complete Works",
-            part_number="2",
-            part_name="Novels",
-            author="Jane Doe",
+            title="Complete Works", part_number="2", part_name="Novels", author="Jane Doe"
         )
 
         index.add_publication(pub1)
@@ -64,9 +56,7 @@ class TestPartsIndexing:
 
         # Should find the novels part
         assert len(candidates_novels) >= 1
-        found_novels = any(
-            c.original_part_name == "Novels" for c in candidates_novels
-        )
+        found_novels = any(c.original_part_name == "Novels" for c in candidates_novels)
         assert found_novels
 
         # Search for the other part
@@ -75,9 +65,7 @@ class TestPartsIndexing:
 
         # Should find the poetry part
         assert len(candidates_poetry) >= 1
-        found_poetry = any(
-            c.original_part_name == "Poetry" for c in candidates_poetry
-        )
+        found_poetry = any(c.original_part_name == "Poetry" for c in candidates_poetry)
         assert found_poetry
 
     def test_parts_dont_affect_non_part_titles(self):
@@ -85,16 +73,10 @@ class TestPartsIndexing:
         index = PublicationIndex()
 
         # Add both normal and part-based publications
-        normal_pub = Publication(
-            title="Simple Book",
-            author="John Doe",
-        )
+        normal_pub = Publication(title="Simple Book", author="John Doe")
 
         part_pub = Publication(
-            title="Complete Works",
-            part_number="1",
-            part_name="Essays",
-            author="Jane Doe",
+            title="Complete Works", part_number="1", part_name="Essays", author="Jane Doe"
         )
 
         index.add_publication(normal_pub)
@@ -111,12 +93,7 @@ class TestPartsIndexing:
         """Test that empty parts don't break indexing"""
         index = PublicationIndex()
 
-        pub = Publication(
-            title="Book Title",
-            part_number="",
-            part_name="",
-            author="Author Name",
-        )
+        pub = Publication(title="Book Title", part_number="", part_name="", author="Author Name")
 
         index.add_publication(pub)
 

@@ -171,14 +171,14 @@ class ParallelMarcExtractor:
 
             # Extract main author from 1xx fields (100, 110, 111) - priority order
             main_author = ""
-            
+
             # Try 100$a (personal name) first
             main_author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
             if main_author_elem is None:
                 main_author_elem = record.find(
                     ".//marc:datafield[@tag='100']/marc:subfield[@code='a']", ns
                 )
-            
+
             if main_author_elem is not None:
                 main_author = main_author_elem.text
                 # Clean up dates from personal names (e.g., "Smith, John, 1945-" -> "Smith, John")
@@ -189,7 +189,7 @@ class ParallelMarcExtractor:
                         last_part = parts[-1].strip()
                         if last_part and (last_part[0].isdigit() or last_part.endswith("-")):
                             main_author = ",".join(parts[:-1]).strip()
-            
+
             # If no 100, try 110$a (corporate name)
             if not main_author:
                 main_author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
@@ -199,7 +199,7 @@ class ParallelMarcExtractor:
                     )
                 if main_author_elem is not None:
                     main_author = main_author_elem.text
-            
+
             # If no 100 or 110, try 111$a (meeting name)
             if not main_author:
                 main_author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")

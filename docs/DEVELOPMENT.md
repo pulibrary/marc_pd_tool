@@ -1028,9 +1028,9 @@ assert result is not None  # Should find expected matches
 **Optimization Tips**:
 
 1. **Caching**: Cache expensive similarity calculations
-2. **Early Termination**: Implement early exit when scores are very low
-3. **Batch Processing**: Process multiple comparisons efficiently  
-4. **Memory Management**: Avoid loading large models repeatedly
+1. **Early Termination**: Implement early exit when scores are very low
+1. **Batch Processing**: Process multiple comparisons efficiently
+1. **Memory Management**: Avoid loading large models repeatedly
 
 **Profiling Custom Implementations**:
 
@@ -1054,11 +1054,11 @@ class ProfilingCalculator(SimilarityCalculator):
 **From Hardcoded Logic to API**:
 
 1. **Identify Custom Logic**: Find where you need different behavior
-2. **Choose Component**: Determine if you need custom calculator, combiner, or full engine
-3. **Implement Interface**: Create class implementing appropriate abstract base class
-4. **Test Thoroughly**: Ensure new implementation handles edge cases
-5. **Performance Test**: Compare performance with default implementation
-6. **Deploy Gradually**: Test with subset of data before full deployment
+1. **Choose Component**: Determine if you need custom calculator, combiner, or full engine
+1. **Implement Interface**: Create class implementing appropriate abstract base class
+1. **Test Thoroughly**: Ensure new implementation handles edge cases
+1. **Performance Test**: Compare performance with default implementation
+1. **Deploy Gradually**: Test with subset of data before full deployment
 
 ## Conclusion
 

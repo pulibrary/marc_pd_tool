@@ -1,9 +1,12 @@
 """Abstract base classes for matching and scoring API interface"""
 
 # Standard library imports
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Local imports
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
@@ -13,6 +16,7 @@ from marc_pd_tool.publication import Publication
 @dataclass
 class SimilarityScores:
     """Container for similarity scores between publications"""
+
     title: float
     author: float
     publisher: float
@@ -25,11 +29,11 @@ class SimilarityCalculator(ABC):
     @abstractmethod
     def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
         """Calculate similarity score between titles (0-100)
-        
+
         Args:
             marc_title: Normalized title from MARC record
             copyright_title: Title from copyright/renewal record
-            
+
         Returns:
             Similarity score from 0-100
         """
@@ -38,11 +42,11 @@ class SimilarityCalculator(ABC):
     @abstractmethod
     def calculate_author_similarity(self, marc_author: str, copyright_author: str) -> float:
         """Calculate similarity score between authors (0-100)
-        
+
         Args:
             marc_author: Author name from MARC record
             copyright_author: Author name from copyright/renewal record
-            
+
         Returns:
             Similarity score from 0-100
         """
@@ -50,18 +54,15 @@ class SimilarityCalculator(ABC):
 
     @abstractmethod
     def calculate_publisher_similarity(
-        self, 
-        marc_publisher: str, 
-        copyright_publisher: str, 
-        copyright_full_text: str = ""
+        self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = ""
     ) -> float:
         """Calculate similarity score between publishers (0-100)
-        
+
         Args:
             marc_publisher: Publisher from MARC record
             copyright_publisher: Publisher from copyright/renewal record
             copyright_full_text: Full text from renewal record (for fuzzy matching)
-            
+
         Returns:
             Similarity score from 0-100
         """
@@ -82,7 +83,7 @@ class ScoreCombiner(ABC):
         generic_detector: Optional[GenericTitleDetector] = None,
     ) -> float:
         """Combine individual scores into final similarity score (0-100)
-        
+
         Args:
             title_score: Title similarity score (0-100)
             author_score: Author similarity score (0-100)
@@ -90,7 +91,7 @@ class ScoreCombiner(ABC):
             marc_pub: MARC publication record
             copyright_pub: Copyright/renewal publication record
             generic_detector: Optional generic title detector for dynamic weighting
-            
+
         Returns:
             Combined similarity score from 0-100
         """
@@ -114,7 +115,7 @@ class MatchingEngine(ABC):
         generic_detector: Optional[GenericTitleDetector] = None,
     ) -> Optional[Dict]:
         """Find the best matching copyright publication
-        
+
         Args:
             marc_pub: MARC publication to match
             copyright_pubs: List of copyright/renewal publications to search
@@ -125,7 +126,7 @@ class MatchingEngine(ABC):
             early_exit_title: Title score for early termination (0-100)
             early_exit_author: Author score for early termination (0-100)
             generic_detector: Optional generic title detector
-            
+
         Returns:
             Dictionary with match information or None if no match found
         """

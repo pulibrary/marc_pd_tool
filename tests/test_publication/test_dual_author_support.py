@@ -1,5 +1,6 @@
 """Test dual author support (245$c and 1xx fields) in Publication class"""
 
+# Local imports
 from marc_pd_tool.publication import Publication
 
 
@@ -25,11 +26,7 @@ class TestDualAuthorSupport:
 
     def test_publication_with_only_245c_author(self):
         """Test Publication with only 245$c author"""
-        pub = Publication(
-            title="Test Book",
-            author="by Jane Doe",
-            main_author="",  # No 1xx field
-        )
+        pub = Publication(title="Test Book", author="by Jane Doe", main_author="")  # No 1xx field
 
         assert pub.original_author == "by Jane Doe"
         assert pub.original_main_author == ""
@@ -38,11 +35,7 @@ class TestDualAuthorSupport:
 
     def test_publication_with_only_1xx_author(self):
         """Test Publication with only 1xx author"""
-        pub = Publication(
-            title="Test Book",
-            author="",  # No 245$c
-            main_author="Doe, Jane",
-        )
+        pub = Publication(title="Test Book", author="", main_author="Doe, Jane")  # No 245$c
 
         assert pub.original_author == ""
         assert pub.original_main_author == "Doe, Jane"
@@ -52,9 +45,7 @@ class TestDualAuthorSupport:
     def test_both_authors_in_to_dict(self):
         """Test that both author fields are included in to_dict output"""
         pub = Publication(
-            title="Test Book",
-            author="by Test Author",
-            main_author="Author, Test, 1980-",
+            title="Test Book", author="by Test Author", main_author="Author, Test, 1980-"
         )
 
         result = pub.to_dict()
@@ -66,11 +57,7 @@ class TestDualAuthorSupport:
 
     def test_empty_authors(self):
         """Test handling when both author fields are empty"""
-        pub = Publication(
-            title="Test Book",
-            author="",
-            main_author="",
-        )
+        pub = Publication(title="Test Book", author="", main_author="")
 
         assert pub.original_author == ""
         assert pub.original_main_author == ""

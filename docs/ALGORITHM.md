@@ -70,16 +70,19 @@ For each MARC record, we search for similar entries in both the registration and
 The system now extracts and utilizes two types of author information from MARC records:
 
 1. **Main Author (1xx fields)**: Normalized controlled vocabulary entries
+
    - **100$a**: Personal names in "Last, First, dates" format (dates automatically cleaned)
-   - **110$a**: Corporate names 
+   - **110$a**: Corporate names
    - **111$a**: Meeting names
    - **Priority order**: 100 → 110 → 111 (uses first available)
 
-2. **Statement of Responsibility (245$c)**: Transcribed directly from title page
+1. **Statement of Responsibility (245$c)**: Transcribed directly from title page
+
    - Natural language format as published
    - May include roles, multiple contributors, etc.
 
-**Author Scoring Algorithm**: 
+**Author Scoring Algorithm**:
+
 - Calculates similarity scores for both author types against copyright data
 - Uses `max(score_245c, score_1xx)` to leverage whichever format matches better
 - Provides optimal matching for both controlled vocabulary and natural language variants

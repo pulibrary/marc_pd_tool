@@ -1,6 +1,9 @@
 """Test volume/part extraction from copyright registration data"""
 
+# Standard library imports
 import xml.etree.ElementTree as ET
+
+# Local imports
 from marc_pd_tool.copyright_loader import CopyrightDataLoader
 
 
@@ -23,7 +26,7 @@ class TestVolumeExtraction:
             </publisher>
         </copyrightEntry>
         """
-        
+
         entry = ET.fromstring(xml_string)
         pub = loader._extract_from_entry(entry)
 
@@ -47,7 +50,7 @@ class TestVolumeExtraction:
         pub1 = loader._extract_from_entry(entry1)
         assert pub1.original_part_number == "3"
 
-        # Test Volume 5 format  
+        # Test Volume 5 format
         xml_string2 = """
         <copyrightEntry id="test2" regnum="A593952">
             <title>Test Book</title>
@@ -79,7 +82,7 @@ class TestVolumeExtraction:
             <author><authorName>Author Name</authorName></author>
         </copyrightEntry>
         """
-        
+
         entry = ET.fromstring(xml_string)
         pub = loader._extract_from_entry(entry)
 

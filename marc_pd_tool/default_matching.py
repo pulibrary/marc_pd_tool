@@ -1,14 +1,20 @@
 """Default concrete implementations of matching and scoring interfaces"""
 
 # Standard library imports
-from typing import Dict, List, Optional
+from typing import Dict
+from typing import List
+from typing import Optional
 
 # Third party imports
 from fuzzywuzzy import fuzz
 
 # Local imports
+from marc_pd_tool.config_loader import ConfigLoader
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
-from marc_pd_tool.matching_api import MatchingEngine, ScoreCombiner, SimilarityCalculator, SimilarityScores
+from marc_pd_tool.matching_api import MatchingEngine
+from marc_pd_tool.matching_api import ScoreCombiner
+from marc_pd_tool.matching_api import SimilarityCalculator
+from marc_pd_tool.matching_api import SimilarityScores
 from marc_pd_tool.publication import Publication
 
 
@@ -24,13 +30,10 @@ class FuzzyWuzzySimilarityCalculator(SimilarityCalculator):
         return fuzz.ratio(marc_author, copyright_author)
 
     def calculate_publisher_similarity(
-        self, 
-        marc_publisher: str, 
-        copyright_publisher: str, 
-        copyright_full_text: str = ""
+        self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = ""
     ) -> float:
         """Calculate publisher similarity using appropriate fuzzy matching strategy
-        
+
         Uses partial_ratio for renewal full_text matching, ratio for direct publisher comparison
         """
         if copyright_full_text:
@@ -46,6 +49,19 @@ class FuzzyWuzzySimilarityCalculator(SimilarityCalculator):
 class DynamicWeightingCombiner(ScoreCombiner):
     """Default score combiner using dynamic weighting based on generic title detection"""
 
+    def __init__(self, config: Optional[ConfigLoader] = None):
+        """Initialize with optional configuration
+
+        Args:
+            config: Configuration loader, uses default if None
+        """
+        if config is None:
+            # Local imports
+            from marc_pd_tool.config_loader import get_config
+
+            config = get_config()
+        self.config = config
+
     def combine_scores(
         self,
         title_score: float,
@@ -56,12 +72,12 @@ class DynamicWeightingCombiner(ScoreCombiner):
         generic_detector: Optional[GenericTitleDetector] = None,
     ) -> float:
         """Combine scores using dynamic weighting based on available data and generic titles
-        
-        Weighting strategies:
-        - Normal titles with publisher: title=60%, author=25%, publisher=15%
-        - Generic titles with publisher: title=30%, author=45%, publisher=25%
-        - Normal titles without publisher: title=70%, author=30%
-        - Generic titles without publisher: title=40%, author=60%
+
+        Uses configurable weights from config.json for different scenarios:
+        - Normal titles with publisher
+        - Generic titles with publisher
+        - Normal titles without publisher
+        - Generic titles without publisher
         """
         # Determine if any title is generic
         has_generic_title = False
@@ -74,26 +90,26 @@ class DynamicWeightingCombiner(ScoreCombiner):
             )
             has_generic_title = marc_title_is_generic or copyright_title_is_generic
 
-        # Apply dynamic scoring weights based on available data
+        # Determine scenario and get weights from configuration
         if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
             if has_generic_title:
-                # Generic title detected: title=30%, author=45%, publisher=25%
-                combined_score = (
-                    (title_score * 0.3) + (author_score * 0.45) + (publisher_score * 0.25)
-                )
+                weights = self.config.get_scoring_weights("generic_with_publisher")
             else:
-                # Normal scoring: title=60%, author=25%, publisher=15%
-                combined_score = (
-                    (title_score * 0.6) + (author_score * 0.25) + (publisher_score * 0.15)
-                )
+                weights = self.config.get_scoring_weights("normal_with_publisher")
+
+            combined_score = (
+                (title_score * weights["title"])
+                + (author_score * weights["author"])
+                + (publisher_score * weights["publisher"])
+            )
         else:
             # No publisher data available
             if has_generic_title:
-                # Generic title, no publisher: title=40%, author=60%
-                combined_score = (title_score * 0.4) + (author_score * 0.6)
+                weights = self.config.get_scoring_weights("generic_no_publisher")
             else:
-                # Normal, no publisher: title=70%, author=30%
-                combined_score = (title_score * 0.7) + (author_score * 0.3)
+                weights = self.config.get_scoring_weights("normal_no_publisher")
+
+            combined_score = (title_score * weights["title"]) + (author_score * weights["author"])
 
         return combined_score
 
@@ -102,27 +118,71 @@ class DefaultMatchingEngine(MatchingEngine):
     """Default matching engine implementation using current algorithm"""
 
     def __init__(
-        self, 
+        self,
         similarity_calculator: Optional[SimilarityCalculator] = None,
-        score_combiner: Optional[ScoreCombiner] = None
+        score_combiner: Optional[ScoreCombiner] = None,
+        config: Optional[ConfigLoader] = None,
     ):
-        """Initialize with optional custom components"""
+        """Initialize with optional custom components and configuration
+
+        Args:
+            similarity_calculator: Custom similarity calculator
+            score_combiner: Custom score combiner
+            config: Configuration loader, uses default if None
+        """
+        if config is None:
+            # Local imports
+            from marc_pd_tool.config_loader import get_config
+
+            config = get_config()
+        self.config = config
+
         self.similarity_calculator = similarity_calculator or FuzzyWuzzySimilarityCalculator()
-        self.score_combiner = score_combiner or DynamicWeightingCombiner()
+        self.score_combiner = score_combiner or DynamicWeightingCombiner(config)
 
     def find_best_match(
         self,
         marc_pub: Publication,
         copyright_pubs: List[Publication],
-        title_threshold: int,
-        author_threshold: int,
-        year_tolerance: int,
-        publisher_threshold: int,
-        early_exit_title: int,
-        early_exit_author: int,
+        title_threshold: Optional[int] = None,
+        author_threshold: Optional[int] = None,
+        year_tolerance: Optional[int] = None,
+        publisher_threshold: Optional[int] = None,
+        early_exit_title: Optional[int] = None,
+        early_exit_author: Optional[int] = None,
         generic_detector: Optional[GenericTitleDetector] = None,
     ) -> Optional[Dict]:
         """Find the best matching copyright publication using current algorithm"""
+        # Use configuration defaults if parameters not provided
+        title_threshold = (
+            title_threshold if title_threshold is not None else self.config.get_threshold("title")
+        )
+        author_threshold = (
+            author_threshold
+            if author_threshold is not None
+            else self.config.get_threshold("author")
+        )
+        year_tolerance = (
+            year_tolerance
+            if year_tolerance is not None
+            else self.config.get_threshold("year_tolerance")
+        )
+        publisher_threshold = (
+            publisher_threshold
+            if publisher_threshold is not None
+            else self.config.get_threshold("publisher")
+        )
+        early_exit_title = (
+            early_exit_title
+            if early_exit_title is not None
+            else self.config.get_threshold("early_exit_title")
+        )
+        early_exit_author = (
+            early_exit_author
+            if early_exit_author is not None
+            else self.config.get_threshold("early_exit_author")
+        )
+
         best_score = 0
         best_match = None
 
@@ -163,30 +223,34 @@ class DefaultMatchingEngine(MatchingEngine):
                 publisher_score = self.similarity_calculator.calculate_publisher_similarity(
                     marc_pub.publisher,
                     copyright_pub.publisher,
-                    copyright_pub.full_text if copyright_pub.source == "Renewal" else ""
+                    copyright_pub.full_text if copyright_pub.source == "Renewal" else "",
                 )
 
             # Combine scores using the score combiner
             combined_score = self.score_combiner.combine_scores(
-                title_score, author_score, publisher_score,
-                marc_pub, copyright_pub, generic_detector
+                title_score,
+                author_score,
+                publisher_score,
+                marc_pub,
+                copyright_pub,
+                generic_detector,
             )
 
             # Apply thresholds: publisher threshold only matters if MARC has publisher data
-            publisher_threshold_met = not marc_pub.publisher or publisher_score >= publisher_threshold
+            publisher_threshold_met = (
+                not marc_pub.publisher or publisher_score >= publisher_threshold
+            )
 
             # Check if this is the best match so far
             # Author threshold check: pass if no author data or if author score meets threshold
-            has_author_data = (marc_pub.author and copyright_pub.author) or (marc_pub.main_author and copyright_pub.author)
+            has_author_data = (marc_pub.author and copyright_pub.author) or (
+                marc_pub.main_author and copyright_pub.author
+            )
             author_threshold_met = not has_author_data or author_score >= author_threshold
-            
-            if (
-                combined_score > best_score
-                and author_threshold_met
-                and publisher_threshold_met
-            ):
+
+            if combined_score > best_score and author_threshold_met and publisher_threshold_met:
                 best_score = combined_score
-                
+
                 # Determine generic title detection info
                 marc_title_is_generic = False
                 copyright_title_is_generic = False

@@ -3,7 +3,6 @@
 # Standard library imports
 from dataclasses import dataclass
 from re import search
-from re import sub
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -11,6 +10,7 @@ from typing import Optional
 # Local imports
 from marc_pd_tool.enums import CopyrightStatus
 from marc_pd_tool.enums import CountryClassification
+from marc_pd_tool.text_utils import normalize_text
 
 
 @dataclass
@@ -49,15 +49,15 @@ class Publication:
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
         full_text: str = "",
     ):
-        self.title = self.normalize_text(title)
-        self.author = self.normalize_text(author)
-        self.main_author = self.normalize_text(main_author)
+        self.title = normalize_text(title)
+        self.author = normalize_text(author)
+        self.main_author = normalize_text(main_author)
         self.pub_date = pub_date
-        self.publisher = self.normalize_text(publisher)
-        self.place = self.normalize_text(place)
-        self.edition = self.normalize_text(edition)
-        self.part_number = self.normalize_text(part_number)
-        self.part_name = self.normalize_text(part_name)
+        self.publisher = normalize_text(publisher)
+        self.place = normalize_text(place)
+        self.edition = normalize_text(edition)
+        self.part_number = normalize_text(part_number)
+        self.part_name = normalize_text(part_name)
         self.language_code = language_code.lower() if language_code else ""
         self.source = source
         self.source_id = source_id
@@ -93,14 +93,6 @@ class Publication:
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
-    @staticmethod
-    def normalize_text(text: str) -> str:
-        if not text:
-            return ""
-        text = sub(r"[^\w\s]", " ", text)
-        text = sub(r"\s+", " ", text)
-        return text.strip().lower()
-
     def extract_year(self) -> Optional[int]:
         if not self.pub_date:
             return None
@@ -113,19 +105,19 @@ class Publication:
     def full_title(self) -> str:
         """Construct full title including part number and part name"""
         parts = [self.original_title]
-        
+
         if self.original_part_number:
             parts.append(f"Part {self.original_part_number}")
-        
+
         if self.original_part_name:
             parts.append(self.original_part_name)
-        
+
         return ". ".join(parts)
 
     @property
     def full_title_normalized(self) -> str:
         """Normalized version of full title for matching"""
-        return self.normalize_text(self.full_title)
+        return normalize_text(self.full_title)
 
     def set_registration_match(self, match: MatchResult) -> None:
         """Set the best registration match"""

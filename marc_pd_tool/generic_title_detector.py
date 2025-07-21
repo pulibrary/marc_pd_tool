@@ -7,8 +7,8 @@ from typing import Optional
 from typing import Set
 
 # Local imports
-from marc_pd_tool.indexer import STOPWORDS
-from marc_pd_tool.indexer import normalize_text
+from marc_pd_tool.config_loader import get_config
+from marc_pd_tool.text_utils import normalize_text
 
 
 class GenericTitleDetector:
@@ -46,16 +46,24 @@ class GenericTitleDetector:
     }
     # fmt: on
 
-    def __init__(self, frequency_threshold: int = 10, custom_patterns: Optional[Set[str]] = None):
+    def __init__(
+        self, frequency_threshold: int = 10, custom_patterns: Optional[Set[str]] = None, config=None
+    ):
         """Initialize the generic title detector
 
         Args:
             frequency_threshold: Minimum occurrences to consider a title generic
             custom_patterns: Additional patterns to consider generic
+            config: Configuration loader for accessing stopwords
         """
         self.frequency_threshold = frequency_threshold
         self.title_counts = Counter()
         self.detection_cache = {}  # Cache detection results for performance
+
+        # Get configuration
+        if config is None:
+            config = get_config()
+        self.config = config
 
         # Combine default patterns with custom ones
         self.patterns = self.GENERIC_PATTERNS.copy()
@@ -238,7 +246,7 @@ class GenericTitleDetector:
 
         # High stopword ratio (mostly articles/prepositions) in short titles
         if len(words) <= 4:
-            stopword_count = sum(1 for word in words if word in STOPWORDS)
+            stopword_count = sum(1 for word in words if word in self.config.get_stopwords())
             stopword_ratio = stopword_count / len(words)
             if stopword_ratio > 0.6:
                 return True
