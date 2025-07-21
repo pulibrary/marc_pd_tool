@@ -33,9 +33,8 @@
   "word_lists": {
     "stopwords": [
       "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-      "has", "he", "in", "is", "it", "its", "of", "on", "that", "the",
-      "to", "was", "will", "with", "or", "but", "not", "have", "had",
-      "this", "these", "they", "were", "been", "their"
+      "has", "he", "in", "is", "it", "its", "of", "on", "or", "that", "the",
+      "to", "was", "were", "will", "with"
     ],
     "publisher_stopwords": [
       "inc", "corp", "corporation", "company", "co", "ltd", "limited",

@@ -114,6 +114,151 @@ class DynamicWeightingCombiner(ScoreCombiner):
         return combined_score
 
 
+class AdaptiveWeightingCombiner(ScoreCombiner):
+    """Improved score combiner that redistributes weights when fields are missing"""
+
+    def __init__(self, config: Optional[ConfigLoader] = None):
+        """Initialize with optional configuration
+
+        Args:
+            config: Configuration loader, uses default if None
+        """
+        if config is None:
+            # Local imports
+            from marc_pd_tool.config_loader import get_config
+
+            config = get_config()
+        self.config = config
+
+    def _detect_missing_fields(
+        self, marc_pub: Publication, copyright_pub: Publication
+    ) -> Dict[str, bool]:
+        """Detect which fields are genuinely missing (not just poor matches)
+
+        A field is considered missing if BOTH the MARC record and copyright record
+        lack meaningful data for that field.
+
+        Returns:
+            Dictionary indicating which fields are missing: {'publisher': True/False}
+        """
+        missing_fields = {}
+
+        # Publisher is missing if MARC has no publisher OR copyright has neither publisher nor full_text
+        marc_has_publisher = bool(marc_pub.publisher and marc_pub.publisher.strip())
+        copyright_has_publisher = bool(
+            (copyright_pub.publisher and copyright_pub.publisher.strip())
+            or (copyright_pub.full_text and copyright_pub.full_text.strip())
+        )
+        missing_fields["publisher"] = not (marc_has_publisher and copyright_has_publisher)
+
+        return missing_fields
+
+    def _redistribute_weights(
+        self, original_weights: Dict[str, float], missing_fields: Dict[str, bool]
+    ) -> Dict[str, float]:
+        """Redistribute weights proportionally when fields are missing
+
+        Args:
+            original_weights: Original weight configuration
+            missing_fields: Dictionary indicating which fields are missing
+
+        Returns:
+            New weights with missing field weights redistributed
+        """
+        # Start with original weights
+        new_weights = original_weights.copy()
+
+        # Calculate total weight of missing fields
+        missing_weight = sum(
+            original_weights[field]
+            for field in missing_fields
+            if missing_fields.get(field, False) and field in original_weights
+        )
+
+        if missing_weight == 0:
+            return new_weights  # No missing fields
+
+        # Calculate total weight of remaining fields
+        remaining_fields = [
+            field for field in original_weights if not missing_fields.get(field, False)
+        ]
+        remaining_weight = sum(original_weights[field] for field in remaining_fields)
+
+        if remaining_weight == 0:
+            return new_weights  # Edge case: all fields missing
+
+        # Redistribute missing weight proportionally to remaining fields
+        for field in remaining_fields:
+            proportion = original_weights[field] / remaining_weight
+            redistribution = missing_weight * proportion
+            new_weights[field] = original_weights[field] + redistribution
+
+        # Remove weights for missing fields
+        for field in missing_fields:
+            if missing_fields[field] and field in new_weights:
+                new_weights[field] = 0.0
+
+        return new_weights
+
+    def combine_scores(
+        self,
+        title_score: float,
+        author_score: float,
+        publisher_score: float,
+        marc_pub: Publication,
+        copyright_pub: Publication,
+        generic_detector: Optional[GenericTitleDetector] = None,
+    ) -> float:
+        """Combine scores using adaptive weighting that redistributes weights for missing fields"""
+
+        # Determine if any title is generic
+        has_generic_title = False
+        if generic_detector:
+            marc_title_is_generic = generic_detector.is_generic(
+                marc_pub.original_title, marc_pub.language_code
+            )
+            copyright_title_is_generic = generic_detector.is_generic(
+                copyright_pub.original_title, copyright_pub.language_code
+            )
+            has_generic_title = marc_title_is_generic or copyright_title_is_generic
+
+        # Detect which fields are missing
+        missing_fields = self._detect_missing_fields(marc_pub, copyright_pub)
+
+        # Determine base scenario and get original weights from configuration
+        # If both records completely lack publisher data, use no_publisher weights
+        marc_has_publisher = bool(marc_pub.publisher and marc_pub.publisher.strip())
+        copyright_has_publisher = bool(
+            (copyright_pub.publisher and copyright_pub.publisher.strip())
+            or (copyright_pub.full_text and copyright_pub.full_text.strip())
+        )
+
+        if not marc_has_publisher and not copyright_has_publisher:
+            # Both completely lack publisher data - use no_publisher scenario
+            if has_generic_title:
+                original_weights = self.config.get_scoring_weights("generic_no_publisher")
+            else:
+                original_weights = self.config.get_scoring_weights("normal_no_publisher")
+        else:
+            # At least one has publisher data - start with with_publisher and redistribute
+            if has_generic_title:
+                original_weights = self.config.get_scoring_weights("generic_with_publisher")
+            else:
+                original_weights = self.config.get_scoring_weights("normal_with_publisher")
+
+        # Redistribute weights for missing fields
+        weights = self._redistribute_weights(original_weights, missing_fields)
+
+        # Calculate combined score using redistributed weights
+        combined_score = (
+            (title_score * weights.get("title", 0.0))
+            + (author_score * weights.get("author", 0.0))
+            + (publisher_score * weights.get("publisher", 0.0))
+        )
+
+        return combined_score
+
+
 class DefaultMatchingEngine(MatchingEngine):
     """Default matching engine implementation using current algorithm"""
 
@@ -138,7 +283,7 @@ class DefaultMatchingEngine(MatchingEngine):
         self.config = config
 
         self.similarity_calculator = similarity_calculator or FuzzyWuzzySimilarityCalculator()
-        self.score_combiner = score_combiner or DynamicWeightingCombiner(config)
+        self.score_combiner = score_combiner or AdaptiveWeightingCombiner(config)
 
     def find_best_match(
         self,

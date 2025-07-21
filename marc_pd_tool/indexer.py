@@ -14,16 +14,13 @@ from marc_pd_tool.text_utils import extract_significant_words
 from marc_pd_tool.text_utils import normalize_text
 
 
-def generate_title_keys(title: str, config=None) -> Set[str]:
+def generate_title_keys(title: str, stopwords: set) -> Set[str]:
     """Generate multiple indexing keys for a title"""
     if not title:
         return set()
 
-    if config is None:
-        config = get_config()
-
     keys = set()
-    words = extract_significant_words(title, max_words=4, config=config)
+    words = extract_significant_words(title, stopwords, max_words=4)
 
     if not words:
         return set()
@@ -142,20 +139,21 @@ def _generate_personal_name_keys(author_lower: str) -> Set[str]:
     return keys
 
 
-def generate_publisher_keys(publisher: str, config=None) -> Set[str]:
+def generate_publisher_keys(
+    publisher: str, publishing_stopwords: set, general_stopwords: set
+) -> Set[str]:
     """Generate multiple indexing keys for a publisher name
 
     Args:
         publisher: The publisher name string
+        publishing_stopwords: Set of publisher-specific stopwords
+        general_stopwords: Set of general stopwords
 
     Returns:
         Set of indexing keys for the publisher
     """
     if not publisher:
         return set()
-
-    if config is None:
-        config = get_config()
 
     keys = set()
 
@@ -165,10 +163,6 @@ def generate_publisher_keys(publisher: str, config=None) -> Set[str]:
 
     if not words:
         return set()
-
-    # Get stopwords from configuration
-    publishing_stopwords = config.get_publisher_stopwords()
-    general_stopwords = config.get_stopwords()
 
     # Filter out publishing stopwords but keep at least some words
     significant_words = [w for w in words if w not in publishing_stopwords and len(w) >= 3]
@@ -199,20 +193,19 @@ def generate_publisher_keys(publisher: str, config=None) -> Set[str]:
     return keys
 
 
-def generate_edition_keys(edition: str, config=None) -> Set[str]:
+def generate_edition_keys(edition: str, edition_stopwords: set, ordinal_terms: set) -> Set[str]:
     """Generate multiple indexing keys for an edition statement
 
     Args:
         edition: The edition statement string (e.g., "2nd ed.", "First edition", "Rev. ed.")
+        edition_stopwords: Set of edition-specific stopwords
+        ordinal_terms: Set of ordinal terms to recognize
 
     Returns:
         Set of indexing keys for the edition
     """
     if not edition:
         return set()
-
-    if config is None:
-        config = get_config()
 
     keys = set()
 
@@ -223,14 +216,8 @@ def generate_edition_keys(edition: str, config=None) -> Set[str]:
     if not words:
         return set()
 
-    # Get stopwords from configuration
-    edition_stopwords = config.get_edition_stopwords()
-
     # Extract significant words for edition matching
     significant_words = [w for w in words if w not in edition_stopwords and len(w) >= 2]
-
-    # Get ordinal terms from configuration
-    ordinal_terms = config.get_ordinal_terms()
 
     for word in words:
         clean_word = word.replace(".", "").replace(",", "").lower()
@@ -256,7 +243,7 @@ def generate_edition_keys(edition: str, config=None) -> Set[str]:
 class PublicationIndex:
     """Multi-key index for fast publication lookups"""
 
-    def __init__(self):
+    def __init__(self, config=None):
         self.title_index: Dict[str, Set[int]] = defaultdict(set)
         self.author_index: Dict[str, Set[int]] = defaultdict(set)
         self.publisher_index: Dict[str, Set[int]] = defaultdict(set)
@@ -264,13 +251,24 @@ class PublicationIndex:
         self.year_index: Dict[int, Set[int]] = defaultdict(set)
         self.publications: List[Publication] = []
 
+        # Cache configuration to avoid repeated loading
+        if config is None:
+            config = get_config()
+        self.config = config
+
+        # Pre-fetch word lists for performance
+        self.stopwords = config.get_stopwords()
+        self.publisher_stopwords = config.get_publisher_stopwords()
+        self.edition_stopwords = config.get_edition_stopwords()
+        self.ordinal_terms = config.get_ordinal_terms()
+
     def add_publication(self, pub: Publication) -> int:
         """Add a publication to the index and return its ID"""
         pub_id = len(self.publications)
         self.publications.append(pub)
 
         # Index by title - use full title for better part matching
-        title_keys = generate_title_keys(pub.full_title_normalized)
+        title_keys = generate_title_keys(pub.full_title_normalized, self.stopwords)
         for key in title_keys:
             self.title_index[key].add(pub_id)
 
@@ -288,13 +286,17 @@ class PublicationIndex:
 
         # Index by publisher
         if pub.publisher:
-            publisher_keys = generate_publisher_keys(pub.publisher)
+            publisher_keys = generate_publisher_keys(
+                pub.publisher, self.publisher_stopwords, self.stopwords
+            )
             for key in publisher_keys:
                 self.publisher_index[key].add(pub_id)
 
         # Index by edition (gracefully handle missing edition data)
         if pub.edition:
-            edition_keys = generate_edition_keys(pub.edition)
+            edition_keys = generate_edition_keys(
+                pub.edition, self.edition_stopwords, self.ordinal_terms
+            )
             for key in edition_keys:
                 self.edition_index[key].add(pub_id)
 
@@ -309,7 +311,7 @@ class PublicationIndex:
         candidates = set()
 
         # Find candidates by title - use full title for better part matching
-        title_keys = generate_title_keys(query_pub.full_title_normalized)
+        title_keys = generate_title_keys(query_pub.full_title_normalized, self.stopwords)
         title_candidates = set()
         for key in title_keys:
             title_candidates.update(self.title_index.get(key, set()))
@@ -330,14 +332,18 @@ class PublicationIndex:
         # Find candidates by publisher (if available)
         publisher_candidates = set()
         if query_pub.publisher:
-            publisher_keys = generate_publisher_keys(query_pub.publisher)
+            publisher_keys = generate_publisher_keys(
+                query_pub.publisher, self.publisher_stopwords, self.stopwords
+            )
             for key in publisher_keys:
                 publisher_candidates.update(self.publisher_index.get(key, set()))
 
         # Find candidates by edition (if available)
         edition_candidates = set()
         if query_pub.edition:
-            edition_keys = generate_edition_keys(query_pub.edition)
+            edition_keys = generate_edition_keys(
+                query_pub.edition, self.edition_stopwords, self.ordinal_terms
+            )
             for key in edition_keys:
                 edition_candidates.update(self.edition_index.get(key, set()))
 
@@ -479,9 +485,9 @@ class PublicationIndex:
         }
 
 
-def build_index(publications: List[Publication]) -> PublicationIndex:
+def build_index(publications: List[Publication], config=None) -> PublicationIndex:
     """Build a complete index from a list of publications"""
-    index = PublicationIndex()
+    index = PublicationIndex(config)
     for pub in publications:
         index.add_publication(pub)
     return index

@@ -9,6 +9,36 @@ from marc_pd_tool.indexer import generate_title_keys
 from marc_pd_tool.text_utils import extract_significant_words
 from marc_pd_tool.text_utils import normalize_text
 
+# Test stopwords matching original hardcoded behavior
+TEST_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "has",
+    "he",
+    "in",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "to",
+    "was",
+    "were",
+    "will",
+    "with",
+}
+
 
 class TestTextNormalization:
     """Test text normalization functions"""
@@ -27,7 +57,7 @@ class TestTextNormalization:
 
     def test_extract_significant_words(self):
         """Test significant word extraction"""
-        words = extract_significant_words("The Great American Novel")
+        words = extract_significant_words("The Great American Novel", TEST_STOPWORDS)
         assert "great" in words
         assert "american" in words
         assert "novel" in words
@@ -36,14 +66,14 @@ class TestTextNormalization:
     def test_extract_significant_words_edge_cases(self):
         """Test edge cases for word extraction"""
         # Empty string
-        assert extract_significant_words("") == []
+        assert extract_significant_words("", TEST_STOPWORDS) == []
 
         # Only stopwords
-        words = extract_significant_words("the a an of")
+        words = extract_significant_words("the a an of", TEST_STOPWORDS)
         assert len(words) <= 1  # Should keep at least one word if possible
 
         # Short words filtered
-        words = extract_significant_words("a bb ccc dddd")
+        words = extract_significant_words("a bb ccc dddd", TEST_STOPWORDS)
         assert "bb" not in words  # Too short
         assert "ccc" in words
         assert "dddd" in words
@@ -54,7 +84,7 @@ class TestTitleKeys:
 
     def test_title_keys_basic(self):
         """Test basic title key generation"""
-        keys = generate_title_keys("The Great American Novel")
+        keys = generate_title_keys("The Great American Novel", TEST_STOPWORDS)
 
         # Should contain individual words
         assert "great" in keys
@@ -68,27 +98,27 @@ class TestTitleKeys:
 
     def test_title_keys_no_stopwords(self):
         """Test that stopwords are filtered from keys"""
-        keys = generate_title_keys("The Great American Novel")
+        keys = generate_title_keys("The Great American Novel", TEST_STOPWORDS)
         assert "the" not in keys
 
     def test_title_keys_short_titles(self):
         """Test key generation for short titles"""
-        keys = generate_title_keys("Novel")
+        keys = generate_title_keys("Novel", TEST_STOPWORDS)
         assert "novel" in keys
         assert len(keys) >= 1
 
-        keys = generate_title_keys("Great Novel")
+        keys = generate_title_keys("Great Novel", TEST_STOPWORDS)
         assert "great" in keys
         assert "novel" in keys
         assert "great_novel" in keys
 
     def test_title_keys_empty(self):
         """Test key generation for empty/invalid titles"""
-        assert generate_title_keys("") == set()
-        assert generate_title_keys("   ") == set()
+        assert generate_title_keys("", TEST_STOPWORDS) == set()
+        assert generate_title_keys("   ", TEST_STOPWORDS) == set()
 
         # Note: "the a an" will generate metaphone keys even if all words are stopwords
-        keys = generate_title_keys("the a an")
+        keys = generate_title_keys("the a an", TEST_STOPWORDS)
         assert len(keys) <= 4  # Should be minimal, mostly metaphone keys if available
 
 
@@ -165,9 +195,9 @@ class TestKeyGeneration:
     def test_key_generation_preserves_matching(self):
         """Test that similar titles/authors generate overlapping keys"""
         # Similar titles should share keys
-        keys1 = generate_title_keys("The Great Gatsby")
-        keys2 = generate_title_keys("Great Gatsby")
-        keys3 = generate_title_keys("The Great Gatsby: A Novel")
+        keys1 = generate_title_keys("The Great Gatsby", TEST_STOPWORDS)
+        keys2 = generate_title_keys("Great Gatsby", TEST_STOPWORDS)
+        keys3 = generate_title_keys("The Great Gatsby: A Novel", TEST_STOPWORDS)
 
         # Should have overlapping keys
         assert len(keys1 & keys2) > 0
@@ -190,7 +220,7 @@ class TestKeyGeneration:
             "An Introduction to Physics",
         ]
 
-        all_keys = [generate_title_keys(title) for title in variations]
+        all_keys = [generate_title_keys(title, TEST_STOPWORDS) for title in variations]
 
         # All should share some keys (physics, introduction)
         common_keys = set.intersection(*all_keys)

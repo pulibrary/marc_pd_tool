@@ -4,6 +4,7 @@
 import pytest
 
 # Local imports
+from marc_pd_tool.default_matching import AdaptiveWeightingCombiner
 from marc_pd_tool.default_matching import DefaultMatchingEngine
 from marc_pd_tool.default_matching import DynamicWeightingCombiner
 from marc_pd_tool.default_matching import FuzzyWuzzySimilarityCalculator
@@ -163,6 +164,197 @@ class TestDynamicWeightingCombiner:
 
         expected = (80.0 * 0.7) + (70.0 * 0.3)  # No publisher weighting
         assert combined == expected
+
+
+class TestAdaptiveWeightingCombiner:
+    """Test the adaptive weighting score combiner with weight redistribution"""
+
+    def setup_method(self):
+        """Set up test fixtures"""
+        self.combiner = AdaptiveWeightingCombiner()
+        self.generic_detector = GenericTitleDetector()
+
+    def test_combine_scores_normal_with_complete_data(self):
+        """Test score combination when all fields are present"""
+        marc_pub = Publication("Specific Novel Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Specific Novel Title", "Smith, John", publisher="Penguin")
+
+        # Normal title: title=60%, author=25%, publisher=15%
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        expected = (80.0 * 0.6) + (70.0 * 0.25) + (90.0 * 0.15)  # 48 + 17.5 + 13.5 = 79
+        assert combined == expected
+
+    def test_combine_scores_marc_has_publisher_copyright_lacks(self):
+        """Test weight redistribution when MARC has publisher but copyright record doesn't"""
+        marc_pub = Publication("Specific Novel Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Specific Novel Title", "Smith, John")  # No publisher
+
+        # Publisher is missing, so should redistribute 15% weight proportionally:
+        # Original: title=60%, author=25%, publisher=15%
+        # Remaining: title=60%, author=25% (total 85%)
+        # New title weight: 60% + (60%/85% * 15%) = 60% + 10.59% = 70.59%
+        # New author weight: 25% + (25%/85% * 15%) = 25% + 4.41% = 29.41%
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        # Expected calculation with redistributed weights
+        title_weight = 0.6 + (0.6 / 0.85 * 0.15)  # ≈ 0.7059
+        author_weight = 0.25 + (0.25 / 0.85 * 0.15)  # ≈ 0.2941
+        expected = (80.0 * title_weight) + (70.0 * author_weight)
+
+        assert abs(combined - expected) < 0.01  # Allow small floating point differences
+
+    def test_combine_scores_marc_lacks_publisher_copyright_has(self):
+        """Test weight redistribution when copyright has publisher but MARC doesn't"""
+        marc_pub = Publication("Specific Novel Title", "Smith, John")  # No publisher
+        copyright_pub = Publication("Specific Novel Title", "Smith, John", publisher="Penguin")
+
+        # Publisher is missing (MARC side), so should redistribute
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        # Should use redistributed weights similar to previous test
+        title_weight = 0.6 + (0.6 / 0.85 * 0.15)
+        author_weight = 0.25 + (0.25 / 0.85 * 0.15)
+        expected = (80.0 * title_weight) + (70.0 * author_weight)
+
+        assert abs(combined - expected) < 0.01
+
+    def test_combine_scores_both_lack_publisher(self):
+        """Test score combination when both records lack publisher data"""
+        marc_pub = Publication("Specific Novel Title", "Smith, John")
+        copyright_pub = Publication("Specific Novel Title", "Smith, John")
+
+        # Should use no-publisher scenario from config: title=70%, author=30%
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        expected = (80.0 * 0.7) + (70.0 * 0.3)  # 56 + 21 = 77
+        assert combined == expected
+
+    def test_combine_scores_generic_with_redistribution(self):
+        """Test weight redistribution with generic titles"""
+        marc_pub = Publication("Complete Works", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Complete Works", "Smith, John")  # No publisher
+
+        # Generic title missing publisher: original weights: title=30%, author=45%, publisher=25%
+        # Redistribute 25% between title and author proportionally:
+        # New title weight: 30% + (30%/75% * 25%) = 30% + 10% = 40%
+        # New author weight: 45% + (45%/75% * 25%) = 45% + 15% = 60%
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        title_weight = 0.3 + (0.3 / 0.75 * 0.25)  # = 0.3 + 0.1 = 0.4
+        author_weight = 0.45 + (0.45 / 0.75 * 0.25)  # = 0.45 + 0.15 = 0.6
+        expected = (80.0 * title_weight) + (70.0 * author_weight)  # 32 + 42 = 74
+
+        assert abs(combined - expected) < 0.01
+
+    def test_combine_scores_renewal_with_full_text(self):
+        """Test that renewal records with full_text count as having publisher data"""
+        marc_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication(
+            "Test Title", "Smith, John", full_text="Published by Penguin Books in NY"
+        )
+
+        # Both have publisher-related data, should use with-publisher weights
+        combined = self.combiner.combine_scores(
+            80.0, 70.0, 90.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        expected = (80.0 * 0.6) + (70.0 * 0.25) + (90.0 * 0.15)  # Normal with publisher
+        assert combined == expected
+
+    def test_detect_missing_fields_both_have_publisher(self):
+        """Test that fields are correctly detected as present when both records have them"""
+        marc_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Test Title", "Smith, John", publisher="Random House")
+
+        missing = self.combiner._detect_missing_fields(marc_pub, copyright_pub)
+        assert missing["publisher"] is False
+
+    def test_detect_missing_fields_marc_missing(self):
+        """Test that field is detected as missing when MARC lacks it"""
+        marc_pub = Publication("Test Title", "Smith, John")  # No publisher
+        copyright_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+
+        missing = self.combiner._detect_missing_fields(marc_pub, copyright_pub)
+        assert missing["publisher"] is True
+
+    def test_detect_missing_fields_copyright_missing(self):
+        """Test that field is detected as missing when copyright lacks it"""
+        marc_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Test Title", "Smith, John")  # No publisher or full_text
+
+        missing = self.combiner._detect_missing_fields(marc_pub, copyright_pub)
+        assert missing["publisher"] is True
+
+    def test_detect_missing_fields_renewal_full_text(self):
+        """Test that renewal full_text counts as publisher data"""
+        marc_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Test Title", "Smith, John", full_text="Some renewal text")
+
+        missing = self.combiner._detect_missing_fields(marc_pub, copyright_pub)
+        assert missing["publisher"] is False
+
+    def test_redistribute_weights_single_missing_field(self):
+        """Test weight redistribution calculation for one missing field"""
+        original_weights = {"title": 0.6, "author": 0.25, "publisher": 0.15}
+        missing_fields = {"publisher": True}
+
+        new_weights = self.combiner._redistribute_weights(original_weights, missing_fields)
+
+        # Should redistribute 0.15 proportionally between title (0.6) and author (0.25)
+        # Total remaining: 0.85
+        # Title gets: 0.6 + (0.6/0.85 * 0.15) ≈ 0.7059
+        # Author gets: 0.25 + (0.25/0.85 * 0.15) ≈ 0.2941
+        expected_title = 0.6 + (0.6 / 0.85 * 0.15)
+        expected_author = 0.25 + (0.25 / 0.85 * 0.15)
+
+        assert abs(new_weights["title"] - expected_title) < 0.001
+        assert abs(new_weights["author"] - expected_author) < 0.001
+        assert new_weights["publisher"] == 0.0
+
+    def test_redistribute_weights_no_missing_fields(self):
+        """Test that weights remain unchanged when no fields are missing"""
+        original_weights = {"title": 0.6, "author": 0.25, "publisher": 0.15}
+        missing_fields = {"publisher": False}
+
+        new_weights = self.combiner._redistribute_weights(original_weights, missing_fields)
+
+        assert new_weights == original_weights
+
+    def test_combine_scores_comparison_with_dynamic_combiner(self):
+        """Test that adaptive combiner produces higher scores than dynamic when fields are missing"""
+        marc_pub = Publication("Test Title", "Smith, John", publisher="Penguin")
+        copyright_pub = Publication("Test Title", "Smith, John")  # Missing publisher
+
+        # Compare scores from both combiners
+        adaptive_score = self.combiner.combine_scores(
+            80.0, 70.0, 0.0, marc_pub, copyright_pub, self.generic_detector  # 0 publisher score
+        )
+
+        dynamic_combiner = DynamicWeightingCombiner()
+        dynamic_score = dynamic_combiner.combine_scores(
+            80.0, 70.0, 0.0, marc_pub, copyright_pub, self.generic_detector
+        )
+
+        # Adaptive should produce higher score since it redistributes the publisher weight
+        assert adaptive_score > dynamic_score
+
+        # Verify the specific scores
+        # Dynamic: uses no-publisher weights (70%, 30%) = 80*0.7 + 70*0.3 = 56 + 21 = 77
+        # Adaptive: redistributes from (60%, 25%, 15%) to (~70.6%, ~29.4%, 0%)
+        #          = 80*0.706 + 70*0.294 ≈ 76.98
+        assert abs(dynamic_score - 77.0) < 0.1
+        assert adaptive_score > 76.9
 
 
 class TestDefaultMatchingEngine:

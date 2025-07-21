@@ -29,13 +29,13 @@ def normalize_text(text: str) -> str:
     return normalized.strip()
 
 
-def extract_significant_words(text: str, max_words: int = 5, config=None) -> list:
+def extract_significant_words(text: str, stopwords: set, max_words: int = 5) -> list:
     """Extract significant words from text, filtering stopwords
 
     Args:
         text: Input text to process
+        stopwords: Set of stopwords to filter out
         max_words: Maximum number of words to return
-        config: Configuration loader for accessing stopwords
 
     Returns:
         List of significant words
@@ -43,19 +43,9 @@ def extract_significant_words(text: str, max_words: int = 5, config=None) -> lis
     if not text:
         return []
 
-    # Import here to avoid circular imports
-    # Local imports
-    from marc_pd_tool.config_loader import get_config
-
-    if config is None:
-        config = get_config()
-
     # Normalize and split into words
     normalized = normalize_text(text)
     words = normalized.split()
-
-    # Get stopwords from configuration
-    stopwords = config.get_stopwords()
 
     # Filter stopwords and short words (length >= 3)
     significant = [w for w in words if w not in stopwords and len(w) >= 3]

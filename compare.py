@@ -332,9 +332,9 @@ def main():
     # Phase 3.6: Build indexes once and serialize to temp files
     logger.info("=== PHASE 3.6: BUILDING AND SERIALIZING INDEXES ===")
     logger.info("Building registration index...")
-    registration_index = build_index(registration_publications)
+    registration_index = build_index(registration_publications, config_loader)
     logger.info("Building renewal index...")
-    renewal_index = build_index(renewal_publications)
+    renewal_index = build_index(renewal_publications, config_loader)
 
     # Create temporary files for serialized indexes and detector
     temp_dir = mkdtemp(prefix="marc_indexes_")
