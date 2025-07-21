@@ -17,13 +17,9 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from multiprocessing import cpu_count
-from os import rmdir
-from os import unlink
 from os.path import abspath
 from os.path import dirname
 from os.path import join
-from pickle import dump
-from tempfile import mkdtemp
 from time import time
 
 # Local imports
@@ -383,6 +379,8 @@ def main():
             generic_detector = cache_manager.get_cached_generic_detector(
                 args.copyright_dir, args.renewal_dir, detector_config
             )
+            if generic_detector is not None:
+                logger.info("Loading generic title detector from cache...")
 
         if generic_detector is None:
             # Create and populate detector from scratch
@@ -454,19 +452,7 @@ def main():
                 args.copyright_dir, args.renewal_dir, config_hash, registration_index, renewal_index
             )
 
-    # Create temporary files for serialized indexes and detector
-    temp_dir = mkdtemp(prefix="marc_indexes_")
-    registration_index_file = join(temp_dir, "registration_index.pkl")
-    renewal_index_file = join(temp_dir, "renewal_index.pkl")
-    generic_detector_file = join(temp_dir, "generic_detector.pkl")
-
-    logger.info(f"Serializing indexes and detector to temporary files: {temp_dir}")
-    with open(registration_index_file, "wb") as f:
-        dump(registration_index, f)
-    with open(renewal_index_file, "wb") as f:
-        dump(renewal_index, f)
-    with open(generic_detector_file, "wb") as f:
-        dump(generic_detector, f)  # Note: May be None if disabled
+    # Indexes and detector are now available directly from cache for worker processes
 
     reg_stats = registration_index.get_stats()
     ren_stats = renewal_index.get_stats()
@@ -486,16 +472,36 @@ def main():
     logger.info(f"Registration data: {len(registration_publications):,} entries")
     logger.info(f"Renewal data: {len(renewal_publications):,} entries")
 
-    # Prepare batch information for workers (now with pre-built index file paths)
+    # Prepare batch information for workers (now with cache configuration)
+    # For --no-cache mode, we need to create a temporary cache for worker processes
+    worker_cache_dir = args.cache_dir if cache_manager else None
+    if not cache_manager:
+        # Create temporary cache for worker processes when --no-cache is used
+        # Standard library imports
+        from tempfile import mkdtemp
+
+        worker_cache_dir = mkdtemp(prefix="marc_worker_cache_")
+        temp_cache_manager = CacheManager(worker_cache_dir)
+        # Cache the current indexes and detector for worker processes
+        temp_cache_manager.cache_indexes(
+            args.copyright_dir, args.renewal_dir, config_hash, registration_index, renewal_index
+        )
+        if generic_detector is not None:
+            temp_cache_manager.cache_generic_detector(
+                args.copyright_dir, args.renewal_dir, detector_config, generic_detector
+            )
+
     batch_infos = []
     total_batches = len(marc_batches)
     for i, batch in enumerate(marc_batches):
         batch_info = (
             i + 1,
             batch,
-            registration_index_file,
-            renewal_index_file,
-            generic_detector_file,
+            worker_cache_dir,
+            args.copyright_dir,
+            args.renewal_dir,
+            config_hash,
+            detector_config,
             total_batches,
             args.title_threshold,
             args.author_threshold,
@@ -552,16 +558,16 @@ def main():
                 except Exception as e:
                     logger.error(f"Batch {batch_id} failed: {e}")
     finally:
-        # Clean up temporary files
-        logger.info("Cleaning up temporary files...")
-        try:
-            unlink(registration_index_file)
-            unlink(renewal_index_file)
-            unlink(generic_detector_file)
-            rmdir(temp_dir)
-            logger.info("Temporary files cleaned up successfully")
-        except Exception as e:
-            logger.warning(f"Failed to clean up temporary files: {e}")
+        # Clean up temporary worker cache if created for --no-cache mode
+        if not cache_manager and worker_cache_dir:
+            logger.debug("Cleaning up temporary worker cache...")
+            try:
+                # Standard library imports
+                from shutil import rmtree
+
+                rmtree(worker_cache_dir)
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary worker cache: {e}")
 
     # Phase 5: Save results
     logger.info("=== PHASE 5: SAVING RESULTS ===")

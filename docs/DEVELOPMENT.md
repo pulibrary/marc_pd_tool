@@ -380,37 +380,37 @@ Early termination occurs only when:
 
 ### 3.4 Parallel Processing Architecture
 
-The system uses a sophisticated multi-process architecture with index serialization optimization:
+The system uses a sophisticated multi-process architecture with persistent cache optimization:
 
-**Main Process (Index Building & Serialization):**
+**Main Process (Index Building & Caching):**
 
 ```python
 def main():
-    # Phase 3.5: Build indexes once and serialize to temp files
+    # Phase 3.6: Build indexes once and cache persistently
     registration_index = build_index(registration_publications)
     renewal_index = build_index(renewal_publications)
     
-    # Create temporary files for serialized indexes
-    temp_dir = tempfile.mkdtemp(prefix="marc_indexes_")
-    registration_index_file = os.path.join(temp_dir, "registration_index.pkl")
-    renewal_index_file = os.path.join(temp_dir, "renewal_index.pkl")
+    # Cache indexes persistently for worker processes
+    if cache_manager:
+        cache_manager.cache_indexes(
+            copyright_dir, renewal_dir, config_hash,
+            registration_index, renewal_index
+        )
     
-    # Serialize indexes to pickle files
-    with open(registration_index_file, "wb") as f:
-        pickle.dump(registration_index, f)
-    with open(renewal_index_file, "wb") as f:
-        pickle.dump(renewal_index, f)
 ```
 
 **Worker Process (Index Loading & Processing):**
 
 ```python
 def process_batch(batch_info):
-    # Load pre-built indexes from pickle files
-    with open(registration_index_file, "rb") as f:
-        registration_index = pickle.load(f)
-    with open(renewal_index_file, "rb") as f:
-        renewal_index = pickle.load(f)
+    cache_dir, copyright_dir, renewal_dir, config_hash = batch_info[:4]
+    
+    # Load pre-built indexes directly from cache
+    cache_manager = CacheManager(cache_dir)
+    cached_indexes = cache_manager.get_cached_indexes(
+        copyright_dir, renewal_dir, config_hash
+    )
+    registration_index, renewal_index = cached_indexes
     
     # Process MARC records using pre-built indexes
     # No index building overhead per process
@@ -418,18 +418,18 @@ def process_batch(batch_info):
 
 **Key Architectural Benefits:**
 
-- **Index Serialization**: Eliminates duplicate index building across processes
+- **Persistent Cache System**: Eliminates duplicate index building across processes
 - **Process Isolation**: Each process has independent memory space
 - **Fault Tolerance**: Process failures don't crash the entire application
 - **Linear Scaling**: Performance scales with CPU cores
-- **Memory Efficiency**: Indexes built once, shared via serialized files
+- **Memory Efficiency**: Indexes built once, cached persistently for direct access
 - **Startup Optimization**: Reduces worker process startup from 30-60s to \<5s
 
 **Performance Impact:**
 
 - **Before**: 30-60 seconds × N processes = 2-4 minutes overhead
-- **After**: 30-60 seconds total = **1.5-3 minutes saved per run**
-- **Worker logs**: "Loading registration index from /tmp/marc_indexes_xyz/registration_index.pkl"
+- **After**: 30-60 seconds total + direct cache loading = **Faster startup, no temp files**
+- **Worker logs**: "Loading indexes from cache"
 
 Uses processes rather than threads because:
 
@@ -438,81 +438,69 @@ Uses processes rather than threads because:
 - Process failures don't crash the entire application
 - Scales linearly with CPU cores
 
-### 3.5 Index Serialization Optimization
+### 3.5 Cache-Based Worker Process Loading
 
 **Problem Solved:** The original implementation had each worker process rebuilding identical indexes from the same 2.1M+ registration and 445K+ renewal records, causing massive inefficiency.
 
+**Modern Solution:** Worker processes load indexes directly from the persistent cache system, eliminating redundant serialization and temporary file management.
+
 **Implementation Details:**
 
-**1. Temporary File Management:**
+**1. Main Process Cache Strategy:**
 
 ```python
-# Create secure temporary directory
-temp_dir = tempfile.mkdtemp(prefix="marc_indexes_")
-registration_index_file = os.path.join(temp_dir, "registration_index.pkl")
-renewal_index_file = os.path.join(temp_dir, "renewal_index.pkl")
-
-# Robust cleanup with try/finally
-try:
-    # Process batches with pre-built indexes
-    with ProcessPoolExecutor(max_workers=args.max_workers) as executor:
-        # ... processing logic
-finally:
-    # Clean up temporary files even if processing fails
-    try:
-        os.unlink(registration_index_file)
-        os.unlink(renewal_index_file)
-        os.rmdir(temp_dir)
-    except Exception as e:
-        logger.warning(f"Failed to clean up temporary files: {e}")
-```
-
-**2. Index Serialization:**
-
-```python
-# Build indexes once in main process
+# Build indexes once and cache persistently
 logger.info("Building registration index...")
 registration_index = build_index(registration_publications)
 logger.info("Building renewal index...")
 renewal_index = build_index(renewal_publications)
 
-# Serialize to pickle files for worker processes
-with open(registration_index_file, "wb") as f:
-    pickle.dump(registration_index, f)
-with open(renewal_index_file, "wb") as f:
-    pickle.dump(renewal_index, f)
+# Cache indexes persistently (not temporary files)
+if cache_manager:
+    cache_manager.cache_indexes(
+        copyright_dir, renewal_dir, config_hash,
+        registration_index, renewal_index
+    )
+
+# Pass cache configuration to worker processes
+batch_info = (batch_id, marc_batch, cache_dir, copyright_dir, 
+              renewal_dir, config_hash, detector_config, ...)
 ```
 
-**3. Worker Process Loading:**
+**2. Worker Process Cache Loading:**
 
 ```python
 def process_batch(batch_info):
-    # Extract file paths from batch_info tuple
-    registration_index_file, renewal_index_file = batch_info[2], batch_info[3]
+    cache_dir, copyright_dir, renewal_dir, config_hash = batch_info[2:6]
     
-    # Load pre-built indexes (fast operation)
-    with open(registration_index_file, "rb") as f:
-        registration_index = pickle.load(f)
-    with open(renewal_index_file, "rb") as f:
-        renewal_index = pickle.load(f)
+    # Load directly from persistent cache
+    cache_manager = CacheManager(cache_dir)
+    cached_indexes = cache_manager.get_cached_indexes(
+        copyright_dir, renewal_dir, config_hash
+    )
+    registration_index, renewal_index = cached_indexes
     
-    # Immediate processing with no build overhead
+    # Process with pre-built indexes (no overhead)
+    for marc_pub in marc_batch:
+        # ... matching logic
 ```
 
-**Performance Measurements:**
+**Performance Benefits:**
 
-- **Index building time**: 30-60 seconds for 2.5M+ records
-- **Pickle serialization**: ~2-5 seconds for both indexes
-- **Pickle loading per worker**: ~1-3 seconds per index
-- **Total overhead reduction**: From 2-4 minutes to 30-60 seconds
-- **Efficiency gain**: 75-85% reduction in startup overhead
+- **Index building time**: 30-60 seconds for 2.5M+ records (unchanged)
+- **Cache loading per worker**: ~1-3 seconds per index (same as before)
+- **Eliminated overhead**: No temporary file creation/deletion/cleanup
+- **Simplified architecture**: Single consistent caching approach
+- **Reduced I/O**: No redundant serialization step
+- **Better error handling**: Unified cache validation and recovery
 
-**Error Handling:**
+**Architectural Improvements:**
 
-- Graceful handling of pickle file creation/loading failures
-- Automatic cleanup of temporary files even if process crashes
-- Worker process isolation prevents cascading failures
-- Detailed logging for troubleshooting serialization issues
+- **No temporary files**: Eliminates file system cleanup complexity
+- **Unified caching**: Same persistent cache used throughout application
+- **Configuration validation**: Cache invalidation based on matching thresholds
+- **--no-cache support**: Temporary worker cache created automatically when needed
+- **Better error messages**: Clear cache loading failures with context
 
 ### 3.6 Memory Management Strategies
 

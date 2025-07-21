@@ -6,7 +6,6 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from os import getpid
-from pickle import load
 from re import split as re_split
 from typing import Dict
 from typing import List
@@ -17,6 +16,7 @@ from typing import Tuple
 from fuzzywuzzy import fuzz
 
 # Local imports
+from marc_pd_tool.cache_manager import CacheManager
 from marc_pd_tool.default_matching import DefaultMatchingEngine
 from marc_pd_tool.generic_title_detector import GenericTitleDetector
 from marc_pd_tool.matching_api import MatchingEngine
@@ -50,7 +50,9 @@ def extract_best_publisher_match(marc_publisher: str, full_text: str) -> str:
 
 
 def process_batch(
-    batch_info: Tuple[int, List[Publication], str, str, str, int, int, int, int, int, int],
+    batch_info: Tuple[
+        int, List[Publication], str, str, str, str, Dict, int, int, int, int, int, int
+    ],
 ) -> Tuple[int, List[Publication], Dict]:
     """
     Process a single batch of MARC records against pre-built indexes.
@@ -59,9 +61,11 @@ def process_batch(
     (
         batch_id,
         marc_batch,
-        registration_index_file,
-        renewal_index_file,
-        generic_detector_file,
+        cache_dir,
+        copyright_dir,
+        renewal_dir,
+        config_hash,
+        detector_config,
         total_batches,
         title_threshold,
         author_threshold,
@@ -107,24 +111,28 @@ def process_batch(
         f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
     )
 
-    # Load pre-built indexes from pickle files
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: Loading registration index from {registration_index_file}"
-    )
-    with open(registration_index_file, "rb") as f:
-        registration_index = load(f)
+    # Load pre-built indexes and detector directly from cache
+    if not cache_dir:
+        raise RuntimeError("No cache directory provided to worker process - this shouldn't occur")
+
+    cache_manager = CacheManager(cache_dir)
+
+    process_logger.debug(f"Batch {batch_id}/{total_batches}: Loading indexes from cache")
+    cached_indexes = cache_manager.get_cached_indexes(copyright_dir, renewal_dir, config_hash)
+    if cached_indexes is None:
+        raise RuntimeError(f"Failed to load indexes from cache in worker process {batch_id}")
+    registration_index, renewal_index = cached_indexes
 
     process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: Loading renewal index from {renewal_index_file}"
+        f"Batch {batch_id}/{total_batches}: Loading generic title detector from cache"
     )
-    with open(renewal_index_file, "rb") as f:
-        renewal_index = load(f)
-
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: Loading generic title detector from {generic_detector_file}"
+    generic_detector = cache_manager.get_cached_generic_detector(
+        copyright_dir, renewal_dir, detector_config
     )
-    with open(generic_detector_file, "rb") as f:
-        generic_detector = load(f)
+    if generic_detector is None and not detector_config.get("disabled", False):
+        raise RuntimeError(
+            f"Failed to load generic title detector from cache in worker process {batch_id}"
+        )
 
     process_logger.debug(
         f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_index.size():,} renewal entries"

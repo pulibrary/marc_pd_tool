@@ -251,7 +251,7 @@ class CacheManager:
             Cached publications or None if not valid
         """
         if self._is_cache_valid(self.copyright_cache_dir, [copyright_dir]):
-            logger.info(f"Loading copyright data from cache...")
+            logger.debug(f"Loading copyright data from cache...")
             return self._load_cache_data(self.copyright_cache_dir, "publications.pkl")
         return None
 
@@ -280,7 +280,7 @@ class CacheManager:
             Cached publications or None if not valid
         """
         if self._is_cache_valid(self.renewal_cache_dir, [renewal_dir]):
-            logger.info(f"Loading renewal data from cache...")
+            logger.debug(f"Loading renewal data from cache...")
             return self._load_cache_data(self.renewal_cache_dir, "publications.pkl")
         return None
 
@@ -316,7 +316,7 @@ class CacheManager:
         if self._is_cache_valid(
             self.indexes_cache_dir, [copyright_dir, renewal_dir], additional_deps
         ):
-            logger.info(f"Loading indexes from cache...")
+            logger.debug(f"Loading indexes from cache...")
             reg_index = self._load_cache_data(self.indexes_cache_dir, "registration.pkl")
             ren_index = self._load_cache_data(self.indexes_cache_dir, "renewal.pkl")
             if reg_index is not None and ren_index is not None:
@@ -382,7 +382,7 @@ class CacheManager:
         if self._is_cache_valid(
             self.generic_detector_cache_dir, [copyright_dir, renewal_dir], additional_deps
         ):
-            logger.info(f"Loading generic title detector from cache...")
+            logger.debug(f"Loading generic title detector from cache...")
             return self._load_cache_data(self.generic_detector_cache_dir, "detector.pkl")
         return None
 
