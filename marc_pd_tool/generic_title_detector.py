@@ -14,11 +14,11 @@ from marc_pd_tool.text_utils import normalize_text
 
 class LRUCache:
     """Simple LRU cache with size limit"""
-    
+
     def __init__(self, max_size: int = 1000):
         self.max_size = max_size
         self.cache = OrderedDict()
-    
+
     def get(self, key: str) -> Optional[bool]:
         """Get value from cache, moving to end if found"""
         if key in self.cache:
@@ -26,7 +26,7 @@ class LRUCache:
             self.cache.move_to_end(key)
             return self.cache[key]
         return None
-    
+
     def put(self, key: str, value: bool) -> None:
         """Put value in cache, evicting oldest if needed"""
         if key in self.cache:
@@ -39,11 +39,11 @@ class LRUCache:
             if len(self.cache) > self.max_size:
                 # Remove oldest item
                 self.cache.popitem(last=False)
-    
+
     def clear(self) -> None:
         """Clear the cache"""
         self.cache.clear()
-    
+
     def size(self) -> int:
         """Get current cache size"""
         return len(self.cache)
@@ -85,8 +85,12 @@ class GenericTitleDetector:
     # fmt: on
 
     def __init__(
-        self, frequency_threshold: int = 10, custom_patterns: Optional[Set[str]] = None, 
-        config=None, cache_size: int = 1000, max_title_counts: int = 50000
+        self,
+        frequency_threshold: int = 10,
+        custom_patterns: Optional[Set[str]] = None,
+        config=None,
+        cache_size: int = 1000,
+        max_title_counts: int = 50000,
     ):
         """Initialize the generic title detector
 
@@ -124,7 +128,7 @@ class GenericTitleDetector:
         normalized = normalize_text(title)
         if normalized:
             self.title_counts[normalized] += 1
-            
+
             # Prevent unbounded growth by cleaning up when limit is reached
             if len(self.title_counts) > self.max_title_counts:
                 self._cleanup_title_counts()
@@ -175,7 +179,7 @@ class GenericTitleDetector:
             String describing the detection reason
         """
         if not title:
-            return "empty"
+            return "none"
 
         # Check if language is non-English
         if not self._is_english_language(language_code):
@@ -187,11 +191,11 @@ class GenericTitleDetector:
 
         normalized = normalize_text(title)
         if not normalized:
-            return "empty"
+            return "none"
 
         # Check pattern matching
         if self._is_pattern_match(normalized):
-            return "pattern"
+            return "predefined_pattern"
 
         # Check frequency
         if self._is_frequency_match(normalized):
@@ -239,12 +243,10 @@ class GenericTitleDetector:
         if normalized_title in self.patterns:
             return True
 
-        # Check for substring matches (only for short titles)
-        words = normalized_title.split()
-        if len(words) <= 3:
-            for pattern in self.patterns:
-                if pattern in normalized_title:
-                    return True
+        # Check for substring matches
+        for pattern in self.patterns:
+            if pattern in normalized_title:
+                return True
 
         return False
 
@@ -304,13 +306,13 @@ class GenericTitleDetector:
         """Clean up title counts by keeping only the most frequent titles"""
         # Keep top 80% of the limit to avoid frequent cleanups
         keep_count = int(self.max_title_counts * 0.8)
-        
+
         # Get the most common titles
         most_common = self.title_counts.most_common(keep_count)
-        
+
         # Replace the counter with only the most frequent titles
         self.title_counts = Counter(dict(most_common))
-        
+
         # Clear the detection cache since frequency data changed
         self.detection_cache.clear()
 

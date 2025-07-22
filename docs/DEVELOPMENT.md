@@ -636,13 +636,15 @@ def _cleanup_title_counts(self) -> None:
 #### Performance Impact Achieved
 
 **Memory Reduction**:
+
 - **Publication objects**: ~40% reduction through `__slots__` and lazy caching
 - **Index structures**: ~60% reduction for single-entry indexes through CompactIndexEntry
 - **Generic detector**: Bounded memory growth prevents crashes
 - **Overall**: 30-50% total memory reduction as measured
 
 **Processing Improvements**:
-- **Higher batch sizes**: Can process larger batches without memory crashes  
+
+- **Higher batch sizes**: Can process larger batches without memory crashes
 - **Better cache locality**: Compact data structures improve CPU cache performance
 - **Reduced garbage collection**: Less memory allocation/deallocation overhead
 - **Maintained accuracy**: All optimizations preserve identical matching behavior
@@ -650,12 +652,14 @@ def _cleanup_title_counts(self) -> None:
 #### Verification and Testing
 
 **All Tests Pass**: 338+ tests validate that optimizations maintain identical functionality:
+
 - Title/author key generation produces same results
-- Index candidate filtering returns identical publication sets  
+- Index candidate filtering returns identical publication sets
 - Publication matching algorithms produce same similarity scores
 - Generic title detection behavior unchanged
 
 **Backward Compatibility**: All optimizations are internal implementation changes:
+
 - Public APIs unchanged
 - Existing code continues to work without modification
 - Same output formats and matching accuracy

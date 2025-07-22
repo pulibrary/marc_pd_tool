@@ -17,11 +17,12 @@ from marc_pd_tool.text_utils import normalize_text
 
 class CompactIndexEntry:
     """Memory-efficient container for index entries - stores single int or set"""
-    __slots__ = ('_data',)
-    
+
+    __slots__ = ("_data",)
+
     def __init__(self):
         self._data = None  # None, int, or set
-    
+
     def add(self, pub_id: int) -> None:
         """Add a publication ID to this entry"""
         if self._data is None:
@@ -34,7 +35,7 @@ class CompactIndexEntry:
         else:
             # Already a set - add to it
             self._data.add(pub_id)
-    
+
     def get_ids(self) -> Set[int]:
         """Get all publication IDs as a set"""
         if self._data is None:
@@ -43,7 +44,7 @@ class CompactIndexEntry:
             return {self._data}
         else:
             return self._data.copy()
-    
+
     def is_empty(self) -> bool:
         """Check if entry is empty"""
         return self._data is None

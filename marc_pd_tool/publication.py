@@ -32,16 +32,40 @@ class MatchResult:
 
 class Publication:
     __slots__ = (
-        'original_title', 'original_author', 'original_main_author', 'pub_date', 'original_publisher', 
-        'original_place', 'original_edition', 'original_part_number', 'original_part_name',
-        'language_code', 'source', 'source_id', 'full_text', 'year', 'country_code', 
-        'country_classification', 'registration_match', 'renewal_match', 'generic_title_detected', 
-        'generic_detection_reason', 'registration_generic_title', 'renewal_generic_title', 
-        'copyright_status', '_cached_title', '_cached_author', '_cached_main_author', 
-        '_cached_publisher', '_cached_place', '_cached_edition', '_cached_part_number', 
-        '_cached_part_name', '_cached_full_title_normalized'
+        "original_title",
+        "original_author",
+        "original_main_author",
+        "pub_date",
+        "original_publisher",
+        "original_place",
+        "original_edition",
+        "original_part_number",
+        "original_part_name",
+        "language_code",
+        "source",
+        "source_id",
+        "full_text",
+        "year",
+        "country_code",
+        "country_classification",
+        "registration_match",
+        "renewal_match",
+        "generic_title_detected",
+        "generic_detection_reason",
+        "registration_generic_title",
+        "renewal_generic_title",
+        "copyright_status",
+        "_cached_title",
+        "_cached_author",
+        "_cached_main_author",
+        "_cached_publisher",
+        "_cached_place",
+        "_cached_edition",
+        "_cached_part_number",
+        "_cached_part_name",
+        "_cached_full_title_normalized",
     )
-    
+
     def __init__(
         self,
         title: str,
@@ -60,7 +84,7 @@ class Publication:
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
         full_text: Optional[str] = None,
     ):
-        # Store original values, using None for missing data instead of empty strings  
+        # Store original values, using None for missing data instead of empty strings
         self.original_title = title
         self.original_author = author if author else None
         self.original_main_author = main_author if main_author else None
@@ -94,7 +118,7 @@ class Publication:
 
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
-        
+
         # Initialize cached normalized text fields (computed lazily)
         self._cached_title = None
         self._cached_author = None
@@ -118,21 +142,27 @@ class Publication:
     def author(self) -> str:
         """Normalized author for matching"""
         if self._cached_author is None:
-            self._cached_author = normalize_text(self.original_author) if self.original_author else ""
+            self._cached_author = (
+                normalize_text(self.original_author) if self.original_author else ""
+            )
         return self._cached_author
 
     @property
     def main_author(self) -> str:
         """Normalized main author for matching"""
         if self._cached_main_author is None:
-            self._cached_main_author = normalize_text(self.original_main_author) if self.original_main_author else ""
+            self._cached_main_author = (
+                normalize_text(self.original_main_author) if self.original_main_author else ""
+            )
         return self._cached_main_author
 
     @property
     def publisher(self) -> str:
         """Normalized publisher for matching"""
         if self._cached_publisher is None:
-            self._cached_publisher = normalize_text(self.original_publisher) if self.original_publisher else ""
+            self._cached_publisher = (
+                normalize_text(self.original_publisher) if self.original_publisher else ""
+            )
         return self._cached_publisher
 
     @property
@@ -146,21 +176,27 @@ class Publication:
     def edition(self) -> str:
         """Normalized edition for matching"""
         if self._cached_edition is None:
-            self._cached_edition = normalize_text(self.original_edition) if self.original_edition else ""
+            self._cached_edition = (
+                normalize_text(self.original_edition) if self.original_edition else ""
+            )
         return self._cached_edition
 
     @property
     def part_number(self) -> str:
         """Normalized part number for matching"""
         if self._cached_part_number is None:
-            self._cached_part_number = normalize_text(self.original_part_number) if self.original_part_number else ""
+            self._cached_part_number = (
+                normalize_text(self.original_part_number) if self.original_part_number else ""
+            )
         return self._cached_part_number
 
     @property
     def part_name(self) -> str:
         """Normalized part name for matching"""
         if self._cached_part_name is None:
-            self._cached_part_name = normalize_text(self.original_part_name) if self.original_part_name else ""
+            self._cached_part_name = (
+                normalize_text(self.original_part_name) if self.original_part_name else ""
+            )
         return self._cached_part_name
 
     def extract_year(self) -> Optional[int]:
@@ -170,7 +206,6 @@ class Publication:
         if year_match:
             return int(year_match.group())
         return None
-    
 
     @property
     def full_title(self) -> str:
@@ -263,13 +298,20 @@ class Publication:
         """Support for pickle deserialization with __slots__"""
         for slot, value in state.items():
             setattr(self, slot, value)
-        
-        # Clear cached properties - they'll be regenerated lazily
-        for attr in ['_cached_title', '_cached_author', '_cached_main_author', 
-                     '_cached_publisher', '_cached_place', '_cached_edition', 
-                     '_cached_part_number', '_cached_part_name', '_cached_full_title_normalized']:
-            setattr(self, attr, None)
 
+        # Clear cached properties - they'll be regenerated lazily
+        for attr in [
+            "_cached_title",
+            "_cached_author",
+            "_cached_main_author",
+            "_cached_publisher",
+            "_cached_place",
+            "_cached_edition",
+            "_cached_part_number",
+            "_cached_part_name",
+            "_cached_full_title_normalized",
+        ]:
+            setattr(self, attr, None)
 
     def to_dict(self) -> Dict:
         return {

@@ -155,9 +155,23 @@ def sample_copyright_records():
             source="REG",
             source_id="R008",
         ),
-        Publication(title="Moby Dick", author="Melville, Herman", pub_date="1851", publisher="Harper", place="New York", source="REG", source_id="R009"),
         Publication(
-            title="War and Peace", author="Tolstoy, Leo", pub_date="1869", publisher="Russian Messenger", place="Russia", source="REG", source_id="R010"
+            title="Moby Dick",
+            author="Melville, Herman",
+            pub_date="1851",
+            publisher="Harper",
+            place="New York",
+            source="REG",
+            source_id="R009",
+        ),
+        Publication(
+            title="War and Peace",
+            author="Tolstoy, Leo",
+            pub_date="1869",
+            publisher="Russian Messenger",
+            place="Russia",
+            source="REG",
+            source_id="R010",
         ),
     ]
 
@@ -329,10 +343,22 @@ class TestEarlyTermination:
         copyright_pubs = [
             # Even with perfect title match, no early exit without both authors
             Publication(
-                title="Anonymous Work", author="", pub_date="1925", publisher="Publisher", place="Place", source="REG", source_id="NO_AUTHOR_MATCH"
+                title="Anonymous Work",
+                author="",
+                pub_date="1925",
+                publisher="Publisher",
+                place="Place",
+                source="REG",
+                source_id="NO_AUTHOR_MATCH",
             ),
             Publication(
-                title="Anonymous Work", author="Some Author", pub_date="1925", publisher="Publisher", place="Place", source="REG", source_id="WITH_AUTHOR"
+                title="Anonymous Work",
+                author="Some Author",
+                pub_date="1925",
+                publisher="Publisher",
+                place="Place",
+                source="REG",
+                source_id="WITH_AUTHOR",
             ),
         ]
 

@@ -53,7 +53,7 @@ class TestDetectionAlgorithm:
         # This is expected behavior for the updated implementation
         # assert not detector.is_generic("Collecte d Works")  # This would now be detected
         # assert not detector.is_generic("Comp lete Poems")  # This would now be detected
-        
+
         # Test with titles that definitely should NOT be detected
         assert not detector.is_generic("Something Random")  # Completely different
         assert not detector.is_generic("Unique Title Here")  # No generic patterns
@@ -134,10 +134,10 @@ class TestFrequencyBasedDetection:
 
         # Test detection
         result = detector.is_generic("Collected Works")
-        
+
         # Verify that detection works (basic functionality test)
         assert isinstance(result, bool)
-        
+
         # Since logging is not implemented, we just verify the method works
 
 
@@ -244,9 +244,9 @@ class TestDetectionReasonLogic:
         for title in predefined_titles:
             reason = detector.get_detection_reason(title)
             assert reason in [
-                "pattern",  # Updated to match the actual return value
+                "predefined_pattern",  # Updated to match the actual return value
                 "frequency",
-                "linguistic"
+                "linguistic",
             ], f"Unexpected reason '{reason}' for '{title}'"
 
     def test_reason_with_language_codes(self):
