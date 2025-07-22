@@ -3,6 +3,7 @@ catalog_of_copyright_entries_project
 cce-renewals
 *.xml
 *.marcxml
+*.csv
 
 # Output files - do not commit results
 publication_matches*.json

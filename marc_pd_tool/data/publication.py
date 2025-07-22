@@ -257,8 +257,6 @@ class Publication:
             "_cached_publisher",
             "_cached_place",
             "_cached_edition",
-            "_cached_part_number",
-            "_cached_part_name",
         ]:
             setattr(self, attr, None)
 
