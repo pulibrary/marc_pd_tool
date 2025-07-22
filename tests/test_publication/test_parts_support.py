@@ -70,8 +70,8 @@ class TestPartSupport:
         """Test handling of empty part values"""
         pub = Publication(title="Complete Works", part_number="", part_name="")
 
-        assert pub.original_part_number == ""
-        assert pub.original_part_name == ""
+        assert pub.original_part_number is None
+        assert pub.original_part_name is None
         assert pub.part_number == ""
         assert pub.part_name == ""
         assert pub.full_title == "Complete Works"

@@ -18,59 +18,59 @@ def sample_marc_records():
     """Sample MARC records for testing"""
     return [
         Publication(
-            "The Great Gatsby",
-            "Fitzgerald, F. Scott",
-            "1925",
-            "Scribner",
-            "New York",
-            "MARC",
-            "001",
-            "xxu",
-            CountryClassification.US,
+            title="The Great Gatsby",
+            author="Fitzgerald, F. Scott",
+            pub_date="1925",
+            publisher="Scribner",
+            place="New York",
+            source="MARC",
+            source_id="001",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         ),
         Publication(
-            "To Kill a Mockingbird",
-            "Lee, Harper",
-            "1960",
-            "Lippincott",
-            "Philadelphia",
-            "MARC",
-            "002",
-            "xxu",
-            CountryClassification.US,
+            title="To Kill a Mockingbird",
+            author="Lee, Harper",
+            pub_date="1960",
+            publisher="Lippincott",
+            place="Philadelphia",
+            source="MARC",
+            source_id="002",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         ),
         Publication(
-            "1984",
-            "Orwell, George",
-            "1949",
-            "Secker & Warburg",
-            "London",
-            "MARC",
-            "003",
-            "enk",
-            CountryClassification.NON_US,
+            title="1984",
+            author="Orwell, George",
+            pub_date="1949",
+            publisher="Secker & Warburg",
+            place="London",
+            source="MARC",
+            source_id="003",
+            country_code="enk",
+            country_classification=CountryClassification.NON_US,
         ),
         Publication(
-            "Animal Farm",
-            "Orwell, George",
-            "1945",
-            "Secker & Warburg",
-            "London",
-            "MARC",
-            "004",
-            "enk",
-            CountryClassification.NON_US,
+            title="Animal Farm",
+            author="Orwell, George",
+            pub_date="1945",
+            publisher="Secker & Warburg",
+            place="London",
+            source="MARC",
+            source_id="004",
+            country_code="enk",
+            country_classification=CountryClassification.NON_US,
         ),
         Publication(
-            "The Catcher in the Rye",
-            "Salinger, J. D.",
-            "1951",
-            "Little, Brown",
-            "Boston",
-            "MARC",
-            "005",
-            "xxu",
-            CountryClassification.US,
+            title="The Catcher in the Rye",
+            author="Salinger, J. D.",
+            pub_date="1951",
+            publisher="Little, Brown",
+            place="Boston",
+            source="MARC",
+            source_id="005",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         ),
     ]
 
@@ -81,83 +81,83 @@ def sample_copyright_records():
     return [
         # Exact matches
         Publication(
-            "The Great Gatsby",
-            "Fitzgerald, F. Scott",
-            "1925",
-            "Scribner",
-            "New York",
-            "REG",
-            "R001",
+            title="The Great Gatsby",
+            author="Fitzgerald, F. Scott",
+            pub_date="1925",
+            publisher="Scribner",
+            place="New York",
+            source="REG",
+            source_id="R001",
         ),
         Publication(
-            "To Kill a Mockingbird",
-            "Lee, Harper",
-            "1960",
-            "Lippincott",
-            "Philadelphia",
-            "REG",
-            "R002",
+            title="To Kill a Mockingbird",
+            author="Lee, Harper",
+            pub_date="1960",
+            publisher="Lippincott",
+            place="Philadelphia",
+            source="REG",
+            source_id="R002",
         ),
         Publication(
-            "Nineteen Eighty-Four",
-            "Orwell, George",
-            "1949",
-            "Secker & Warburg",
-            "London",
-            "REG",
-            "R003",
+            title="Nineteen Eighty-Four",
+            author="Orwell, George",
+            pub_date="1949",
+            publisher="Secker & Warburg",
+            place="London",
+            source="REG",
+            source_id="R003",
         ),  # Title variation
         # Very similar (should trigger early termination)
         Publication(
-            "The Great Gatsby: A Novel",
-            "Fitzgerald, Francis Scott",
-            "1925",
-            "Scribner",
-            "New York",
-            "REG",
-            "R004",
+            title="The Great Gatsby: A Novel",
+            author="Fitzgerald, Francis Scott",
+            pub_date="1925",
+            publisher="Scribner",
+            place="New York",
+            source="REG",
+            source_id="R004",
         ),
         # Different works by same author (should NOT trigger early termination on author alone)
         Publication(
-            "This Side of Paradise",
-            "Fitzgerald, F. Scott",
-            "1920",
-            "Scribner",
-            "New York",
-            "REG",
-            "R005",
+            title="This Side of Paradise",
+            author="Fitzgerald, F. Scott",
+            pub_date="1920",
+            publisher="Scribner",
+            place="New York",
+            source="REG",
+            source_id="R005",
         ),
         Publication(
-            "Tender Is the Night",
-            "Fitzgerald, F. Scott",
-            "1934",
-            "Scribner",
-            "New York",
-            "REG",
-            "R006",
+            title="Tender Is the Night",
+            author="Fitzgerald, F. Scott",
+            pub_date="1934",
+            publisher="Scribner",
+            place="New York",
+            source="REG",
+            source_id="R006",
         ),
         # Noise records
         Publication(
-            "Gone with the Wind",
-            "Mitchell, Margaret",
-            "1936",
-            "Macmillan",
-            "New York",
-            "REG",
-            "R007",
+            title="Gone with the Wind",
+            author="Mitchell, Margaret",
+            pub_date="1936",
+            publisher="Macmillan",
+            place="New York",
+            source="REG",
+            source_id="R007",
         ),
         Publication(
-            "The Sound and the Fury",
-            "Faulkner, William",
-            "1929",
-            "Cape & Smith",
-            "New York",
-            "REG",
-            "R008",
+            title="The Sound and the Fury",
+            author="Faulkner, William",
+            pub_date="1929",
+            publisher="Cape & Smith",
+            place="New York",
+            source="REG",
+            source_id="R008",
         ),
-        Publication("Moby Dick", "Melville, Herman", "1851", "Harper", "New York", "REG", "R009"),
+        Publication(title="Moby Dick", author="Melville, Herman", pub_date="1851", publisher="Harper", place="New York", source="REG", source_id="R009"),
         Publication(
-            "War and Peace", "Tolstoy, Leo", "1869", "Russian Messenger", "Russia", "REG", "R010"
+            title="War and Peace", author="Tolstoy, Leo", pub_date="1869", publisher="Russian Messenger", place="Russia", source="REG", source_id="R010"
         ),
     ]
 
@@ -223,41 +223,41 @@ class TestEarlyTermination:
     def test_early_termination_triggers(self):
         """Test that early termination triggers correctly"""
         marc_pub = Publication(
-            "The Great Gatsby",
-            "Fitzgerald, F. Scott",
-            "1925",
-            "Scribner",
-            "New York",
-            "MARC",
-            "001",
-            "xxu",
-            CountryClassification.US,
+            title="The Great Gatsby",
+            author="Fitzgerald, F. Scott",
+            pub_date="1925",
+            publisher="Scribner",
+            place="New York",
+            source="MARC",
+            source_id="001",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         )
 
         copyright_pubs = [
             # This should trigger early termination (very high scores)
             Publication(
-                "The Great Gatsby",
-                "Fitzgerald, F. Scott",
-                "1925",
-                "Scribner",
-                "New York",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "EARLY_EXIT",  # source_id
+                title="The Great Gatsby",
+                author="Fitzgerald, F. Scott",
+                pub_date="1925",
+                publisher="Scribner",
+                place="New York",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="EARLY_EXIT",
             ),
             # These should not be reached due to early termination
             Publication(
-                "The Great Gatsby: Deluxe Edition",
-                "Fitzgerald, F. Scott",
-                "1925",
-                "Scribner",
-                "New York",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "LATER_MATCH",  # source_id
+                title="The Great Gatsby: Deluxe Edition",
+                author="Fitzgerald, F. Scott",
+                pub_date="1925",
+                publisher="Scribner",
+                place="New York",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="LATER_MATCH",
             ),
         ]
 
@@ -269,41 +269,41 @@ class TestEarlyTermination:
     def test_no_false_early_exit_different_title(self):
         """Test that early termination doesn't trigger incorrectly for same author, different title"""
         marc_pub = Publication(
-            "The Great Gatsby",
-            "Fitzgerald, F. Scott",
-            "1925",
-            "Scribner",
-            "New York",
-            "MARC",
-            "001",
-            "xxu",
-            CountryClassification.US,
+            title="The Great Gatsby",
+            author="Fitzgerald, F. Scott",
+            pub_date="1925",
+            publisher="Scribner",
+            place="New York",
+            source="MARC",
+            source_id="001",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         )
 
         copyright_pubs = [
             # Different title by same author - should not trigger early exit
             Publication(
-                "This Side of Paradise",
-                "Fitzgerald, F. Scott",
-                "1920",
-                "Scribner",
-                "New York",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "DIFFERENT_TITLE",  # source_id
+                title="This Side of Paradise",
+                author="Fitzgerald, F. Scott",
+                pub_date="1920",
+                publisher="Scribner",
+                place="New York",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="DIFFERENT_TITLE",
             ),
             # The actual match should be found
             Publication(
-                "The Great Gatsby",
-                "Fitzgerald, F. Scott",
-                "1925",
-                "Scribner",
-                "New York",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "CORRECT_MATCH",  # source_id
+                title="The Great Gatsby",
+                author="Fitzgerald, F. Scott",
+                pub_date="1925",
+                publisher="Scribner",
+                place="New York",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="CORRECT_MATCH",
             ),
         ]
 
@@ -315,24 +315,24 @@ class TestEarlyTermination:
     def test_no_early_exit_missing_author(self):
         """Test that early termination doesn't trigger when author is missing"""
         marc_pub = Publication(
-            "Anonymous Work",
-            "",
-            "1925",
-            "Publisher",
-            "Place",
-            "MARC",
-            "001",
-            "xxu",
-            CountryClassification.US,
+            title="Anonymous Work",
+            author="",
+            pub_date="1925",
+            publisher="Publisher",
+            place="Place",
+            source="MARC",
+            source_id="001",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         )
 
         copyright_pubs = [
             # Even with perfect title match, no early exit without both authors
             Publication(
-                "Anonymous Work", "", "1925", "Publisher", "Place", "REG", "NO_AUTHOR_MATCH"
+                title="Anonymous Work", author="", pub_date="1925", publisher="Publisher", place="Place", source="REG", source_id="NO_AUTHOR_MATCH"
             ),
             Publication(
-                "Anonymous Work", "Some Author", "1925", "Publisher", "Place", "REG", "WITH_AUTHOR"
+                title="Anonymous Work", author="Some Author", pub_date="1925", publisher="Publisher", place="Place", source="REG", source_id="WITH_AUTHOR"
             ),
         ]
 
@@ -346,53 +346,53 @@ class TestEarlyTermination:
     def test_early_exit_requires_both_high_scores(self):
         """Test that early exit requires both title AND author to be high"""
         marc_pub = Publication(
-            "Test Title",
-            "Test Author",
-            "1925",
-            "Publisher",
-            "Place",
-            "MARC",
-            "001",
-            "xxu",
-            CountryClassification.US,
+            title="Test Title",
+            author="Test Author",
+            pub_date="1925",
+            publisher="Publisher",
+            place="Place",
+            source="MARC",
+            source_id="001",
+            country_code="xxu",
+            country_classification=CountryClassification.US,
         )
 
         copyright_pubs = [
             # High title, low author - should not trigger early exit
             Publication(
-                "Test Title",
-                "Different Author",
-                "1925",
-                "Publisher",
-                "Place",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "HIGH_TITLE_LOW_AUTHOR",  # source_id
+                title="Test Title",
+                author="Different Author",
+                pub_date="1925",
+                publisher="Publisher",
+                place="Place",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="HIGH_TITLE_LOW_AUTHOR",
             ),
             # Low title, high author - should not trigger early exit
             Publication(
-                "Different Title",
-                "Test Author",
-                "1925",
-                "Publisher",
-                "Place",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "LOW_TITLE_HIGH_AUTHOR",  # source_id
+                title="Different Title",
+                author="Test Author",
+                pub_date="1925",
+                publisher="Publisher",
+                place="Place",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="LOW_TITLE_HIGH_AUTHOR",
             ),
             # High title, high author - should trigger early exit
             Publication(
-                "Test Title",
-                "Test Author",
-                "1925",
-                "Publisher",
-                "Place",
-                "",  # edition
-                "",  # language_code
-                "REG",  # source
-                "BOTH_HIGH",  # source_id
+                title="Test Title",
+                author="Test Author",
+                pub_date="1925",
+                publisher="Publisher",
+                place="Place",
+                edition="",
+                language_code="",
+                source="REG",
+                source_id="BOTH_HIGH",
             ),
         ]
 

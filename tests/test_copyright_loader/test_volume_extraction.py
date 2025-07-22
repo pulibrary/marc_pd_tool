@@ -33,7 +33,7 @@ class TestVolumeExtraction:
         assert pub is not None
         assert pub.original_title == "Advances in geophysics"
         assert pub.original_part_number == "17"  # Should extract the number
-        assert pub.original_part_name == ""  # No part name in this format
+        assert pub.original_part_name is None  # No part name in this format
 
     def test_different_vol_formats(self):
         """Test different volume tag formats"""
@@ -88,5 +88,5 @@ class TestVolumeExtraction:
 
         assert pub is not None
         assert pub.original_title == "Simple Book"
-        assert pub.original_part_number == ""
-        assert pub.original_part_name == ""
+        assert pub.original_part_number is None
+        assert pub.original_part_name is None

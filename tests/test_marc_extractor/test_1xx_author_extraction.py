@@ -152,7 +152,7 @@ class TestMarcAuthorExtraction:
 
         assert pub is not None
         assert pub.original_author == "by unknown author."
-        assert pub.original_main_author == ""  # No 1xx field
+        assert pub.original_main_author is None  # No 1xx field
 
     def test_both_245c_and_1xx_present(self):
         """Test that both author fields are extracted when present"""

@@ -170,15 +170,15 @@ class TestPublicationConstruction:
 
         assert pub.title == "minimal title"
         assert pub.author == ""
-        assert pub.pub_date == ""
+        assert pub.pub_date is None
         assert pub.publisher == ""
         assert pub.place == ""
         assert pub.edition == ""
-        assert pub.language_code == ""
-        assert pub.source == ""
-        assert pub.source_id == ""
-        assert pub.country_code == ""
-        assert pub.full_text == ""
+        assert pub.language_code is None
+        assert pub.source is None
+        assert pub.source_id is None
+        assert pub.country_code is None
+        assert pub.full_text is None
         assert pub.year is None
 
     def test_publication_language_code_normalization(self):
@@ -190,7 +190,7 @@ class TestPublicationConstruction:
         assert pub.language_code == "fr"
 
         pub = Publication("Title", language_code="")
-        assert pub.language_code == ""
+        assert pub.language_code is None
 
 
 class TestPublicationToDictMethod:

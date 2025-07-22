@@ -29,7 +29,7 @@ class TestDualAuthorSupport:
         pub = Publication(title="Test Book", author="by Jane Doe", main_author="")  # No 1xx field
 
         assert pub.original_author == "by Jane Doe"
-        assert pub.original_main_author == ""
+        assert pub.original_main_author is None
         assert pub.author == "by jane doe"
         assert pub.main_author == ""
 
@@ -37,7 +37,7 @@ class TestDualAuthorSupport:
         """Test Publication with only 1xx author"""
         pub = Publication(title="Test Book", author="", main_author="Doe, Jane")  # No 245$c
 
-        assert pub.original_author == ""
+        assert pub.original_author is None
         assert pub.original_main_author == "Doe, Jane"
         assert pub.author == ""
         assert pub.main_author == "doe jane"
@@ -59,8 +59,8 @@ class TestDualAuthorSupport:
         """Test handling when both author fields are empty"""
         pub = Publication(title="Test Book", author="", main_author="")
 
-        assert pub.original_author == ""
-        assert pub.original_main_author == ""
+        assert pub.original_author is None
+        assert pub.original_main_author is None
         assert pub.author == ""
         assert pub.main_author == ""
 

@@ -13,7 +13,7 @@ from marc_pd_tool.enums import CountryClassification
 from marc_pd_tool.text_utils import normalize_text
 
 
-@dataclass
+@dataclass(slots=True)
 class MatchResult:
     """Represents a match between MARC record and copyright/renewal data"""
 
@@ -31,53 +31,55 @@ class MatchResult:
 
 
 class Publication:
+    __slots__ = (
+        'original_title', 'original_author', 'original_main_author', 'pub_date', 'original_publisher', 
+        'original_place', 'original_edition', 'original_part_number', 'original_part_name',
+        'language_code', 'source', 'source_id', 'full_text', 'year', 'country_code', 
+        'country_classification', 'registration_match', 'renewal_match', 'generic_title_detected', 
+        'generic_detection_reason', 'registration_generic_title', 'renewal_generic_title', 
+        'copyright_status', '_cached_title', '_cached_author', '_cached_main_author', 
+        '_cached_publisher', '_cached_place', '_cached_edition', '_cached_part_number', 
+        '_cached_part_name', '_cached_full_title_normalized'
+    )
+    
     def __init__(
         self,
         title: str,
-        author: str = "",
-        main_author: str = "",
-        pub_date: str = "",
-        publisher: str = "",
-        place: str = "",
-        edition: str = "",
-        part_number: str = "",
-        part_name: str = "",
-        language_code: str = "",
-        source: str = "",
-        source_id: str = "",
-        country_code: str = "",
+        author: Optional[str] = None,
+        main_author: Optional[str] = None,
+        pub_date: Optional[str] = None,
+        publisher: Optional[str] = None,
+        place: Optional[str] = None,
+        edition: Optional[str] = None,
+        part_number: Optional[str] = None,
+        part_name: Optional[str] = None,
+        language_code: Optional[str] = None,
+        source: Optional[str] = None,
+        source_id: Optional[str] = None,
+        country_code: Optional[str] = None,
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
-        full_text: str = "",
+        full_text: Optional[str] = None,
     ):
-        self.title = normalize_text(title)
-        self.author = normalize_text(author)
-        self.main_author = normalize_text(main_author)
-        self.pub_date = pub_date
-        self.publisher = normalize_text(publisher)
-        self.place = normalize_text(place)
-        self.edition = normalize_text(edition)
-        self.part_number = normalize_text(part_number)
-        self.part_name = normalize_text(part_name)
-        self.language_code = language_code.lower() if language_code else ""
-        self.source = source
-        self.source_id = source_id
-        self.full_text = full_text  # Store original full_text for fuzzy matching
-
-        # Store original values
+        # Store original values, using None for missing data instead of empty strings  
         self.original_title = title
-        self.original_author = author
-        self.original_main_author = main_author
-        self.original_publisher = publisher
-        self.original_place = place
-        self.original_edition = edition
-        self.original_part_number = part_number
-        self.original_part_name = part_name
+        self.original_author = author if author else None
+        self.original_main_author = main_author if main_author else None
+        self.pub_date = pub_date if pub_date else None
+        self.original_publisher = publisher if publisher else None
+        self.original_place = place if place else None
+        self.original_edition = edition if edition else None
+        self.original_part_number = part_number if part_number else None
+        self.original_part_name = part_name if part_name else None
+        self.language_code = language_code.lower() if language_code else None
+        self.source = source if source else None
+        self.source_id = source_id if source_id else None
+        self.full_text = full_text if full_text else None
 
         # Extract year
         self.year = self.extract_year()
 
         # Enhanced fields for new algorithm
-        self.country_code = country_code
+        self.country_code = country_code if country_code else None
         self.country_classification = country_classification
 
         # Match tracking - single best match only
@@ -92,6 +94,74 @@ class Publication:
 
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
+        
+        # Initialize cached normalized text fields (computed lazily)
+        self._cached_title = None
+        self._cached_author = None
+        self._cached_main_author = None
+        self._cached_publisher = None
+        self._cached_place = None
+        self._cached_edition = None
+        self._cached_part_number = None
+        self._cached_part_name = None
+        self._cached_full_title_normalized = None
+
+    # Properties for normalized text fields (cached after first access)
+    @property
+    def title(self) -> str:
+        """Normalized title for matching"""
+        if self._cached_title is None:
+            self._cached_title = normalize_text(self.original_title) if self.original_title else ""
+        return self._cached_title
+
+    @property
+    def author(self) -> str:
+        """Normalized author for matching"""
+        if self._cached_author is None:
+            self._cached_author = normalize_text(self.original_author) if self.original_author else ""
+        return self._cached_author
+
+    @property
+    def main_author(self) -> str:
+        """Normalized main author for matching"""
+        if self._cached_main_author is None:
+            self._cached_main_author = normalize_text(self.original_main_author) if self.original_main_author else ""
+        return self._cached_main_author
+
+    @property
+    def publisher(self) -> str:
+        """Normalized publisher for matching"""
+        if self._cached_publisher is None:
+            self._cached_publisher = normalize_text(self.original_publisher) if self.original_publisher else ""
+        return self._cached_publisher
+
+    @property
+    def place(self) -> str:
+        """Normalized place for matching"""
+        if self._cached_place is None:
+            self._cached_place = normalize_text(self.original_place) if self.original_place else ""
+        return self._cached_place
+
+    @property
+    def edition(self) -> str:
+        """Normalized edition for matching"""
+        if self._cached_edition is None:
+            self._cached_edition = normalize_text(self.original_edition) if self.original_edition else ""
+        return self._cached_edition
+
+    @property
+    def part_number(self) -> str:
+        """Normalized part number for matching"""
+        if self._cached_part_number is None:
+            self._cached_part_number = normalize_text(self.original_part_number) if self.original_part_number else ""
+        return self._cached_part_number
+
+    @property
+    def part_name(self) -> str:
+        """Normalized part name for matching"""
+        if self._cached_part_name is None:
+            self._cached_part_name = normalize_text(self.original_part_name) if self.original_part_name else ""
+        return self._cached_part_name
 
     def extract_year(self) -> Optional[int]:
         if not self.pub_date:
@@ -100,11 +170,12 @@ class Publication:
         if year_match:
             return int(year_match.group())
         return None
+    
 
     @property
     def full_title(self) -> str:
         """Construct full title including part number and part name"""
-        parts = [self.original_title]
+        parts = [self.original_title] if self.original_title else []
 
         if self.original_part_number:
             parts.append(f"Part {self.original_part_number}")
@@ -112,12 +183,14 @@ class Publication:
         if self.original_part_name:
             parts.append(self.original_part_name)
 
-        return ". ".join(parts)
+        return ". ".join(parts) if parts else ""
 
     @property
     def full_title_normalized(self) -> str:
         """Normalized version of full title for matching"""
-        return normalize_text(self.full_title)
+        if self._cached_full_title_normalized is None:
+            self._cached_full_title_normalized = normalize_text(self.full_title)
+        return self._cached_full_title_normalized
 
     def set_registration_match(self, match: MatchResult) -> None:
         """Set the best registration match"""
@@ -176,6 +249,27 @@ class Publication:
             self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
         return self.copyright_status
+
+    @staticmethod
+    def normalize_text(text: str) -> str:
+        """Static method for tests that expect this interface"""
+        return normalize_text(text)
+
+    def __getstate__(self):
+        """Support for pickle serialization with __slots__"""
+        return {slot: getattr(self, slot, None) for slot in self.__slots__}
+
+    def __setstate__(self, state):
+        """Support for pickle deserialization with __slots__"""
+        for slot, value in state.items():
+            setattr(self, slot, value)
+        
+        # Clear cached properties - they'll be regenerated lazily
+        for attr in ['_cached_title', '_cached_author', '_cached_main_author', 
+                     '_cached_publisher', '_cached_place', '_cached_edition', 
+                     '_cached_part_number', '_cached_part_name', '_cached_full_title_normalized']:
+            setattr(self, attr, None)
+
 
     def to_dict(self) -> Dict:
         return {

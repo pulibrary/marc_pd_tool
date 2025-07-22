@@ -126,7 +126,7 @@ class TestCSVMultipleFiles:
             ]
 
             author_indices = [
-                headers.index("MARC Author"),
+                headers.index("MARC Author (245c)"),
                 headers.index("Registration Author"),
                 headers.index("Renewal Author"),
                 headers.index("Registration Author Score"),

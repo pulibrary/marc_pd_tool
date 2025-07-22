@@ -2,6 +2,7 @@
 
 # Standard library imports
 from collections import Counter
+from collections import OrderedDict
 from typing import Dict
 from typing import Optional
 from typing import Set
@@ -9,6 +10,43 @@ from typing import Set
 # Local imports
 from marc_pd_tool.config_loader import get_config
 from marc_pd_tool.text_utils import normalize_text
+
+
+class LRUCache:
+    """Simple LRU cache with size limit"""
+    
+    def __init__(self, max_size: int = 1000):
+        self.max_size = max_size
+        self.cache = OrderedDict()
+    
+    def get(self, key: str) -> Optional[bool]:
+        """Get value from cache, moving to end if found"""
+        if key in self.cache:
+            # Move to end (most recently used)
+            self.cache.move_to_end(key)
+            return self.cache[key]
+        return None
+    
+    def put(self, key: str, value: bool) -> None:
+        """Put value in cache, evicting oldest if needed"""
+        if key in self.cache:
+            # Update existing key
+            self.cache[key] = value
+            self.cache.move_to_end(key)
+        else:
+            # Add new key
+            self.cache[key] = value
+            if len(self.cache) > self.max_size:
+                # Remove oldest item
+                self.cache.popitem(last=False)
+    
+    def clear(self) -> None:
+        """Clear the cache"""
+        self.cache.clear()
+    
+    def size(self) -> int:
+        """Get current cache size"""
+        return len(self.cache)
 
 
 class GenericTitleDetector:
@@ -47,7 +85,8 @@ class GenericTitleDetector:
     # fmt: on
 
     def __init__(
-        self, frequency_threshold: int = 10, custom_patterns: Optional[Set[str]] = None, config=None
+        self, frequency_threshold: int = 10, custom_patterns: Optional[Set[str]] = None, 
+        config=None, cache_size: int = 1000, max_title_counts: int = 50000
     ):
         """Initialize the generic title detector
 
@@ -55,10 +94,13 @@ class GenericTitleDetector:
             frequency_threshold: Minimum occurrences to consider a title generic
             custom_patterns: Additional patterns to consider generic
             config: Configuration loader for accessing stopwords
+            cache_size: Maximum size for detection result cache
+            max_title_counts: Maximum number of titles to track in frequency counter
         """
         self.frequency_threshold = frequency_threshold
+        self.max_title_counts = max_title_counts
         self.title_counts = Counter()
-        self.detection_cache = {}  # Cache detection results for performance
+        self.detection_cache = LRUCache(cache_size)  # Bounded cache for detection results
 
         # Get configuration
         if config is None:
@@ -82,6 +124,10 @@ class GenericTitleDetector:
         normalized = normalize_text(title)
         if normalized:
             self.title_counts[normalized] += 1
+            
+            # Prevent unbounded growth by cleaning up when limit is reached
+            if len(self.title_counts) > self.max_title_counts:
+                self._cleanup_title_counts()
 
     def is_generic(self, title: str, language_code: str = "") -> bool:
         """Determine if a title is generic using hybrid detection
@@ -106,14 +152,15 @@ class GenericTitleDetector:
 
         # Check cache first
         cache_key = f"{normalized}|{language_code}"
-        if cache_key in self.detection_cache:
-            return self.detection_cache[cache_key]
+        cached_result = self.detection_cache.get(cache_key)
+        if cached_result is not None:
+            return cached_result
 
         # Perform detection
         is_generic = self._detect_generic(normalized)
 
         # Cache result
-        self.detection_cache[cache_key] = is_generic
+        self.detection_cache.put(cache_key, is_generic)
 
         return is_generic
 
@@ -253,6 +300,20 @@ class GenericTitleDetector:
 
         return False
 
+    def _cleanup_title_counts(self) -> None:
+        """Clean up title counts by keeping only the most frequent titles"""
+        # Keep top 80% of the limit to avoid frequent cleanups
+        keep_count = int(self.max_title_counts * 0.8)
+        
+        # Get the most common titles
+        most_common = self.title_counts.most_common(keep_count)
+        
+        # Replace the counter with only the most frequent titles
+        self.title_counts = Counter(dict(most_common))
+        
+        # Clear the detection cache since frequency data changed
+        self.detection_cache.clear()
+
     def get_stats(self) -> Dict:
         """Get detection statistics
 
@@ -270,7 +331,9 @@ class GenericTitleDetector:
             "generic_patterns_count": len(self.patterns),
             "frequency_threshold": self.frequency_threshold,
             "generic_by_frequency": generic_by_frequency,
-            "cache_size": len(self.detection_cache),
+            "cache_size": self.detection_cache.size(),
+            "max_cache_size": self.detection_cache.max_size,
+            "max_title_counts": self.max_title_counts,
             "most_common_titles": self.title_counts.most_common(10),
         }
 

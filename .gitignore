@@ -10,6 +10,7 @@ publication_matches*.csv
 matches*.json
 matches*.csv
 *_matches.*
+outputs_for_refining/
 
 # Cache directories - do not commit cached data
 .marcpd_cache/

@@ -6,12 +6,47 @@ from typing import Dict
 from typing import List
 from typing import Set
 from typing import Tuple
+from typing import Union
 
 # Local imports
 from marc_pd_tool.config_loader import get_config
 from marc_pd_tool.publication import Publication
 from marc_pd_tool.text_utils import extract_significant_words
 from marc_pd_tool.text_utils import normalize_text
+
+
+class CompactIndexEntry:
+    """Memory-efficient container for index entries - stores single int or set"""
+    __slots__ = ('_data',)
+    
+    def __init__(self):
+        self._data = None  # None, int, or set
+    
+    def add(self, pub_id: int) -> None:
+        """Add a publication ID to this entry"""
+        if self._data is None:
+            # First entry - store as single int
+            self._data = pub_id
+        elif isinstance(self._data, int):
+            # Second entry - convert to set
+            if self._data != pub_id:  # Only convert if different
+                self._data = {self._data, pub_id}
+        else:
+            # Already a set - add to it
+            self._data.add(pub_id)
+    
+    def get_ids(self) -> Set[int]:
+        """Get all publication IDs as a set"""
+        if self._data is None:
+            return set()
+        elif isinstance(self._data, int):
+            return {self._data}
+        else:
+            return self._data.copy()
+    
+    def is_empty(self) -> bool:
+        """Check if entry is empty"""
+        return self._data is None
 
 
 def generate_title_keys(title: str, stopwords: set) -> Set[str]:
@@ -244,11 +279,11 @@ class PublicationIndex:
     """Multi-key index for fast publication lookups"""
 
     def __init__(self, config=None):
-        self.title_index: Dict[str, Set[int]] = defaultdict(set)
-        self.author_index: Dict[str, Set[int]] = defaultdict(set)
-        self.publisher_index: Dict[str, Set[int]] = defaultdict(set)
-        self.edition_index: Dict[str, Set[int]] = defaultdict(set)
-        self.year_index: Dict[int, Set[int]] = defaultdict(set)
+        self.title_index: Dict[str, CompactIndexEntry] = {}
+        self.author_index: Dict[str, CompactIndexEntry] = {}
+        self.publisher_index: Dict[str, CompactIndexEntry] = {}
+        self.edition_index: Dict[str, CompactIndexEntry] = {}
+        self.year_index: Dict[int, CompactIndexEntry] = {}
         self.publications: List[Publication] = []
 
         # Cache configuration to avoid repeated loading
@@ -270,18 +305,24 @@ class PublicationIndex:
         # Index by title - use full title for better part matching
         title_keys = generate_title_keys(pub.full_title_normalized, self.stopwords)
         for key in title_keys:
+            if key not in self.title_index:
+                self.title_index[key] = CompactIndexEntry()
             self.title_index[key].add(pub_id)
 
         # Index by author - index both 245$c and 1xx fields
         if pub.author:
             author_keys = generate_author_keys(pub.author)
             for key in author_keys:
+                if key not in self.author_index:
+                    self.author_index[key] = CompactIndexEntry()
                 self.author_index[key].add(pub_id)
 
         # Also index main author (1xx fields) if available
         if pub.main_author:
             main_author_keys = generate_author_keys(pub.main_author)
             for key in main_author_keys:
+                if key not in self.author_index:
+                    self.author_index[key] = CompactIndexEntry()
                 self.author_index[key].add(pub_id)
 
         # Index by publisher
@@ -290,6 +331,8 @@ class PublicationIndex:
                 pub.publisher, self.publisher_stopwords, self.stopwords
             )
             for key in publisher_keys:
+                if key not in self.publisher_index:
+                    self.publisher_index[key] = CompactIndexEntry()
                 self.publisher_index[key].add(pub_id)
 
         # Index by edition (gracefully handle missing edition data)
@@ -298,10 +341,14 @@ class PublicationIndex:
                 pub.edition, self.edition_stopwords, self.ordinal_terms
             )
             for key in edition_keys:
+                if key not in self.edition_index:
+                    self.edition_index[key] = CompactIndexEntry()
                 self.edition_index[key].add(pub_id)
 
         # Index by year
         if pub.year:
+            if pub.year not in self.year_index:
+                self.year_index[pub.year] = CompactIndexEntry()
             self.year_index[pub.year].add(pub_id)
 
         return pub_id
@@ -314,20 +361,26 @@ class PublicationIndex:
         title_keys = generate_title_keys(query_pub.full_title_normalized, self.stopwords)
         title_candidates = set()
         for key in title_keys:
-            title_candidates.update(self.title_index.get(key, set()))
+            entry = self.title_index.get(key)
+            if entry and not entry.is_empty():
+                title_candidates.update(entry.get_ids())
 
         # Find candidates by author (if available) - search both author fields
         author_candidates = set()
         if query_pub.author:
             author_keys = generate_author_keys(query_pub.author)
             for key in author_keys:
-                author_candidates.update(self.author_index.get(key, set()))
+                entry = self.author_index.get(key)
+                if entry and not entry.is_empty():
+                    author_candidates.update(entry.get_ids())
 
         # Also search by main author if available
         if query_pub.main_author:
             main_author_keys = generate_author_keys(query_pub.main_author)
             for key in main_author_keys:
-                author_candidates.update(self.author_index.get(key, set()))
+                entry = self.author_index.get(key)
+                if entry and not entry.is_empty():
+                    author_candidates.update(entry.get_ids())
 
         # Find candidates by publisher (if available)
         publisher_candidates = set()
@@ -336,7 +389,9 @@ class PublicationIndex:
                 query_pub.publisher, self.publisher_stopwords, self.stopwords
             )
             for key in publisher_keys:
-                publisher_candidates.update(self.publisher_index.get(key, set()))
+                entry = self.publisher_index.get(key)
+                if entry and not entry.is_empty():
+                    publisher_candidates.update(entry.get_ids())
 
         # Find candidates by edition (if available)
         edition_candidates = set()
@@ -345,14 +400,18 @@ class PublicationIndex:
                 query_pub.edition, self.edition_stopwords, self.ordinal_terms
             )
             for key in edition_keys:
-                edition_candidates.update(self.edition_index.get(key, set()))
+                entry = self.edition_index.get(key)
+                if entry and not entry.is_empty():
+                    edition_candidates.update(entry.get_ids())
 
         # Find candidates by year (within tolerance)
         year_candidates = set()
         if query_pub.year:
             for year_offset in range(-year_tolerance, year_tolerance + 1):
                 target_year = query_pub.year + year_offset
-                year_candidates.update(self.year_index.get(target_year, set()))
+                entry = self.year_index.get(target_year)
+                if entry and not entry.is_empty():
+                    year_candidates.update(entry.get_ids())
 
         # Combine candidates with priority, including edition when available
         if title_candidates:

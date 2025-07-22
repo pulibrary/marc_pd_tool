@@ -45,7 +45,7 @@ class TestRenewalVolumeExtraction:
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_part_number == "7"
-        assert pub.original_part_name == ""
+        assert pub.original_part_name is None
 
     def test_part_only(self):
         """Test extraction with only part, no volume"""
@@ -63,7 +63,7 @@ class TestRenewalVolumeExtraction:
 
         pub = loader._extract_from_row(row)
         assert pub is not None
-        assert pub.original_part_number == ""
+        assert pub.original_part_number is None
         assert pub.original_part_name == "B"
 
     def test_no_volume_part(self):
@@ -83,8 +83,8 @@ class TestRenewalVolumeExtraction:
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_title == "Simple Book"
-        assert pub.original_part_number == ""
-        assert pub.original_part_name == ""
+        assert pub.original_part_number is None
+        assert pub.original_part_name is None
 
     def test_missing_columns(self):
         """Test graceful handling when volume/part columns are missing"""
@@ -102,5 +102,5 @@ class TestRenewalVolumeExtraction:
         pub = loader._extract_from_row(row)
         assert pub is not None
         assert pub.original_title == "Legacy Book"
-        assert pub.original_part_number == ""  # Should default to empty
-        assert pub.original_part_name == ""  # Should default to empty
+        assert pub.original_part_number is None  # Should default to None
+        assert pub.original_part_name is None  # Should default to None
