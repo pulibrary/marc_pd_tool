@@ -179,21 +179,17 @@ class TestBackwardCompatibility:
         assert result["similarity_scores"]["title"] == 100.0
         assert result["similarity_scores"]["author"] == 100.0
 
-    def test_full_title_usage_compatibility(self):
-        """Test that full title construction (with parts) works correctly"""
-        marc_pub = Publication(
-            "Main Title", "Smith, John", pub_date="1950", part_number="1", part_name="Introduction"
-        )
-        copyright_pub = Publication(
-            "Main Title. Part 1. Introduction", "Smith, John", pub_date="1950"
-        )
+    def test_title_usage_compatibility(self):
+        """Test that title matching works correctly with MARC title extraction"""
+        marc_pub = Publication("Main Title Introduction", "Smith, John", pub_date="1950")
+        copyright_pub = Publication("Main Title Introduction", "Smith, John", pub_date="1950")
 
         result = find_best_match(
             marc_pub, [copyright_pub], 80, 70, 2, 60, 95, 90, self.generic_detector
         )
 
         assert result is not None
-        # Should get high title score due to full title matching
+        # Should get high title score due to exact title matching
         assert result["similarity_scores"]["title"] > 90
 
     def test_result_structure_compatibility(self):

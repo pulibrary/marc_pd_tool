@@ -337,9 +337,9 @@ class DefaultMatchingEngine(MatchingEngine):
                 if abs(marc_pub.year - copyright_pub.year) > year_tolerance:
                     continue
 
-            # Calculate title similarity - use full title for better part matching
+            # Calculate title similarity - now using complete MARC title (a,b,n,p)
             title_score = self.similarity_calculator.calculate_title_similarity(
-                marc_pub.full_title_normalized, copyright_pub.title
+                marc_pub.title, copyright_pub.title
             )
 
             # Skip if title similarity is too low

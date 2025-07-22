@@ -133,32 +133,29 @@ class ParallelMarcExtractor:
         try:
             ns = {"marc": "http://www.loc.gov/MARC21/slim"}
 
-            # Extract title
-            title_elem = record.find(".//datafield[@tag='245']/subfield[@code='a']")
-            if title_elem is None:
-                title_elem = record.find(
-                    ".//marc:datafield[@tag='245']/marc:subfield[@code='a']", ns
+            # Extract complete title from 245 subfields in original order
+            title_parts = []
+
+            # Find all subfields under 245 datafield
+            title_datafield = record.find(".//datafield[@tag='245']")
+            if title_datafield is None:
+                title_datafield = record.find(".//marc:datafield[@tag='245']", ns)
+
+            if title_datafield is not None:
+                # Get all subfields in their original order
+                subfields = title_datafield.findall("./subfield") or title_datafield.findall(
+                    "./marc:subfield", ns
                 )
-            title = title_elem.text if title_elem is not None else ""
+
+                for subfield in subfields:
+                    code = subfield.get("code")
+                    if code in ["a", "b", "n", "p"] and subfield.text:
+                        title_parts.append(subfield.text.strip())
+
+            title = " ".join(title_parts) if title_parts else ""
 
             if not title:
                 return None
-
-            # Extract part number from 245$n
-            part_number_elem = record.find(".//datafield[@tag='245']/subfield[@code='n']")
-            if part_number_elem is None:
-                part_number_elem = record.find(
-                    ".//marc:datafield[@tag='245']/marc:subfield[@code='n']", ns
-                )
-            part_number = part_number_elem.text if part_number_elem is not None else ""
-
-            # Extract part name from 245$p
-            part_name_elem = record.find(".//datafield[@tag='245']/subfield[@code='p']")
-            if part_name_elem is None:
-                part_name_elem = record.find(
-                    ".//marc:datafield[@tag='245']/marc:subfield[@code='p']", ns
-                )
-            part_name = part_name_elem.text if part_name_elem is not None else ""
 
             # Extract author from 245$c (statement of responsibility)
             author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
@@ -311,8 +308,6 @@ class ParallelMarcExtractor:
                 publisher=publisher,
                 place=place,
                 edition=edition,
-                part_number=part_number,
-                part_name=part_name,
                 language_code=language_code,
                 source="MARC",
                 source_id=source_id,

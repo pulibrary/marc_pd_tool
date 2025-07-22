@@ -303,8 +303,8 @@ class PublicationIndex:
         pub_id = len(self.publications)
         self.publications.append(pub)
 
-        # Index by title - use full title for better part matching
-        title_keys = generate_title_keys(pub.full_title_normalized, self.stopwords)
+        # Index by title - now includes all title components (a,b,n,p) from MARC
+        title_keys = generate_title_keys(pub.title, self.stopwords)
         for key in title_keys:
             if key not in self.title_index:
                 self.title_index[key] = CompactIndexEntry()
@@ -358,8 +358,8 @@ class PublicationIndex:
         """Find candidate publication IDs that might match the query"""
         candidates = set()
 
-        # Find candidates by title - use full title for better part matching
-        title_keys = generate_title_keys(query_pub.full_title_normalized, self.stopwords)
+        # Find candidates by title - now includes all title components (a,b,n,p) from MARC
+        title_keys = generate_title_keys(query_pub.title, self.stopwords)
         title_candidates = set()
         for key in title_keys:
             entry = self.title_index.get(key)

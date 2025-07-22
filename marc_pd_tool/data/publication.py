@@ -39,8 +39,6 @@ class Publication:
         "original_publisher",
         "original_place",
         "original_edition",
-        "original_part_number",
-        "original_part_name",
         "language_code",
         "source",
         "source_id",
@@ -61,9 +59,6 @@ class Publication:
         "_cached_publisher",
         "_cached_place",
         "_cached_edition",
-        "_cached_part_number",
-        "_cached_part_name",
-        "_cached_full_title_normalized",
     )
 
     def __init__(
@@ -75,8 +70,6 @@ class Publication:
         publisher: Optional[str] = None,
         place: Optional[str] = None,
         edition: Optional[str] = None,
-        part_number: Optional[str] = None,
-        part_name: Optional[str] = None,
         language_code: Optional[str] = None,
         source: Optional[str] = None,
         source_id: Optional[str] = None,
@@ -92,8 +85,6 @@ class Publication:
         self.original_publisher = publisher if publisher else None
         self.original_place = place if place else None
         self.original_edition = edition if edition else None
-        self.original_part_number = part_number if part_number else None
-        self.original_part_name = part_name if part_name else None
         self.language_code = language_code.lower() if language_code else None
         self.source = source if source else None
         self.source_id = source_id if source_id else None
@@ -126,9 +117,6 @@ class Publication:
         self._cached_publisher = None
         self._cached_place = None
         self._cached_edition = None
-        self._cached_part_number = None
-        self._cached_part_name = None
-        self._cached_full_title_normalized = None
 
     # Properties for normalized text fields (cached after first access)
     @property
@@ -181,24 +169,6 @@ class Publication:
             )
         return self._cached_edition
 
-    @property
-    def part_number(self) -> str:
-        """Normalized part number for matching"""
-        if self._cached_part_number is None:
-            self._cached_part_number = (
-                normalize_text(self.original_part_number) if self.original_part_number else ""
-            )
-        return self._cached_part_number
-
-    @property
-    def part_name(self) -> str:
-        """Normalized part name for matching"""
-        if self._cached_part_name is None:
-            self._cached_part_name = (
-                normalize_text(self.original_part_name) if self.original_part_name else ""
-            )
-        return self._cached_part_name
-
     def extract_year(self) -> Optional[int]:
         if not self.pub_date:
             return None
@@ -206,26 +176,6 @@ class Publication:
         if year_match:
             return int(year_match.group())
         return None
-
-    @property
-    def full_title(self) -> str:
-        """Construct full title including part number and part name"""
-        parts = [self.original_title] if self.original_title else []
-
-        if self.original_part_number:
-            parts.append(f"Part {self.original_part_number}")
-
-        if self.original_part_name:
-            parts.append(self.original_part_name)
-
-        return ". ".join(parts) if parts else ""
-
-    @property
-    def full_title_normalized(self) -> str:
-        """Normalized version of full title for matching"""
-        if self._cached_full_title_normalized is None:
-            self._cached_full_title_normalized = normalize_text(self.full_title)
-        return self._cached_full_title_normalized
 
     def set_registration_match(self, match: MatchResult) -> None:
         """Set the best registration match"""
@@ -309,7 +259,6 @@ class Publication:
             "_cached_edition",
             "_cached_part_number",
             "_cached_part_name",
-            "_cached_full_title_normalized",
         ]:
             setattr(self, attr, None)
 
@@ -322,9 +271,6 @@ class Publication:
             "publisher": self.original_publisher,
             "place": self.original_place,
             "edition": self.original_edition,
-            "part_number": self.original_part_number,
-            "part_name": self.original_part_name,
-            "full_title": self.full_title,
             "language_code": self.language_code,
             "source": self.source,
             "source_id": self.source_id,

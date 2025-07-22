@@ -27,9 +27,6 @@ def save_matches_csv(
             [
                 "MARC ID",
                 "MARC Title",
-                "MARC Part Number",
-                "MARC Part Name",
-                "MARC Full Title",
                 "Registration Title",
                 "Renewal Title",
                 "Registration Title Score",
@@ -139,9 +136,6 @@ def _write_publications_to_csv(csv_writer, marc_publications: List[Publication])
             [
                 pub.source_id,
                 pub.original_title,
-                pub.original_part_number,
-                pub.original_part_name,
-                pub.full_title,
                 reg_title,
                 ren_title,
                 reg_title_score,
