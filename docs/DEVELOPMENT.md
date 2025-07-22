@@ -8,21 +8,42 @@ This document explains the code architecture, design decisions, and performance 
 
 ### Modular Design
 
-The codebase is organized as a Python package with one class per file:
+The codebase is organized as a Python package with logical sub-packages (one class per file):
 
 ```
 marc_pd_tool/
-├── __init__.py              # Package interface with explicit imports
-├── enums.py                 # Copyright status and country classification enums
-├── publication.py           # Publication data model with dual author support and match tracking
-├── marc_extractor.py        # MARC XML extraction with country detection
-├── copyright_loader.py      # Copyright registration data loading
-├── renewal_loader.py        # Renewal data loading (TSV format)
-├── indexer.py               # Multi-key indexing system with memory-optimized data structures
-├── cache_manager.py         # Persistent data cache system for performance optimization
-├── generic_title_detector.py # Language-aware generic title detection with LRU caching
-└── memory_monitor.py        # Optional memory usage monitoring (not integrated)
-compare.py                   # Command-line application
+├── data/                    # Core data models
+│   ├── __init__.py
+│   ├── enums.py            # Copyright status and country classification enums
+│   └── publication.py      # Publication data model with dual author support and match tracking
+├── loaders/                 # Data loading components
+│   ├── __init__.py
+│   ├── copyright_loader.py # Copyright registration data loading
+│   ├── renewal_loader.py   # Renewal data loading (TSV format)
+│   └── marc_extractor.py   # MARC XML extraction with country detection
+├── processing/              # Core processing logic
+│   ├── __init__.py
+│   ├── indexer.py          # Multi-key indexing system with memory-optimized data structures
+│   ├── matching_engine.py  # Publication matching algorithms and batch processing
+│   ├── matching_api.py     # Abstract base classes for matching interfaces
+│   ├── default_matching.py # Default concrete implementations with FuzzyWuzzy
+│   └── generic_title_detector.py # Language-aware generic title detection with LRU caching
+├── exporters/               # Output generation
+│   ├── __init__.py
+│   └── csv_exporter.py     # CSV export functionality for match results
+├── utils/                   # Utility functions
+│   ├── __init__.py
+│   ├── text_utils.py       # Text processing utilities
+│   └── marc_utilities.py   # MARC data processing utilities and constants
+├── infrastructure/          # System support
+│   ├── __init__.py
+│   ├── cache_manager.py    # Persistent data cache system for performance optimization
+│   └── config_loader.py    # Configuration loading and management
+├── cli/                     # Command-line interface
+│   ├── __init__.py
+│   └── main.py             # CLI logic (extracted from compare.py)
+└── __init__.py             # Package interface with public API exports
+compare.py                   # Main entry point (calls cli/main.py)
 ```
 
 ## Getting Started
@@ -63,7 +84,7 @@ git submodule update --init --recursive
 
 ## 2. Data Model Design
 
-### Publication Class (`publication.py`)
+### Publication Class (`data/publication.py`)
 
 The Publication class stores both normalized and original data with dual author support:
 
@@ -143,7 +164,7 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
     return country_code, classification
 ```
 
-### Generic Title Detection System (`generic_title_detector.py`)
+### Generic Title Detection System (`processing/generic_title_detector.py`)
 
 The system includes sophisticated generic title detection to improve matching accuracy by reducing the weight of non-discriminating titles like "collected works" or "poems":
 
@@ -1004,10 +1025,10 @@ The system provides a pluggable matching and scoring API that allows alternative
 
 ### 10.2 Abstract Base Classes
 
-**Core Interfaces (`matching_api.py`)**:
+**Core Interfaces (`processing/matching_api.py`)**:
 
 ```python
-from marc_pd_tool.matching_api import SimilarityCalculator, ScoreCombiner, MatchingEngine
+from marc_pd_tool.processing.matching_api import SimilarityCalculator, ScoreCombiner, MatchingEngine
 
 class SimilarityCalculator(ABC):
     """Calculate similarity between text fields"""
@@ -1051,10 +1072,10 @@ class MatchingEngine(ABC):
 
 ### 10.3 Default Implementations
 
-**Current Algorithm (`default_matching.py`)**:
+**Current Algorithm (`processing/default_matching.py`)**:
 
 ```python
-from marc_pd_tool.default_matching import (
+from marc_pd_tool.processing.default_matching import (
     FuzzyWuzzySimilarityCalculator,
     DynamicWeightingCombiner, 
     DefaultMatchingEngine
@@ -1127,7 +1148,7 @@ engine = DefaultMatchingEngine(
 **Existing Code Continues to Work**:
 
 ```python
-from marc_pd_tool.matching_engine import find_best_match
+from marc_pd_tool.processing.matching_engine import find_best_match
 
 # This function signature is unchanged
 result = find_best_match(
@@ -1215,7 +1236,7 @@ assert 0 <= calculator.calculate_title_similarity("test", "test") <= 100
 **Integration Testing**:
 
 ```python
-from marc_pd_tool.default_matching import DefaultMatchingEngine
+from marc_pd_tool.processing.default_matching import DefaultMatchingEngine
 
 # Test with real data
 engine = DefaultMatchingEngine(

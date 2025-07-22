@@ -4,17 +4,13 @@
 from argparse import Namespace
 from pathlib import Path
 
-# Local imports - need to import from compare.py
-import sys
-
 # Third party imports
-# Third-party imports
 from pytest import fixture
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 # Local imports
-from compare import build_year_part
-from compare import generate_output_filename
+# Local imports - import CLI functions from new location
+from marc_pd_tool.cli.main import build_year_part
+from marc_pd_tool.cli.main import generate_output_filename
 
 
 class TestDynamicFilenames:
