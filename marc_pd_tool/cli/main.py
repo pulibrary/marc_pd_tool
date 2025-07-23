@@ -125,7 +125,7 @@ def generate_output_filename(args):
 
 def create_argument_parser():
     """Create and configure the argument parser"""
-    cwd = dirname(abspath(__file__))
+    cwd = dirname(dirname(dirname(abspath(__file__))))  # Fragile
 
     # First pass: parse only config argument to load configuration
     config_parser = ArgumentParser(add_help=False)

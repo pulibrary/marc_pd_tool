@@ -414,97 +414,58 @@ class PublicationIndex:
                 if entry and not entry.is_empty():
                     year_candidates.update(entry.get_ids())
 
-        # Combine candidates with priority, including edition when available
-        if title_candidates:
-            candidates.update(title_candidates)
+        # CRITICAL PERFORMANCE FIX: Apply year filtering FIRST
+        # Year filtering is the most selective filter - should dramatically reduce search space
+        if year_candidates:
+            # Start with year candidates as the base (small set for narrow year ranges)
+            candidates = year_candidates.copy()
 
-            # If we have both title and author candidates, prefer intersection
-            if author_candidates:
-                intersection = title_candidates & author_candidates
-                if intersection:
-                    candidates = intersection
-                    # If we also have publisher candidates, try triple intersection
-                    if publisher_candidates:
-                        triple_intersection = intersection & publisher_candidates
-                        if triple_intersection:
-                            candidates = triple_intersection
-                            # If we also have edition candidates, try quadruple intersection
-                            if edition_candidates:
-                                quad_intersection = candidates & edition_candidates
-                                if quad_intersection:
-                                    candidates = quad_intersection
-                                else:
-                                    # Add edition candidates to existing intersection
-                                    candidates.update(edition_candidates)
-                        else:
-                            # Add publisher candidates to existing intersection
-                            candidates.update(publisher_candidates)
-                            # Also add edition candidates if available
-                            if edition_candidates:
-                                candidates.update(edition_candidates)
-                    elif edition_candidates:
-                        # Have title+author and edition but no publisher
-                        triple_intersection = intersection & edition_candidates
-                        if triple_intersection:
-                            candidates = triple_intersection
-                        else:
-                            candidates.update(edition_candidates)
-                else:
-                    # No intersection, but add author candidates too
-                    candidates.update(author_candidates)
-                    # Also add publisher and edition candidates if available
-                    if publisher_candidates:
-                        candidates.update(publisher_candidates)
-                    if edition_candidates:
-                        candidates.update(edition_candidates)
+            # Intersect with other candidate sets to narrow further
+            if title_candidates:
+                candidates &= title_candidates
+
+                # If we still have candidates after title intersection, try author intersection
+                if candidates and author_candidates:
+                    title_author_intersection = candidates & author_candidates
+                    if title_author_intersection:
+                        candidates = title_author_intersection
+
+                        # Try publisher intersection if we still have candidates
+                        if candidates and publisher_candidates:
+                            publisher_intersection = candidates & publisher_candidates
+                            if publisher_intersection:
+                                candidates = publisher_intersection
+
+                                # Try edition intersection if we still have candidates
+                                if candidates and edition_candidates:
+                                    edition_intersection = candidates & edition_candidates
+                                    if edition_intersection:
+                                        candidates = edition_intersection
+            elif author_candidates:
+                # No title candidates, but intersect year with author
+                candidates &= author_candidates
             elif publisher_candidates:
-                # Have title and publisher but no author
-                intersection = title_candidates & publisher_candidates
-                if intersection:
-                    candidates = intersection
-                    # Try to add edition if available
-                    if edition_candidates:
-                        triple_intersection = candidates & edition_candidates
-                        if triple_intersection:
-                            candidates = triple_intersection
-                        else:
-                            candidates.update(edition_candidates)
-                else:
-                    candidates.update(publisher_candidates)
-                    # Add edition candidates if available
-                    if edition_candidates:
-                        candidates.update(edition_candidates)
+                # Only year and publisher
+                candidates &= publisher_candidates
             elif edition_candidates:
-                # Have title and edition but no author or publisher
-                intersection = title_candidates & edition_candidates
-                if intersection:
-                    candidates = intersection
-                else:
-                    candidates.update(edition_candidates)
-        elif author_candidates:
-            # No title candidates, use author candidates
-            candidates.update(author_candidates)
-            # Also add publisher and edition candidates if available
-            if publisher_candidates:
-                candidates.update(publisher_candidates)
-            if edition_candidates:
-                candidates.update(edition_candidates)
-        elif publisher_candidates:
-            # Only publisher candidates available
-            candidates.update(publisher_candidates)
-            # Add edition candidates if available
-            if edition_candidates:
-                candidates.update(edition_candidates)
-        elif edition_candidates:
-            # Only edition candidates available
-            candidates.update(edition_candidates)
+                # Only year and edition
+                candidates &= edition_candidates
+            # If no other candidates, keep year candidates as-is
 
-        # Filter by year if we have year info
-        if year_candidates and candidates:
-            candidates &= year_candidates
-        elif year_candidates and not candidates:
-            # If no title/author candidates but year candidates exist, use them
-            candidates = year_candidates
+        else:
+            # No year information - use much more restrictive fallback logic
+            # Only use title candidates and only if the set is reasonably small
+            if title_candidates and len(title_candidates) < 1000:
+                candidates = title_candidates.copy()
+                if author_candidates:
+                    intersection = title_candidates & author_candidates
+                    if intersection:
+                        candidates = intersection
+            elif author_candidates and len(author_candidates) < 500:
+                candidates = author_candidates.copy()
+            else:
+                # Skip records that would generate too many candidates without year filtering
+                candidates = set()
 
         return candidates
 

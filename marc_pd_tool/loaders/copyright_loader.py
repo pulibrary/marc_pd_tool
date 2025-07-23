@@ -120,7 +120,7 @@ class CopyrightDataLoader:
             volume_info = vol_elem.text if vol_elem is not None else ""
 
             if volume_info:
-                # Append volume information to title as transcribed from source
+                # Append volume information to title (this is actual bibliographic info, unlike renewal data)
                 title = f"{title} {volume_info.strip()}"
 
             # Extract entry ID

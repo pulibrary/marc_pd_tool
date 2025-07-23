@@ -98,9 +98,9 @@ class TestPublicationYearExtraction:
 
     def test_extract_year_edge_cases(self):
         """Test edge cases for year extraction"""
-        # Years too old (before 1900) should be rejected by regex
+        # Years from 1800s should now be accepted (expanded regex)
         pub = Publication("Title", pub_date="1899")
-        assert pub.year is None
+        assert pub.year == 1899
 
         # Years in the future (beyond 2099) should be rejected
         pub = Publication("Title", pub_date="2100")

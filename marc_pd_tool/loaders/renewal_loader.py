@@ -87,15 +87,11 @@ class RenewalDataLoader:
             entry_id = row.get("entry_id", "").strip()
             source_id = entry_id
 
-            # Extract volume and part information from TSV columns and append to title
+            # Extract volume and part information from TSV columns (but don't append to title for better matching)
             volume = row.get("volume", "").strip()
             part = row.get("part", "").strip()
 
-            # Append volume and part information to title as transcribed from source
-            if volume:
-                title = f"{title} {volume}"
-            if part:
-                title = f"{title} {part}"
+            # Note: Volume/part information available but not concatenated to avoid match pollution
 
             # Store full_text for publisher fuzzy matching (don't extract publisher)
             full_text = row.get("full_text", "").strip()

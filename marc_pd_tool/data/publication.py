@@ -172,7 +172,8 @@ class Publication:
     def extract_year(self) -> Optional[int]:
         if not self.pub_date:
             return None
-        year_match = search(r"\b(19|20)\d{2}\b", self.pub_date)
+        # Expanded to handle historical publications from 1800s onward
+        year_match = search(r"\b(18|19|20)\d{2}\b", self.pub_date)
         if year_match:
             return int(year_match.group())
         return None
