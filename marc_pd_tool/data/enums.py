@@ -1,4 +1,6 @@
-"""Enums for copyright status and country classification"""
+# marc_pd_tool/data/enums.py
+
+"""Enumerations used across the MARC PD tool"""
 
 # Standard library imports
 from enum import Enum

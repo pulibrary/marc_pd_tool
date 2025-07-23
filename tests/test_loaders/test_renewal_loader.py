@@ -1,3 +1,5 @@
+# tests/test_loaders/test_renewal_loader.py
+
 """Tests for RenewalDataLoader TSV parsing functionality"""
 
 # Standard library imports
@@ -7,7 +9,6 @@ from unittest.mock import patch
 
 # Third party imports
 from pytest import fixture
-from pytest import raises
 
 # Local imports
 from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
@@ -329,8 +330,9 @@ Tëst Bøøk\tAuthör, Tëst\tA12345\t1950-01-01\tR12345\t1978-01-01\tPublîsher
 
             assert len(publications) == 1
             pub = publications[0]
-            assert "ø" in pub.title  # Verify Unicode is preserved
-            assert "ö" in pub.author
+            # Unicode characters are now folded to ASCII
+            assert pub.title == "test book"
+            assert pub.author == "author test"
 
     def test_tsv_with_quoted_fields(self):
         """Test handling of TSV with quoted fields containing tabs"""

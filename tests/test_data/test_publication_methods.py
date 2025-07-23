@@ -1,52 +1,55 @@
+# tests/test_data/test_publication_methods.py
+
 """Tests for Publication class methods and utilities"""
 
 # Standard library imports
-from typing import Optional
 
 # Third party imports
-from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.utils.text_utils import normalize_text_standard
 
 
 class TestPublicationNormalization:
     """Test text normalization functionality"""
 
-    def test_normalize_text_basic(self):
+    def test_normalize_text_standard_basic(self):
         """Test basic text normalization"""
-        assert Publication.normalize_text("The Great Gatsby") == "the great gatsby"
-        assert Publication.normalize_text("TO KILL A MOCKINGBIRD") == "to kill a mockingbird"
-        assert Publication.normalize_text("1984") == "1984"
+        assert normalize_text_standard("The Great Gatsby") == "the great gatsby"
+        assert normalize_text_standard("TO KILL A MOCKINGBIRD") == "to kill a mockingbird"
+        assert normalize_text_standard("1984") == "1984"
 
-    def test_normalize_text_punctuation_removal(self):
+    def test_normalize_text_standard_punctuation_removal(self):
         """Test that punctuation is removed and replaced with spaces"""
-        assert Publication.normalize_text("The Great Gatsby: A Novel") == "the great gatsby a novel"
-        assert Publication.normalize_text("War & Peace") == "war peace"
-        assert Publication.normalize_text("Smith, John") == "smith john"
-        assert Publication.normalize_text("U.S.A.") == "u s a"
-        assert Publication.normalize_text("Catcher in the Rye (1951)") == "catcher in the rye 1951"
+        assert normalize_text_standard("The Great Gatsby: A Novel") == "the great gatsby a novel"
+        assert normalize_text_standard("War & Peace") == "war peace"
+        assert normalize_text_standard("Smith, John") == "smith john"
+        # Word splitting normalization now joins single letters
+        assert normalize_text_standard("U.S.A.") == "usa"
+        assert normalize_text_standard("A.B.C.") == "abc"
+        assert normalize_text_standard("Catcher in the Rye (1951)") == "catcher in the rye 1951"
 
-    def test_normalize_text_whitespace_handling(self):
+    def test_normalize_text_standard_whitespace_handling(self):
         """Test that multiple whitespace is collapsed"""
-        assert Publication.normalize_text("The   Great    Gatsby") == "the great gatsby"
-        assert Publication.normalize_text("  Leading spaces") == "leading spaces"
-        assert Publication.normalize_text("Trailing spaces  ") == "trailing spaces"
-        assert Publication.normalize_text("\tTabs\tand\tnewlines\n") == "tabs and newlines"
+        assert normalize_text_standard("The   Great    Gatsby") == "the great gatsby"
+        assert normalize_text_standard("  Leading spaces") == "leading spaces"
+        assert normalize_text_standard("Trailing spaces  ") == "trailing spaces"
+        assert normalize_text_standard("\tTabs\tand\tnewlines\n") == "tabs and newlines"
 
-    def test_normalize_text_empty_and_none(self):
+    def test_normalize_text_standard_empty_and_none(self):
         """Test edge cases with empty or None text"""
-        assert Publication.normalize_text("") == ""
-        assert Publication.normalize_text("   ") == ""
-        assert Publication.normalize_text(None) == ""
+        assert normalize_text_standard("") == ""
+        assert normalize_text_standard("   ") == ""
+        assert normalize_text_standard(None) == ""
 
-    def test_normalize_text_special_characters(self):
+    def test_normalize_text_standard_special_characters(self):
         """Test handling of various special characters"""
-        assert Publication.normalize_text("Naïve") == "naïve"  # Accented chars preserved
-        assert Publication.normalize_text("Smith & Co.") == "smith co"
-        assert Publication.normalize_text("$100,000") == "100 000"
-        assert Publication.normalize_text("20th-century") == "20th century"
+        assert normalize_text_standard("Naïve") == "naive"  # Accented chars folded to ASCII
+        assert normalize_text_standard("Smith & Co.") == "smith co"
+        assert normalize_text_standard("$100,000") == "100 000"
+        assert normalize_text_standard("20th-century") == "20th century"
 
 
 class TestPublicationYearExtraction:
@@ -174,7 +177,8 @@ class TestPublicationConstruction:
         assert pub.publisher == ""
         assert pub.place == ""
         assert pub.edition == ""
-        assert pub.language_code is None
+        assert pub.language_code == "eng"  # Now falls back to English
+        assert pub.language_detection_status == "fallback_english"
         assert pub.source is None
         assert pub.source_id is None
         assert pub.country_code is None
@@ -182,15 +186,23 @@ class TestPublicationConstruction:
         assert pub.year is None
 
     def test_publication_language_code_normalization(self):
-        """Test that language codes are normalized to lowercase"""
+        """Test that language codes are mapped to processing languages"""
         pub = Publication("Title", language_code="ENG")
         assert pub.language_code == "eng"
+        assert pub.language_detection_status == "detected"
 
         pub = Publication("Title", language_code="FR")
-        assert pub.language_code == "fr"
+        assert pub.language_code == "fre"  # Maps to processing language
+        assert pub.language_detection_status == "detected"
 
         pub = Publication("Title", language_code="")
-        assert pub.language_code is None
+        assert pub.language_code == "eng"  # Falls back to English
+        assert pub.language_detection_status == "fallback_english"
+
+        # Test unknown language code fallback
+        pub = Publication("Title", language_code="xyz")
+        assert pub.language_code == "eng"  # Falls back to English
+        assert pub.language_detection_status == "unknown_code"
 
 
 class TestPublicationToDictMethod:
@@ -218,6 +230,8 @@ class TestPublicationToDictMethod:
             "publisher",
             "place",
             "edition",
+            "lccn",
+            "normalized_lccn",
             "language_code",
             "source",
             "source_id",

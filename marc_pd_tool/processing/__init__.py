@@ -1,30 +1,30 @@
+# marc_pd_tool/processing/__init__.py
+
 """Core processing logic for matching, indexing, and analysis"""
 
 # Local imports
-from marc_pd_tool.processing.default_matching import DefaultMatchingEngine
-from marc_pd_tool.processing.default_matching import DynamicWeightingCombiner
-from marc_pd_tool.processing.default_matching import FuzzyWuzzySimilarityCalculator
-from marc_pd_tool.processing.generic_title_detector import GenericTitleDetector
-from marc_pd_tool.processing.indexer import PublicationIndex
-from marc_pd_tool.processing.indexer import build_index
-from marc_pd_tool.processing.matching_api import MatchingEngine
-from marc_pd_tool.processing.matching_api import ScoreCombiner
-from marc_pd_tool.processing.matching_api import SimilarityCalculator
-from marc_pd_tool.processing.matching_api import SimilarityScores
-from marc_pd_tool.processing.matching_engine import find_best_match
+from marc_pd_tool.processing.indexer import CompactIndexEntry
+from marc_pd_tool.processing.indexer import DataIndexer
+from marc_pd_tool.processing.indexer import build_wordbased_index
+from marc_pd_tool.processing.matching_engine import DataMatcher
 from marc_pd_tool.processing.matching_engine import process_batch
+from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
+from marc_pd_tool.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.processing.text_processing import LanguageProcessor
+from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.processing.text_processing import expand_abbreviations
+from marc_pd_tool.processing.text_processing import extract_best_publisher_match
 
-__all__ = [
-    "DefaultMatchingEngine",
-    "DynamicWeightingCombiner",
-    "FuzzyWuzzySimilarityCalculator",
-    "GenericTitleDetector",
-    "PublicationIndex",
-    "build_index",
-    "MatchingEngine",
-    "ScoreCombiner",
+__all__: list[str] = [
+    "DataMatcher",
     "SimilarityCalculator",
-    "SimilarityScores",
-    "find_best_match",
+    "LanguageProcessor",
+    "MultiLanguageStemmer",
+    "expand_abbreviations",
+    "GenericTitleDetector",
+    "CompactIndexEntry",
+    "DataIndexer",
+    "build_wordbased_index",
+    "extract_best_publisher_match",
     "process_batch",
 ]

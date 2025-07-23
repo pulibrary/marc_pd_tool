@@ -1,3 +1,5 @@
+# tests/test_exporters/test_confidence_scores.py
+
 """Tests for confidence score tracking in match results and CSV output"""
 
 # Standard library imports
@@ -6,8 +8,7 @@ from os import unlink
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv

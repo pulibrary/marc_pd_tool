@@ -1,14 +1,14 @@
+# tests/test_loaders/test_copyright_loader.py
+
 """Tests for CopyrightDataLoader XML parsing functionality"""
 
 # Standard library imports
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
 from pytest import fixture
-from pytest import raises
 
 # Local imports
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
@@ -403,7 +403,7 @@ class TestCopyrightDataLoaderPerformance:
 
         # Mock _extract_from_file to track file processing order
         processed_files = []
-        original_extract = loader._extract_from_file
+        loader._extract_from_file
 
         def track_files(xml_file):
             processed_files.append(xml_file.name)

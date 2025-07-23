@@ -5,6 +5,8 @@ cce-renewals
 *.marcxml
 *.csv
 *.log
+*.bak
+*.txt
 
 # Output files - do not commit results
 publication_matches*.json
@@ -21,8 +23,7 @@ outputs_for_refining/
 # Misc
 notes.md
 .tool-versions
-docs/ENHANCED_MATCHING.md
-
+projects/
 
 # Python
 __pycache__/

@@ -1,10 +1,12 @@
+# tests/test_loaders/test_1xx_author_extraction.py
+
 """Test extraction of 1xx author fields from MARC records"""
 
 # Standard library imports
 import xml.etree.ElementTree as ET
 
 # Local imports
-from marc_pd_tool.loaders.marc_extractor import ParallelMarcExtractor
+from marc_pd_tool.loaders.marc_loader import MarcLoader
 
 
 class TestMarcAuthorExtraction:
@@ -12,7 +14,7 @@ class TestMarcAuthorExtraction:
 
     def test_100_personal_name_extraction(self):
         """Test extraction of 100$a personal names"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         # Test basic personal name
         xml_string = """
@@ -39,7 +41,7 @@ class TestMarcAuthorExtraction:
 
     def test_100_with_full_dates(self):
         """Test cleaning dates from 100$a field"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">
@@ -62,7 +64,7 @@ class TestMarcAuthorExtraction:
 
     def test_110_corporate_name_extraction(self):
         """Test extraction of 110$a corporate names"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">
@@ -85,7 +87,7 @@ class TestMarcAuthorExtraction:
 
     def test_111_meeting_name_extraction(self):
         """Test extraction of 111$a meeting names"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">
@@ -108,7 +110,7 @@ class TestMarcAuthorExtraction:
 
     def test_priority_order_100_over_110(self):
         """Test that 100 takes priority over 110"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">
@@ -134,7 +136,7 @@ class TestMarcAuthorExtraction:
 
     def test_no_1xx_fields(self):
         """Test handling when no 1xx fields are present"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">
@@ -156,7 +158,7 @@ class TestMarcAuthorExtraction:
 
     def test_both_245c_and_1xx_present(self):
         """Test that both author fields are extracted when present"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         xml_string = """
         <record xmlns="http://www.loc.gov/MARC21/slim">

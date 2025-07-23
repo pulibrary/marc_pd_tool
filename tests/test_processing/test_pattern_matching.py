@@ -1,13 +1,13 @@
+# tests/test_processing/test_pattern_matching.py
+
 """Tests for GenericTitleDetector pattern matching functionality"""
 
 # Standard library imports
-from typing import Set
 
 # Third party imports
-from pytest import fixture
 
 # Local imports
-from marc_pd_tool.processing.generic_title_detector import GenericTitleDetector
+from marc_pd_tool.processing.text_processing import GenericTitleDetector
 
 
 class TestPredefinedPatterns:
@@ -289,10 +289,10 @@ class TestDetectionReasoning:
         detector = GenericTitleDetector()
 
         test_cases = [
-            ("Collected Works", "predefined_pattern"),
-            ("Complete Poems", "predefined_pattern"),
-            ("Selected Essays", "predefined_pattern"),
-            ("Anthology", "predefined_pattern"),
+            ("Collected Works", "pattern: collected works"),
+            ("Complete Poems", "pattern: complete poems"),
+            ("Selected Essays", "pattern: selected essays"),
+            ("Anthology", "pattern: anthology"),
         ]
 
         for title, expected_reason in test_cases:
@@ -315,8 +315,8 @@ class TestDetectionReasoning:
         detector = GenericTitleDetector(custom_patterns=custom_patterns)
 
         reason = detector.get_detection_reason("Technical Manual")
-        # The reason might be "custom_pattern" or similar based on implementation
-        assert reason in ["predefined_pattern", "custom_pattern", "pattern_match"]
+        # Should return the pattern that matched
+        assert reason == "pattern: technical manual"
 
     def test_get_detection_reason_language_support(self):
         """Test detection reason with language code"""
@@ -324,7 +324,7 @@ class TestDetectionReasoning:
 
         # Test with language code (currently only English supported)
         reason = detector.get_detection_reason("Collected Works", "eng")
-        assert reason == "predefined_pattern"
+        assert reason == "pattern: collected works"
 
         # Test with unsupported language
         reason = detector.get_detection_reason("Collected Works", "fre")

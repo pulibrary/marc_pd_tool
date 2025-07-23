@@ -1,3 +1,5 @@
+# marc_pd_tool/loaders/renewal_loader.py
+
 """Renewal data TSV loader for publications"""
 
 # Standard library imports
@@ -5,25 +7,35 @@ from csv import DictReader
 from logging import getLogger
 from pathlib import Path
 from re import search
-from re import sub
-from typing import List
-from typing import Optional
 
 # Local imports
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.utils.mixins import YearFilterableMixin
+from marc_pd_tool.utils.publisher_utils import clean_publisher_suffix
+from marc_pd_tool.utils.text_utils import extract_year
 
 logger = getLogger(__name__)
 
 
-class RenewalDataLoader:
-    def __init__(self, renewal_dir: str):
+class RenewalDataLoader(YearFilterableMixin):
+    def __init__(self, renewal_dir: str) -> None:
         self.renewal_dir = Path(renewal_dir)
 
-    def load_all_renewal_data(self) -> List[Publication]:
-        """Load all renewal data from TSV files"""
-        logger.info("Loading all renewal data...")
+    def load_all_renewal_data(
+        self, min_year: int | None = None, max_year: int | None = None
+    ) -> list[Publication]:
+        """Load renewal data, optionally filtered by year range
 
-        all_publications = []
+        Args:
+            min_year: Minimum year to include (inclusive)
+            max_year: Maximum year to include (inclusive)
+
+        Returns:
+            List of Publication objects
+        """
+        self._log_year_filtering(min_year, max_year, "renewal")
+
+        all_publications: list[Publication] = []
         tsv_files = sorted(self.renewal_dir.glob("*.tsv"), key=lambda x: str(x))
         logger.info(f"Found {len(tsv_files)} TSV files in renewal directory")
 
@@ -37,6 +49,10 @@ class RenewalDataLoader:
                 )
 
             pubs = self._extract_from_file(tsv_file)
+
+            # Use mixin for year filtering
+            pubs = self._filter_by_year(pubs, min_year, max_year)
+
             all_publications.extend(pubs)
 
             # Log summary after completing each batch of 10 (or at the end)
@@ -52,7 +68,7 @@ class RenewalDataLoader:
         logger.info(f"Loaded {len(all_publications):,} renewal entries from {len(tsv_files)} files")
         return all_publications
 
-    def _extract_from_file(self, tsv_file: Path) -> List[Publication]:
+    def _extract_from_file(self, tsv_file: Path) -> list[Publication]:
         publications = []
 
         try:
@@ -69,7 +85,7 @@ class RenewalDataLoader:
 
         return publications
 
-    def _extract_from_row(self, row: dict) -> Optional[Publication]:
+    def _extract_from_row(self, row: dict[str, str]) -> Publication | None:
         """Extract Publication from TSV row"""
         try:
             # Extract title
@@ -88,8 +104,8 @@ class RenewalDataLoader:
             source_id = entry_id
 
             # Extract volume and part information from TSV columns (but don't append to title for better matching)
-            volume = row.get("volume", "").strip()
-            part = row.get("part", "").strip()
+            row.get("volume", "").strip()
+            row.get("part", "").strip()
 
             # Note: Volume/part information available but not concatenated to avoid match pollution
 
@@ -105,6 +121,7 @@ class RenewalDataLoader:
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
+                lccn="",  # Renewal data doesn't contain LCCN information
                 source="Renewal",
                 source_id=source_id,
                 full_text=full_text,
@@ -137,17 +154,10 @@ class RenewalDataLoader:
                 # Get text after the renewal date
                 after_renewal = full_text[match.end() :].strip()
 
-                # Remove final parenthetical code (usually single letter in parens)
-                # Pattern: " (A)" or " (PWH)" at the end
-                after_renewal = sub(r"\s*\([^)]*\)\s*$", "", after_renewal)
+                # Use centralized publisher cleaning
+                publisher = clean_publisher_suffix(after_renewal)
 
-                # Clean up common suffixes and prefixes
-                publisher = after_renewal.strip()
-
-                # Remove common trailing punctuation
-                publisher = sub(r"[.,;]+$", "", publisher)
-
-                return publisher.strip()
+                return publisher
 
             # Fallback: try to extract anything that looks like publisher names
             # Look for text after copyright symbol and dates
@@ -156,11 +166,80 @@ class RenewalDataLoader:
             )
             if copyright_match:
                 publisher_candidate = copyright_match.group(2).strip()
-                publisher_candidate = sub(r"[.,;]+$", "", publisher_candidate)
-                return publisher_candidate
+                return clean_publisher_suffix(publisher_candidate)
 
             return ""
 
         except Exception as e:
             logger.debug(f"Error extracting publisher from full_text: {e}")
             return ""
+
+    def get_year_range(self) -> tuple[int | None, int | None]:
+        """Get the year range (min, max) of renewal data without loading full publications
+
+        Returns:
+            Tuple of (min_year, max_year) or (None, None) if no valid years found
+        """
+        logger.info("Analyzing year range in renewal data...")
+
+        tsv_files = sorted(self.renewal_dir.rglob("*.tsv"), key=lambda x: str(x))
+        if not tsv_files:
+            logger.warning("No renewal TSV files found")
+            return None, None
+
+        min_year = None
+        max_year = None
+        valid_years = 0
+        total_entries = 0
+
+        for tsv_file in tsv_files:
+            try:
+                with open(tsv_file, "r", encoding="utf-8") as f:
+                    reader = DictReader(f, delimiter="\t")
+
+                    for row in reader:
+                        total_entries += 1
+                        year = self._extract_year_from_row(row)
+
+                        if year is not None:
+                            valid_years += 1
+                            if min_year is None or year < min_year:
+                                min_year = year
+                            if max_year is None or year > max_year:
+                                max_year = year
+
+            except Exception as e:
+                logger.warning(f"Error analyzing years in {tsv_file}: {e}")
+                continue
+
+        logger.info(
+            f"Renewal data year analysis: {valid_years:,}/{total_entries:,} entries with valid years"
+        )
+        if min_year is not None and max_year is not None:
+            logger.info(f"Renewal data year range: {min_year} - {max_year}")
+        else:
+            logger.warning("No valid years found in renewal data")
+
+        return min_year, max_year
+
+    def _extract_year_from_row(self, row: dict[str, str]) -> int | None:
+        """Extract year from a renewal row without creating Publication object
+
+        Args:
+            row: Dictionary representing a TSV row
+
+        Returns:
+            Extracted year or None if not found
+        """
+        try:
+            # Extract publication date - use original registration date (odat) - same logic as _extract_from_row
+            pub_date = row.get("odat", "").strip()
+
+            if not pub_date:
+                return None
+
+            # Use centralized year extraction
+            return extract_year(pub_date)
+
+        except Exception:
+            return None

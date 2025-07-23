@@ -14,36 +14,45 @@ The codebase is organized as a Python package with logical sub-packages (one cla
 marc_pd_tool/
 ├── data/                    # Core data models
 │   ├── __init__.py
-│   ├── enums.py            # Copyright status and country classification enums
+│   ├── enums.py           # Copyright status and country classification enums
 │   └── publication.py      # Publication data model with dual author support and match tracking
 ├── loaders/                 # Data loading components
 │   ├── __init__.py
 │   ├── copyright_loader.py # Copyright registration data loading
 │   ├── renewal_loader.py   # Renewal data loading (TSV format)
-│   └── marc_extractor.py   # MARC XML extraction with country detection
-├── processing/              # Core processing logic
+│   └── marc_loader.py      # MARC XML data loading with country detection
+├── processing/              # Core processing logic (word-based matching)
 │   ├── __init__.py
-│   ├── indexer.py          # Multi-key indexing system with memory-optimized data structures
-│   ├── matching_engine.py  # Publication matching algorithms and batch processing
-│   ├── matching_api.py     # Abstract base classes for matching interfaces
-│   ├── default_matching.py # Default concrete implementations with FuzzyWuzzy
-│   └── generic_title_detector.py # Language-aware generic title detection with LRU caching
+│   ├── indexer.py                   # Publication indexing with compact data structures
+│   ├── matching_engine.py           # Matching engine and batch processing
+│   ├── similarity_calculator.py     # Similarity scoring for matching
+│   └── text_processing.py           # Text processing utilities, language support, and generic title detection
 ├── exporters/               # Output generation
 │   ├── __init__.py
-│   └── csv_exporter.py     # CSV export functionality for match results
+│   ├── csv_exporter.py     # CSV export functionality for match results
+│   └── xlsx_exporter.py    # Excel export functionality with multi-tab organization (optional)
 ├── utils/                   # Utility functions
 │   ├── __init__.py
-│   ├── text_utils.py       # Text processing utilities
-│   └── marc_utilities.py   # MARC data processing utilities and constants
+│   ├── text_utils.py       # Text processing utilities (normalize_text, extract_year, etc.)
+│   ├── marc_utilities.py   # MARC data processing utilities and constants
+│   ├── publisher_utils.py  # Publisher-specific text processing functions
+│   └── types.py            # Type definitions and protocols
 ├── infrastructure/          # System support
 │   ├── __init__.py
 │   ├── cache_manager.py    # Persistent data cache system for performance optimization
-│   └── config_loader.py    # Configuration loading and management
+│   ├── config_loader.py    # Configuration loading and management
+│   └── run_index_manager.py # Run index tracking for logging and metrics
 ├── cli/                     # Command-line interface
 │   ├── __init__.py
 │   └── main.py             # CLI logic (extracted from compare.py)
+├── analysis/                # LCCN analysis and ground truth tools
+│   ├── __init__.py
+│   ├── ground_truth_extractor.py # LCCN ground truth pair extraction
+│   └── score_analyzer.py   # Similarity score analysis and threshold optimization
 └── __init__.py             # Package interface with public API exports
-compare.py                   # Main entry point (calls cli/main.py)
+scripts/
+├── compare.py               # Main copyright analysis script (calls cli/main.py)
+└── analyze_ground_truth_scores.py # LCCN ground truth analysis tool
 ```
 
 ## Getting Started
@@ -70,7 +79,7 @@ git submodule update --init --recursive
 
 ### Requirements
 
-- **Python 3.12+**
+- **Python 3.13.5+**
 - **PDM package manager**
 - **Multi-core CPU** recommended for best performance
 - **4GB+ RAM** for large datasets
@@ -164,7 +173,7 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
     return country_code, classification
 ```
 
-### Generic Title Detection System (`processing/generic_title_detector.py`)
+### Generic Title Detection System (`processing/text_processing.py`)
 
 The system includes sophisticated generic title detection to improve matching accuracy by reducing the weight of non-discriminating titles like "collected works" or "poems":
 
@@ -251,9 +260,9 @@ edition_elem = record.find(".//datafield[@tag='250']/subfield[@code='a']")
 
 **Publisher Matching Strategies**:
 
-- **Registration matches**: Direct comparison using `fuzz.ratio()` (MARC publisher vs registration publisher)
-- **Renewal matches**: Fuzzy matching using `fuzz.partial_ratio()` (MARC publisher vs renewal full_text)
-- **Threshold**: 60% similarity required when MARC has publisher data
+- **Registration matches**: Jaccard similarity with stemmed words (MARC publisher vs registration publisher)
+- **Renewal matches**: Jaccard similarity with stemmed words (MARC publisher vs renewal publisher)
+- **Threshold**: 30% similarity required when MARC has publisher data
 
 **Edition Indexing**: Used for candidate filtering to distinguish between different editions of the same work, but not scored since copyright datasets lack reliable edition information.
 
@@ -369,17 +378,15 @@ This reduces the candidate set from millions to hundreds or thousands.
 ```python
 def find_best_match(marc_pub, copyright_pubs, ..., early_exit_title=95, early_exit_author=90):
     for copyright_pub in copyright_pubs:
-        title_score = fuzz.ratio(marc_pub.title, copyright_pub.title)
+        title_score = calculate_title_similarity(marc_pub, copyright_pub)
         
         if title_score < title_threshold:
             continue
         
-        # Dual author scoring - use max of both author types
-        author_score_245c = fuzz.ratio(marc_pub.author, copyright_pub.author)
-        author_score_1xx = fuzz.ratio(marc_pub.main_author, copyright_pub.author)
-        author_score = max(author_score_245c, author_score_1xx)
+        # Author scoring with fuzzy matching
+        author_score = calculate_author_similarity(marc_pub, copyright_pub)
         
-        combined_score = (title_score * 0.7) + (author_score * 0.3)
+        combined_score = calculate_combined_score(title_score, author_score, publisher_score)
         
         if combined_score > best_score:
             best_score = combined_score
@@ -770,12 +777,10 @@ def _is_cache_valid(self, cache_subdir: str, source_paths: List[str]) -> bool:
 The system uses adaptive scoring weights based on available data and generic title detection:
 
 ```python
-title_score = fuzz.ratio(marc_pub.full_title_normalized, copyright_pub.title)  # Includes parts
-# Dual author scoring - use best match from either author type
-author_score_245c = fuzz.ratio(marc_pub.author, copyright_pub.author)
-author_score_1xx = fuzz.ratio(marc_pub.main_author, copyright_pub.author)
-author_score = max(author_score_245c, author_score_1xx)
-publisher_score = calculate_publisher_score(marc_pub, copyright_pub)
+title_score = calculate_title_similarity(marc_pub, copyright_pub)  # Word-based Jaccard similarity
+# Author scoring with fuzzy matching
+author_score = calculate_author_similarity(marc_pub, copyright_pub)
+publisher_score = calculate_publisher_similarity(marc_pub, copyright_pub)
 
 # Dynamic scoring based on generic title detection and available data
 if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
@@ -826,7 +831,7 @@ else:
 **Implementation**:
 
 ```python
-class ParallelMarcExtractor:
+class MarcLoader:
     def __init__(self, marc_path: str, batch_size: int = 200, min_year: int = None, max_year: int = None):
         self.min_year = min_year
         self.max_year = max_year
@@ -873,20 +878,16 @@ logger.info("Filtered out 50,000 records (before 1950 or after 1960)")
 
 ### 4.4 Text Normalization
 
-```python
-def normalize_text(text: str) -> str:
-    # Remove punctuation except spaces and hyphens
-    normalized = re.sub(r"[^\w\s\-]", " ", text.lower())
-    # Normalize whitespace and hyphens
-    normalized = re.sub(r"[\s\-]+", " ", normalized)
-    return normalized.strip()
-```
+Text normalization is critical for accurate matching across different data sources.
 
-This approach:
+**See [`docs/PROCESSING_PIPELINE.md`](PROCESSING_PIPELINE.md) Section 2 for complete details on:**
 
-- Eliminates formatting variations
-- Keeps word boundaries intact
-- Removes punctuation noise while preserving meaning
+- Unicode normalization and ASCII folding
+- Field-specific normalization (titles, authors, publishers)
+- Abbreviation expansion
+- Stopword removal
+
+The normalization pipeline ensures consistent text representation across all data sources.
 
 ## 5. Copyright Status Algorithm
 
@@ -994,6 +995,83 @@ The system includes tests for:
 - Edge cases (malformed data handling)
 - Performance benchmarks
 
+### 8.1 Property-Based Testing
+
+In addition to traditional example-based tests, the codebase includes comprehensive property-based tests using the Hypothesis framework. These tests verify that certain mathematical properties and invariants hold across all possible inputs.
+
+**Overview**:
+
+- **83 property tests** across 4 test files
+- **Framework**: Hypothesis for Python
+- **Purpose**: Discover edge cases and ensure robustness
+
+**Test Files**:
+
+1. **`tests/test_utils/test_lccn_properties.py`** (18 tests)
+
+   - LCCN normalization idempotency
+   - Component extraction consistency
+   - Format validation (no spaces, hyphens, or slashes in output)
+   - Edge case handling
+
+1. **`tests/test_utils/test_text_properties.py`** (29 tests)
+
+   - Unicode normalization properties
+   - ASCII folding consistency
+   - Text normalization idempotency
+   - Year extraction constraints
+
+1. **`tests/test_processing/test_processing_properties.py`** (19 tests)
+
+   - Language processor stopword removal
+   - Multi-language stemming consistency
+   - Abbreviation expansion properties
+   - Word order preservation
+
+1. **`tests/test_processing/test_similarity_properties.py`** (17 tests)
+
+   - Similarity score bounds (0-100)
+   - Symmetry properties (similarity(a,b) = similarity(b,a))
+   - Identity properties (similarity(a,a) = 100, with exceptions)
+   - Language-specific behavior
+
+**Key Findings from Property Testing**:
+
+1. **LCCN Edge Case**: `extract_lccn_year` can return non-digit characters for malformed input like "0:"
+1. **Unicode Handling**: `normalize_lccn` only removes regular spaces (U+0020) per [LC standard](https://www.loc.gov/marc/lccn-namespace.html), not all whitespace
+1. **Stopword Bug**: `extract_significant_words` filters stopwords case-sensitively
+1. **Abbreviation Behavior**: `expand_abbreviations` always returns lowercase text
+1. **Short Text Filtering**: Single-character text (< 2 chars) gets filtered out, affecting similarity scores
+
+**Running Property Tests**:
+
+```bash
+# Run all property tests
+pdm run pytest tests/test_*/test_*_properties.py -v
+
+# Run with specific examples that failed
+pdm run pytest tests/test_utils/test_lccn_properties.py::test_extract_year_numeric_only -v
+
+# Increase test examples (default 100)
+pdm run pytest tests/test_utils/test_text_properties.py --hypothesis-max-examples=1000
+```
+
+**Writing New Property Tests**:
+
+```python
+from hypothesis import given, strategies as st
+
+class TestNewProperties:
+    @given(st.text())
+    def test_function_never_crashes(self, input_text: str) -> None:
+        """Function should handle any string input without exceptions"""
+        try:
+            result = my_function(input_text)
+            assert isinstance(result, str)
+        except Exception:
+            assert False, "Function raised unexpected exception"
+```
+
 ## 9. Maintenance Guidelines
 
 ### 9.1 Adding New Data Sources
@@ -1023,200 +1101,161 @@ The system includes tests for:
 
 The system provides a pluggable matching and scoring API that allows alternative implementations without modifying the core application logic. This enables experimentation with different similarity algorithms, scoring strategies, and matching approaches.
 
-### 10.2 Abstract Base Classes
+### 10.2 Word-Based Matching Implementation
 
-**Core Interfaces (`processing/matching_api.py`)**:
-
-```python
-from marc_pd_tool.processing.matching_api import SimilarityCalculator, ScoreCombiner, MatchingEngine
-
-class SimilarityCalculator(ABC):
-    """Calculate similarity between text fields"""
-    
-    @abstractmethod
-    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
-        """Returns similarity score 0-100"""
-        pass
-    
-    @abstractmethod  
-    def calculate_author_similarity(self, marc_author: str, copyright_author: str) -> float:
-        """Returns similarity score 0-100"""
-        pass
-    
-    @abstractmethod
-    def calculate_publisher_similarity(self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = "") -> float:
-        """Returns similarity score 0-100"""
-        pass
-
-class ScoreCombiner(ABC):
-    """Combine individual similarity scores into final score"""
-    
-    @abstractmethod
-    def combine_scores(self, title_score: float, author_score: float, publisher_score: float, 
-                      marc_pub: Publication, copyright_pub: Publication, 
-                      generic_detector: Optional[GenericTitleDetector] = None) -> float:
-        """Returns combined score 0-100"""
-        pass
-
-class MatchingEngine(ABC):
-    """Complete matching process implementation"""
-    
-    @abstractmethod
-    def find_best_match(self, marc_pub: Publication, copyright_pubs: List[Publication], 
-                       title_threshold: int, author_threshold: int, year_tolerance: int,
-                       publisher_threshold: int, early_exit_title: int, early_exit_author: int,
-                       generic_detector: Optional[GenericTitleDetector] = None) -> Optional[Dict]:
-        """Returns match dictionary or None"""
-        pass
-```
-
-### 10.3 Default Implementations
-
-**Current Algorithm (`processing/default_matching.py`)**:
+**Core Components**:
 
 ```python
-from marc_pd_tool.processing.default_matching import (
-    FuzzyWuzzySimilarityCalculator,
-    DynamicWeightingCombiner, 
-    DefaultMatchingEngine
+from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
+from marc_pd_tool.processing.indexer import DataIndexer
+
+# Word-based matching with stemming and stopwords
+matching_engine = DataMatcher()
+
+# Calculate similarity scores
+similarity_calculator = SimilarityCalculator()
+title_score = similarity_calculator.calculate_title_similarity(
+    marc_title, copyright_title, language_code
 )
 
-# Use default components
-engine = DefaultMatchingEngine()
-
-# Or compose custom combinations
-engine = DefaultMatchingEngine(
-    similarity_calculator=FuzzyWuzzySimilarityCalculator(),
-    score_combiner=DynamicWeightingCombiner()
-)
+# Build word-based indexes for fast candidate filtering
+indexer = DataIndexer()
+index = indexer.build_index(publications)
 ```
 
-**Key Features of Default Implementation**:
+### 10.3 Key Classes
 
-- **FuzzyWuzzySimilarityCalculator**: Uses `fuzzywuzzy` library with Levenshtein distance
-- **DynamicWeightingCombiner**: Adjusts weights based on generic title detection and available data
-- **DefaultMatchingEngine**: Implements current dual-author scoring, thresholds, and early termination
+**For complete details on the matching algorithms and processing steps, see [`docs/PROCESSING_PIPELINE.md`](PROCESSING_PIPELINE.md).**
 
-### 10.4 Creating Custom Implementations
+**`SimilarityCalculator`** (`processing/similarity_calculator.py`):
 
-**Example: Exact Match Calculator**:
+- Implements similarity calculations described in the processing pipeline
+- Multi-language support for 5 European languages
 
-```python
-class ExactMatchCalculator(SimilarityCalculator):
-    """Simple exact string matching"""
-    
-    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
-        return 100.0 if marc_title.lower() == copyright_title.lower() else 0.0
-    
-    def calculate_author_similarity(self, marc_author: str, copyright_author: str) -> float:
-        return 100.0 if marc_author.lower() == copyright_author.lower() else 0.0
-    
-    def calculate_publisher_similarity(self, marc_publisher: str, copyright_publisher: str, copyright_full_text: str = "") -> float:
-        if copyright_full_text:
-            return 100.0 if marc_publisher.lower() in copyright_full_text.lower() else 0.0
-        return 100.0 if marc_publisher.lower() == copyright_publisher.lower() else 0.0
+**`DataMatcher`** (`processing/matching_engine.py`):
 
-# Use custom calculator with default combiner
-engine = DefaultMatchingEngine(
-    similarity_calculator=ExactMatchCalculator(),
-    score_combiner=DynamicWeightingCombiner()
-)
+- Main matching orchestration with adaptive scoring
+- LCCN exact matching and early termination logic
+- Batch processing support via `process_batch()`
+
+**`DataIndexer`** (`processing/indexer.py`):
+
+- Implements the indexing strategies detailed in the processing pipeline
+- Memory-efficient compact index entries
+
+### 10.4 Configuration
+
+The word-based matching system is configured through `config.json` and `wordlists.json`:
+
+**`config.json`** - Algorithm parameters:
+
+```json
+{
+    "default_thresholds": {
+        "title": 40,
+        "author": 30,
+        "publisher": 30
+    },
+    "matching": {
+        "adaptive_weighting": {
+            "title_weight": 0.5,
+            "author_weight": 0.3,
+            "publisher_weight": 0.2,
+            "generic_title_penalty": 0.8
+        },
+        "minimum_combined_score": 40
+    }
+}
 ```
 
-**Example: Custom Score Combiner**:
+**`wordlists.json`** - Centralized word lists:
 
-```python
-class EqualWeightCombiner(ScoreCombiner):
-    """Equal weighting for all components"""
-    
-    def combine_scores(self, title_score, author_score, publisher_score, marc_pub, copyright_pub, generic_detector=None):
-        # Simple equal weighting regardless of generic titles
-        if marc_pub.publisher and (copyright_pub.publisher or copyright_pub.full_text):
-            return (title_score + author_score + publisher_score) / 3
-        else:
-            return (title_score + author_score) / 2
-
-# Use custom combiner with default calculator
-engine = DefaultMatchingEngine(
-    similarity_calculator=FuzzyWuzzySimilarityCalculator(),
-    score_combiner=EqualWeightCombiner()
-)
+```json
+{
+    "stopwords": {
+        "general": ["the", "a", "an", "and", "or", "but", ...],
+        "publisher": ["inc", "co", "corp", "company", ...],
+        "edition": ["edition", "ed", "edn", ...],
+        "title": ["a", "an", "the", "by", "in", "on", ...],
+        "author": ["by", "edited", "editor", ...]
+    },
+    "stopwords_by_language": {
+        "eng": ["the", "a", "an", "and", "or", "but", ...],
+        "fre": ["le", "la", "les", "un", "une", ...],
+        "ger": ["der", "die", "das", "ein", "eine", ...],
+        "spa": ["el", "la", "los", "las", "un", ...],
+        "ita": ["il", "la", "i", "gli", "le", ...]
+    },
+    "patterns": {
+        "generic_titles": ["collected works", "complete works", ...],
+        "ordinals": ["1st", "2nd", "3rd", ...],
+        "author_titles": ["sir", "dr", "prof", ...]
+    },
+    "abbreviations": {
+        "bibliographic": {
+            "acad": "academy", "annu": "annual", "assoc": "association",
+            "bibl": "bibliography", "bull": "bulletin", "dept": "department", ...
+        }
+    },
+    "unicode_fixes": {
+        "√™": "é", "√®": "î", "√≠": "í", ...
+    }
+}
 ```
 
-### 10.5 Backward Compatibility
+### 10.5 Usage Examples
 
-**Existing Code Continues to Work**:
+**Basic Matching**:
 
 ```python
-from marc_pd_tool.processing.matching_engine import find_best_match
+from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.processing.text_processing import GenericTitleDetector
 
-# This function signature is unchanged
-result = find_best_match(
+# Initialize components
+matching_engine = DataMatcher()
+generic_detector = GenericTitleDetector()
+
+# Find best match
+result = matching_engine.find_best_match(
     marc_pub, copyright_pubs, 
     title_threshold=80, author_threshold=70, year_tolerance=2,
     publisher_threshold=60, early_exit_title=95, early_exit_author=90,
-    generic_detector=detector
+    generic_detector=generic_detector
 )
 ```
 
-**New API Parameter (Optional)**:
+**Batch Processing**:
 
 ```python
-# Optionally specify custom engine
-result = find_best_match(
-    marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90, detector,
-    matching_engine=custom_engine  # NEW: Optional parameter
-)
+from marc_pd_tool.processing.matching_engine import process_batch
+
+# Process a batch of MARC records (runs in separate process)
+batch_id, processed_records, stats = process_batch(batch_info)
 ```
 
-### 10.6 Advanced Use Cases
+### 10.6 Performance Characteristics
 
-**Machine Learning Integration**:
+**Word-Based Indexing Benefits**:
 
-```python
-class MLSimilarityCalculator(SimilarityCalculator):
-    """Use pre-trained models for similarity"""
-    
-    def __init__(self, model_path: str):
-        self.model = load_similarity_model(model_path)
-    
-    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
-        return self.model.predict_similarity(marc_title, copyright_title) * 100
-```
+- Reduces comparison space by 10-50x through multi-key indexing
+- Generates keys from significant words after stemming/stopword removal
+- Memory-efficient compact index entries
+- Fast candidate retrieval with year filtering
 
-**Semantic Similarity**:
+**Processing Speed**:
 
-```python
-class SemanticSimilarityCalculator(SimilarityCalculator):
-    """Use word embeddings for semantic similarity"""
-    
-    def __init__(self):
-        import sentence_transformers
-        self.model = sentence_transformers.SentenceTransformer('all-MiniLM-L6-v2')
-    
-    def calculate_title_similarity(self, marc_title: str, copyright_title: str) -> float:
-        embeddings = self.model.encode([marc_title, copyright_title])
-        similarity = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
-        return similarity * 100
-```
+- Expected: 2,000-5,000+ records/minute on modern multi-core systems
+- Persistent caching reduces startup from 5-10 minutes to 10-30 seconds
+- Early termination for high-confidence matches (title ≥95%, author ≥90%)
+- Parallel batch processing across CPU cores
 
-**Domain-Specific Scoring**:
+**Memory Optimization**:
 
-```python
-class LibraryScienceCombiner(ScoreCombiner):
-    """Scoring optimized for library science use cases"""
-    
-    def combine_scores(self, title_score, author_score, publisher_score, marc_pub, copyright_pub, generic_detector=None):
-        # Higher emphasis on author for academic works
-        if self._is_academic_work(marc_pub):
-            return (title_score * 0.3) + (author_score * 0.6) + (publisher_score * 0.1)
-        else:
-            return (title_score * 0.7) + (author_score * 0.2) + (publisher_score * 0.1)
-    
-    def _is_academic_work(self, pub: Publication) -> bool:
-        academic_publishers = {"academic press", "university press", "mit press"}
-        return any(ap in pub.publisher.lower() for ap in academic_publishers)
-```
+- `__slots__` in Publication class reduces memory by 30-50%
+- Lazy property caching for normalized text fields
+- LRU cache for generic title detection results
+- Bounded frequency counters prevent unbounded growth
 
 ### 10.7 Testing Custom Implementations
 
@@ -1236,13 +1275,10 @@ assert 0 <= calculator.calculate_title_similarity("test", "test") <= 100
 **Integration Testing**:
 
 ```python
-from marc_pd_tool.processing.default_matching import DefaultMatchingEngine
+from marc_pd_tool.processing.matching_engine import DataMatcher
 
 # Test with real data
-engine = DefaultMatchingEngine(
-    similarity_calculator=YourCustomCalculator(),
-    score_combiner=YourCustomCombiner()
-)
+engine = DataMatcher()
 
 # Run against known test cases
 result = engine.find_best_match(test_marc_pub, test_copyright_pubs, ...)

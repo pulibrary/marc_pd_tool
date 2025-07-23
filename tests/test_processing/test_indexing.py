@@ -1,16 +1,17 @@
+# tests/test_processing/test_indexing.py
+
 """Tests for indexing performance optimizations"""
 
 # Standard library imports
-from typing import List
 
 # Third party imports
 from pytest import fixture
 
 # Local imports
+from marc_pd_tool import DataMatcher
 from marc_pd_tool import Publication
-from marc_pd_tool import build_index
-from marc_pd_tool import find_best_match
 from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.processing.indexer import build_wordbased_index
 
 
 @fixture
@@ -181,7 +182,7 @@ class TestIndexing:
 
     def test_index_creation(self, sample_copyright_records):
         """Test that index is created successfully"""
-        index = build_index(sample_copyright_records)
+        index = build_wordbased_index(sample_copyright_records)
 
         assert index.size() == len(sample_copyright_records)
         stats = index.get_stats()
@@ -191,16 +192,19 @@ class TestIndexing:
 
     def test_indexing_accuracy(self, sample_marc_records, sample_copyright_records):
         """Test that indexing finds the same matches as brute force"""
-        index = build_index(sample_copyright_records)
+        index = build_wordbased_index(sample_copyright_records)
+        matcher = DataMatcher()
 
         mismatches = 0
         for marc_pub in sample_marc_records:
             # Brute force search
-            brute_match = find_best_match(marc_pub, sample_copyright_records, 80, 70, 2, 95, 90)
+            brute_match = matcher.find_best_match(
+                marc_pub, sample_copyright_records, 80, 70, 2, 60, 95, 90
+            )
 
             # Indexed search
             candidates = index.get_candidates_list(marc_pub, 2)
-            indexed_match = find_best_match(marc_pub, candidates, 80, 70, 2, 95, 90)
+            indexed_match = matcher.find_best_match(marc_pub, candidates, 80, 70, 2, 60, 95, 90)
 
             # Compare results
             if brute_match is None and indexed_match is None:
@@ -217,7 +221,7 @@ class TestIndexing:
 
     def test_indexing_reduces_candidates(self, sample_marc_records, sample_copyright_records):
         """Test that indexing reduces the number of candidates to check"""
-        index = build_index(sample_copyright_records)
+        index = build_wordbased_index(sample_copyright_records)
 
         for marc_pub in sample_marc_records:
             candidates = index.get_candidates_list(marc_pub, 2)
@@ -236,6 +240,7 @@ class TestEarlyTermination:
 
     def test_early_termination_triggers(self):
         """Test that early termination triggers correctly"""
+        matcher = DataMatcher()
         marc_pub = Publication(
             title="The Great Gatsby",
             author="Fitzgerald, F. Scott",
@@ -275,13 +280,14 @@ class TestEarlyTermination:
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
+        match = matcher.find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "EARLY_EXIT"
 
     def test_no_false_early_exit_different_title(self):
         """Test that early termination doesn't trigger incorrectly for same author, different title"""
+        matcher = DataMatcher()
         marc_pub = Publication(
             title="The Great Gatsby",
             author="Fitzgerald, F. Scott",
@@ -321,13 +327,14 @@ class TestEarlyTermination:
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
+        match = matcher.find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "CORRECT_MATCH"
 
     def test_no_early_exit_missing_author(self):
         """Test that early termination doesn't trigger when author is missing"""
+        matcher = DataMatcher()
         marc_pub = Publication(
             title="Anonymous Work",
             author="",
@@ -363,7 +370,7 @@ class TestEarlyTermination:
         ]
 
         # Should not crash and should handle missing authors gracefully
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
+        match = matcher.find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         # Either finding a match or not is acceptable - just shouldn't crash
         if match:
@@ -371,6 +378,7 @@ class TestEarlyTermination:
 
     def test_early_exit_requires_both_high_scores(self):
         """Test that early exit requires both title AND author to be high"""
+        matcher = DataMatcher()
         marc_pub = Publication(
             title="Test Title",
             author="Test Author",
@@ -422,7 +430,7 @@ class TestEarlyTermination:
             ),
         ]
 
-        match = find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
+        match = matcher.find_best_match(marc_pub, copyright_pubs, 80, 70, 2, 60, 95, 90)
 
         assert match is not None
         assert match["copyright_record"]["source_id"] == "BOTH_HIGH"

@@ -1,11 +1,12 @@
+# tests/test_data/test_copyright_status_determination.py
+
 """Tests for copyright status determination algorithm"""
 
 # Third party imports
-from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CopyrightStatus
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 

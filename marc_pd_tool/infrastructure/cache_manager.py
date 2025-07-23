@@ -1,3 +1,5 @@
+# marc_pd_tool/infrastructure/cache_manager.py
+
 """Cache management system for persistent data storage to improve startup performance"""
 
 # Standard library imports
@@ -10,10 +12,23 @@ from os.path import getmtime
 from os.path import join
 from pickle import dump as pickle_dump
 from pickle import load as pickle_load
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from time import time
+from typing import Mapping
+from typing import Optional  # Needed for forward references
+from typing import TYPE_CHECKING
+from typing import cast
+
+# Local imports
+from marc_pd_tool.utils.types import CacheMetadata
+from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONType
+from marc_pd_tool.utils.types import T
+
+if TYPE_CHECKING:
+    # Local imports
+    from marc_pd_tool.data.publication import Publication
+    from marc_pd_tool.processing.indexer import DataIndexer
+    from marc_pd_tool.processing.text_processing import GenericTitleDetector
 
 logger = getLogger(__name__)
 
@@ -30,6 +45,7 @@ class CacheManager:
         self.cache_dir = cache_dir
         self.copyright_cache_dir = join(cache_dir, "copyright_data")
         self.renewal_cache_dir = join(cache_dir, "renewal_data")
+        self.marc_cache_dir = join(cache_dir, "marc_data")
         self.indexes_cache_dir = join(cache_dir, "indexes")
         self.generic_detector_cache_dir = join(cache_dir, "generic_detector")
 
@@ -37,6 +53,7 @@ class CacheManager:
         for cache_subdir in [
             self.copyright_cache_dir,
             self.renewal_cache_dir,
+            self.marc_cache_dir,
             self.indexes_cache_dir,
             self.generic_detector_cache_dir,
         ]:
@@ -70,7 +87,37 @@ class CacheManager:
 
         return max_mtime
 
-    def _save_metadata(self, cache_subdir: str, metadata: Dict[str, Any]) -> None:
+    def _get_year_range_cache_filename(
+        self,
+        base_name: str,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
+    ) -> str:
+        """Generate cache filename based on year range parameters
+
+        Args:
+            base_name: Base filename (e.g., "publications")
+            min_year: Minimum year filter (None means no minimum)
+            max_year: Maximum year filter (None means no maximum)
+            brute_force: Whether brute-force mode is active (loads all years)
+
+        Returns:
+            Cache filename incorporating year range
+        """
+        if brute_force or (min_year is None and max_year is None):
+            return f"{base_name}_all.pkl"
+        elif min_year is not None and max_year is not None:
+            return f"{base_name}_{min_year}_{max_year}.pkl"
+        elif min_year is not None:
+            return f"{base_name}_{min_year}_present.pkl"
+        elif max_year is not None:
+            return f"{base_name}_earliest_{max_year}.pkl"
+        else:
+            # This shouldn't happen but provide fallback
+            return f"{base_name}_all.pkl"
+
+    def _save_metadata(self, cache_subdir: str, metadata: CacheMetadata) -> None:
         """Save cache metadata to JSON file
 
         Args:
@@ -84,7 +131,7 @@ class CacheManager:
         except Exception as e:
             logger.warning(f"Failed to save cache metadata to {metadata_file}: {e}")
 
-    def _load_metadata(self, cache_subdir: str) -> Optional[Dict[str, Any]]:
+    def _load_metadata(self, cache_subdir: str) -> CacheMetadata | None:
         """Load cache metadata from JSON file
 
         Args:
@@ -99,7 +146,15 @@ class CacheManager:
 
         try:
             with open(metadata_file, "r") as f:
-                return json_load(f)
+                data = json_load(f)
+                # Cast the loaded JSON to CacheMetadata
+                return CacheMetadata(
+                    version=data.get("version", ""),
+                    source_files=data.get("source_files", []),
+                    source_mtimes=data.get("source_mtimes", []),
+                    cache_time=data.get("cache_time", 0.0),
+                    additional_deps=data.get("additional_deps", {}),
+                )
         except Exception as e:
             logger.warning(f"Failed to load cache metadata from {metadata_file}: {e}")
             return None
@@ -107,8 +162,8 @@ class CacheManager:
     def _is_cache_valid(
         self,
         cache_subdir: str,
-        source_paths: List[str],
-        additional_dependencies: Optional[Dict[str, Any]] = None,
+        source_paths: list[str],
+        additional_dependencies: Mapping[str, JSONType | None] | None = None,
     ) -> bool:
         """Check if cache is valid by comparing source file modification times
 
@@ -125,7 +180,7 @@ class CacheManager:
             return False
 
         # Check if source paths match
-        if metadata.get("source_paths") != source_paths:
+        if metadata["source_files"] != source_paths:
             logger.debug(f"Cache invalid: source paths changed")
             return False
 
@@ -149,7 +204,14 @@ class CacheManager:
                 return False
 
             # Compare with cached modification time
-            cached_mtime = metadata.get("modification_times", {}).get(source_path)
+            # Get the index of this source path
+            try:
+                idx = metadata["source_files"].index(source_path)
+                cached_mtime = (
+                    metadata["source_mtimes"][idx] if idx < len(metadata["source_mtimes"]) else None
+                )
+            except (ValueError, IndexError):
+                cached_mtime = None
             if cached_mtime is None or current_mtime > cached_mtime:
                 logger.debug(
                     f"Cache invalid: {source_path} modified (cached: {cached_mtime}, current: {current_mtime})"
@@ -158,7 +220,7 @@ class CacheManager:
 
         # Check additional dependencies if provided
         if additional_dependencies:
-            cached_deps = metadata.get("additional_dependencies", {})
+            cached_deps = metadata["additional_deps"]
             if cached_deps != additional_dependencies:
                 logger.debug(f"Cache invalid: additional dependencies changed")
                 return False
@@ -169,9 +231,9 @@ class CacheManager:
         self,
         cache_subdir: str,
         filename: str,
-        data: Any,
-        source_paths: List[str],
-        additional_dependencies: Optional[Dict[str, Any]] = None,
+        data: T,
+        source_paths: list[str],
+        additional_dependencies: Mapping[str, JSONType | None] | None = None,
     ) -> bool:
         """Save data to cache with metadata
 
@@ -192,7 +254,7 @@ class CacheManager:
                 pickle_dump(data, f)
 
             # Create metadata
-            modification_times = {}
+            modification_times: dict[str, float] = {}
             for source_path in source_paths:
                 if exists(source_path):
                     # Standard library imports
@@ -205,10 +267,12 @@ class CacheManager:
                     else:
                         modification_times[source_path] = getmtime(source_path)
 
-            metadata = {
-                "source_paths": source_paths,
-                "modification_times": modification_times,
-                "additional_dependencies": additional_dependencies or {},
+            metadata: CacheMetadata = {
+                "version": "1.0",
+                "source_files": source_paths,
+                "source_mtimes": [modification_times.get(p, 0.0) for p in source_paths],
+                "cache_time": time(),
+                "additional_deps": dict(additional_dependencies) if additional_dependencies else {},
             }
 
             self._save_metadata(cache_subdir, metadata)
@@ -218,7 +282,7 @@ class CacheManager:
             logger.error(f"Failed to save cache data to {cache_subdir}/{filename}: {e}")
             return False
 
-    def _load_cache_data(self, cache_subdir: str, filename: str) -> Optional[Any]:
+    def _load_cache_data(self, cache_subdir: str, filename: str) -> T | None:
         """Load data from cache
 
         Args:
@@ -234,74 +298,266 @@ class CacheManager:
 
         try:
             with open(data_file, "rb") as f:
-                return pickle_load(f)
+                return cast(T, pickle_load(f))
         except Exception as e:
             logger.warning(f"Failed to load cache data from {data_file}: {e}")
             return None
 
     # Public interface methods
 
-    def get_cached_copyright_data(self, copyright_dir: str) -> Optional[List[Any]]:
+    def get_cached_copyright_data(
+        self,
+        copyright_dir: str,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
+    ) -> Optional[list["Publication"]]:
         """Get cached copyright publications if valid
 
         Args:
             copyright_dir: Path to copyright XML directory
+            min_year: Minimum year filter
+            max_year: Maximum year filter
+            brute_force: Whether brute-force mode is active
 
         Returns:
             Cached publications or None if not valid
         """
-        if self._is_cache_valid(self.copyright_cache_dir, [copyright_dir]):
-            logger.debug(f"Loading copyright data from cache...")
-            return self._load_cache_data(self.copyright_cache_dir, "publications.pkl")
+        cache_filename = self._get_year_range_cache_filename(
+            "publications", min_year, max_year, brute_force
+        )
+
+        # Create cache subdirectory for this year range
+        cache_subdir = join(
+            self.copyright_cache_dir,
+            cache_filename.replace(".pkl", "").replace("publications_", ""),
+        )
+
+        if not exists(cache_subdir):
+            return None
+
+        # Include year range in validation dependencies
+        additional_deps = {"min_year": min_year, "max_year": max_year, "brute_force": brute_force}
+
+        if self._is_cache_valid(cache_subdir, [copyright_dir], additional_deps):
+            # Log what cache we're using
+            if brute_force or (min_year is None and max_year is None):
+                logger.info("Using cached copyright data for ALL years")
+            elif min_year and max_year:
+                logger.info(f"Using cached copyright data for years {min_year}-{max_year}")
+            else:
+                logger.info(
+                    f"Using cached copyright data for years {min_year or 'earliest'}-{max_year or 'present'}"
+                )
+
+            return self._load_cache_data(cache_subdir, cache_filename)
         return None
 
-    def cache_copyright_data(self, copyright_dir: str, publications: List[Any]) -> bool:
+    def cache_copyright_data(
+        self,
+        copyright_dir: str,
+        publications: list["Publication"],
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
+    ) -> bool:
         """Cache copyright publications
 
         Args:
             copyright_dir: Path to copyright XML directory
             publications: Parsed publications to cache
+            min_year: Minimum year filter used when loading
+            max_year: Maximum year filter used when loading
+            brute_force: Whether brute-force mode was active
 
         Returns:
             True if successful
         """
-        logger.info(f"Caching copyright data ({len(publications):,} publications)...")
-        return self._save_cache_data(
-            self.copyright_cache_dir, "publications.pkl", publications, [copyright_dir]
+        cache_filename = self._get_year_range_cache_filename(
+            "publications", min_year, max_year, brute_force
         )
 
-    def get_cached_renewal_data(self, renewal_dir: str) -> Optional[List[Any]]:
+        # Create cache subdirectory for this year range
+        cache_subdir = join(
+            self.copyright_cache_dir,
+            cache_filename.replace(".pkl", "").replace("publications_", ""),
+        )
+        makedirs(cache_subdir, exist_ok=True)
+
+        # Include year range in metadata
+        additional_deps = {"min_year": min_year, "max_year": max_year, "brute_force": brute_force}
+
+        # Log what we're caching
+        if brute_force or (min_year is None and max_year is None):
+            logger.info(
+                f"Caching copyright data for ALL years ({len(publications):,} publications)..."
+            )
+        elif min_year and max_year:
+            logger.info(
+                f"Caching copyright data for years {min_year}-{max_year} ({len(publications):,} publications)..."
+            )
+        else:
+            logger.info(
+                f"Caching copyright data for years {min_year or 'earliest'}-{max_year or 'present'} ({len(publications):,} publications)..."
+            )
+
+        return self._save_cache_data(
+            cache_subdir, cache_filename, publications, [copyright_dir], additional_deps
+        )
+
+    def get_cached_renewal_data(
+        self,
+        renewal_dir: str,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
+    ) -> Optional[list["Publication"]]:
         """Get cached renewal publications if valid
 
         Args:
             renewal_dir: Path to renewal TSV directory
+            min_year: Minimum year filter
+            max_year: Maximum year filter
+            brute_force: Whether brute-force mode is active
 
         Returns:
             Cached publications or None if not valid
         """
-        if self._is_cache_valid(self.renewal_cache_dir, [renewal_dir]):
-            logger.debug(f"Loading renewal data from cache...")
-            return self._load_cache_data(self.renewal_cache_dir, "publications.pkl")
+        cache_filename = self._get_year_range_cache_filename(
+            "publications", min_year, max_year, brute_force
+        )
+
+        # Create cache subdirectory for this year range
+        cache_subdir = join(
+            self.renewal_cache_dir, cache_filename.replace(".pkl", "").replace("publications_", "")
+        )
+
+        if not exists(cache_subdir):
+            return None
+
+        # Include year range in validation dependencies
+        additional_deps = {"min_year": min_year, "max_year": max_year, "brute_force": brute_force}
+
+        if self._is_cache_valid(cache_subdir, [renewal_dir], additional_deps):
+            # Log what cache we're using
+            if brute_force or (min_year is None and max_year is None):
+                logger.info("Using cached renewal data for ALL years")
+            elif min_year and max_year:
+                logger.info(f"Using cached renewal data for years {min_year}-{max_year}")
+            else:
+                logger.info(
+                    f"Using cached renewal data for years {min_year or 'earliest'}-{max_year or 'present'}"
+                )
+
+            return self._load_cache_data(cache_subdir, cache_filename)
         return None
 
-    def cache_renewal_data(self, renewal_dir: str, publications: List[Any]) -> bool:
+    def cache_renewal_data(
+        self,
+        renewal_dir: str,
+        publications: list["Publication"],
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
+    ) -> bool:
         """Cache renewal publications
 
         Args:
             renewal_dir: Path to renewal TSV directory
             publications: Parsed publications to cache
+            min_year: Minimum year filter used when loading
+            max_year: Maximum year filter used when loading
+            brute_force: Whether brute-force mode was active
 
         Returns:
             True if successful
         """
-        logger.info(f"Caching renewal data ({len(publications):,} publications)...")
+        cache_filename = self._get_year_range_cache_filename(
+            "publications", min_year, max_year, brute_force
+        )
+
+        # Create cache subdirectory for this year range
+        cache_subdir = join(
+            self.renewal_cache_dir, cache_filename.replace(".pkl", "").replace("publications_", "")
+        )
+        makedirs(cache_subdir, exist_ok=True)
+
+        # Include year range in metadata
+        additional_deps = {"min_year": min_year, "max_year": max_year, "brute_force": brute_force}
+
+        # Log what we're caching
+        if brute_force or (min_year is None and max_year is None):
+            logger.info(
+                f"Caching renewal data for ALL years ({len(publications):,} publications)..."
+            )
+        elif min_year and max_year:
+            logger.info(
+                f"Caching renewal data for years {min_year}-{max_year} ({len(publications):,} publications)..."
+            )
+        else:
+            logger.info(
+                f"Caching renewal data for years {min_year or 'earliest'}-{max_year or 'present'} ({len(publications):,} publications)..."
+            )
+
         return self._save_cache_data(
-            self.renewal_cache_dir, "publications.pkl", publications, [renewal_dir]
+            cache_subdir, cache_filename, publications, [renewal_dir], additional_deps
+        )
+
+    def get_cached_marc_data(
+        self,
+        marc_path: str,
+        year_ranges: dict[str, tuple[int | None, int | None]],
+        filtering_options: dict[str, bool | int],
+    ) -> list[list["Publication"]] | None:
+        """Get cached MARC batches if valid
+
+        Args:
+            marc_path: Path to MARC XML file or directory
+            year_ranges: Dictionary with copyright/renewal year ranges for validation
+            filtering_options: Dictionary with us_only, min_year, max_year settings
+
+        Returns:
+            Cached MARC batches or None if not valid
+        """
+        additional_deps = cast(
+            JSONDict, {"year_ranges": year_ranges, "filtering_options": filtering_options}
+        )
+        if self._is_cache_valid(self.marc_cache_dir, [marc_path], additional_deps):
+            logger.debug(f"Loading MARC data from cache...")
+            return self._load_cache_data(self.marc_cache_dir, "batches.pkl")
+        return None
+
+    def cache_marc_data(
+        self,
+        marc_path: str,
+        year_ranges: dict[str, tuple[int | None, int | None]],
+        filtering_options: dict[str, bool | int],
+        batches: list[list["Publication"]],
+    ) -> bool:
+        """Cache MARC batches
+
+        Args:
+            marc_path: Path to MARC XML file or directory
+            year_ranges: Dictionary with copyright/renewal year ranges
+            filtering_options: Dictionary with us_only, min_year, max_year settings
+            batches: Extracted MARC batches to cache
+
+        Returns:
+            True if successful
+        """
+        total_records = sum(len(batch) for batch in batches)
+        logger.info(f"Caching MARC data ({len(batches)} batches, {total_records:,} records)...")
+
+        additional_deps = cast(
+            JSONDict, {"year_ranges": year_ranges, "filtering_options": filtering_options}
+        )
+        return self._save_cache_data(
+            self.marc_cache_dir, "batches.pkl", batches, [marc_path], additional_deps
         )
 
     def get_cached_indexes(
         self, copyright_dir: str, renewal_dir: str, config_hash: str
-    ) -> Optional[tuple]:
+    ) -> tuple["DataIndexer", Optional["DataIndexer"]] | None:
         """Get cached indexes if valid
 
         Args:
@@ -319,8 +575,8 @@ class CacheManager:
             logger.debug(f"Loading indexes from cache...")
             reg_index = self._load_cache_data(self.indexes_cache_dir, "registration.pkl")
             ren_index = self._load_cache_data(self.indexes_cache_dir, "renewal.pkl")
-            if reg_index is not None and ren_index is not None:
-                return (reg_index, ren_index)
+            if reg_index is not None and ren_index is not None:  # type: ignore[unreachable]
+                return (reg_index, ren_index)  # type: ignore[unreachable]
         return None
 
     def cache_indexes(
@@ -328,8 +584,8 @@ class CacheManager:
         copyright_dir: str,
         renewal_dir: str,
         config_hash: str,
-        registration_index: Any,
-        renewal_index: Any,
+        registration_index: "DataIndexer",
+        renewal_index: "DataIndexer",
     ) -> bool:
         """Cache built indexes
 
@@ -366,8 +622,8 @@ class CacheManager:
         return reg_success and ren_success
 
     def get_cached_generic_detector(
-        self, copyright_dir: str, renewal_dir: str, detector_config: Dict[str, Any]
-    ) -> Optional[Any]:
+        self, copyright_dir: str, renewal_dir: str, detector_config: dict[str, int | bool]
+    ) -> Optional["GenericTitleDetector"]:
         """Get cached generic title detector if valid
 
         Args:
@@ -378,7 +634,7 @@ class CacheManager:
         Returns:
             Cached detector or None if not valid
         """
-        additional_deps = {"detector_config": detector_config}
+        additional_deps = cast(JSONDict, {"detector_config": detector_config})
         if self._is_cache_valid(
             self.generic_detector_cache_dir, [copyright_dir, renewal_dir], additional_deps
         ):
@@ -387,7 +643,11 @@ class CacheManager:
         return None
 
     def cache_generic_detector(
-        self, copyright_dir: str, renewal_dir: str, detector_config: Dict[str, Any], detector: Any
+        self,
+        copyright_dir: str,
+        renewal_dir: str,
+        detector_config: dict[str, int | bool],
+        detector: "GenericTitleDetector",
     ) -> bool:
         """Cache populated generic title detector
 
@@ -401,7 +661,7 @@ class CacheManager:
             True if successful
         """
         logger.info(f"Caching generic title detector...")
-        additional_deps = {"detector_config": detector_config}
+        additional_deps = cast(JSONDict, {"detector_config": detector_config})
         return self._save_cache_data(
             self.generic_detector_cache_dir,
             "detector.pkl",
@@ -420,34 +680,40 @@ class CacheManager:
             if exists(self.cache_dir):
                 rmtree(self.cache_dir)
                 # Recreate directory structure
-                self.__init__(self.cache_dir)
+                for cache_subdir in [
+                    self.copyright_cache_dir,
+                    self.renewal_cache_dir,
+                    self.marc_cache_dir,
+                    self.indexes_cache_dir,
+                    self.generic_detector_cache_dir,
+                ]:
+                    makedirs(cache_subdir, exist_ok=True)
         except Exception as e:
             logger.error(f"Failed to clear caches: {e}")
 
-    def get_cache_info(self) -> Dict[str, Any]:
+    def get_cache_info(self) -> JSONDict:
         """Get information about current cache state
 
         Returns:
             Dictionary with cache status information
         """
-        info = {
+        components_dict: dict[str, dict[str, bool | CacheMetadata | None]] = {}
+        info: JSONDict = {
             "cache_dir": self.cache_dir,
             "cache_exists": exists(self.cache_dir),
-            "components": {},
+            "components": cast(JSONType, components_dict),
         }
 
         components = [
             ("copyright_data", self.copyright_cache_dir),
             ("renewal_data", self.renewal_cache_dir),
+            ("marc_data", self.marc_cache_dir),
             ("indexes", self.indexes_cache_dir),
             ("generic_detector", self.generic_detector_cache_dir),
         ]
 
         for component_name, component_dir in components:
             metadata = self._load_metadata(component_dir)
-            info["components"][component_name] = {
-                "cached": metadata is not None,
-                "metadata": metadata,
-            }
+            components_dict[component_name] = {"cached": metadata is not None, "metadata": metadata}
 
         return info

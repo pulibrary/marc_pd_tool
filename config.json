@@ -20,34 +20,39 @@
     }
   },
   "default_thresholds": {
-    "title": 80,
-    "author": 70,
-    "publisher": 60,
+    "title": 40,
+    "author": 30,
+    "publisher": 30,
     "early_exit_title": 95,
     "early_exit_author": 90,
-    "year_tolerance": 2
+    "year_tolerance": 1,
+    "minimum_combined_score": 40
   },
   "generic_title_detector": {
-    "frequency_threshold": 10
+    "frequency_threshold": 10,
+    "disable_generic_detection": false
   },
-  "word_lists": {
-    "stopwords": [
-      "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-      "has", "he", "in", "is", "it", "its", "of", "on", "or", "that", "the",
-      "to", "was", "were", "will", "with"
-    ],
-    "publisher_stopwords": [
-      "inc", "corp", "corporation", "company", "co", "ltd", "limited",
-      "publishers", "publisher", "publishing", "publications", "press",
-      "books", "book", "house", "group", "media", "entertainment"
-    ],
-    "edition_stopwords": [
-      "edition", "ed", "printing", "print", "impression", "issue", "vol", "volume"
-    ],
-    "ordinal_terms": [
-      "1st", "first", "2nd", "second", "3rd", "third", "4th", "fourth",
-      "5th", "fifth", "revised", "rev", "new", "updated", "enlarged",
-      "expanded", "abridged", "complete"
-    ]
+  "processing": {
+    "batch_size": 200,
+    "max_workers": null,
+    "score_everything": false,
+    "brute_force_missing_year": false
+  },
+  "filtering": {
+    "min_year": null,
+    "max_year": null,
+    "us_only": false
+  },
+  "output": {
+    "single_file": false
+  },
+  "caching": {
+    "cache_dir": ".marcpd_cache",
+    "force_refresh": false,
+    "no_cache": false
+  },
+  "logging": {
+    "debug": false,
+    "log_file": null
   }
 }

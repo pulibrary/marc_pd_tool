@@ -1,18 +1,18 @@
+# tests/test_loaders/test_us_only_filtering.py
+
 """Tests for US-only filtering functionality"""
 
 # Standard library imports
 from argparse import ArgumentParser
-from os import unlink
-from tempfile import NamedTemporaryFile
 
 # Third party imports
 # Third-party imports
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.loaders.marc_extractor import ParallelMarcExtractor
+from marc_pd_tool.loaders.marc_loader import MarcLoader
 
 
 class TestUSOnlyFiltering:
@@ -53,24 +53,24 @@ class TestUSOnlyFiltering:
 
     def test_us_only_filter_includes_us_records(self, us_publication):
         """Test that US-only filter includes US records"""
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor = MarcLoader("dummy.xml", us_only=True)
         assert extractor._should_include_record(us_publication) is True
 
     def test_us_only_filter_excludes_non_us_records(self, non_us_publication):
         """Test that US-only filter excludes non-US records"""
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor = MarcLoader("dummy.xml", us_only=True)
         assert extractor._should_include_record(non_us_publication) is False
 
     def test_us_only_filter_excludes_unknown_country_records(self, unknown_country_publication):
         """Test that US-only filter excludes unknown country records"""
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor = MarcLoader("dummy.xml", us_only=True)
         assert extractor._should_include_record(unknown_country_publication) is False
 
     def test_us_only_false_includes_all_countries(
         self, us_publication, non_us_publication, unknown_country_publication
     ):
         """Test that us_only=False includes all country classifications"""
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=False)
+        extractor = MarcLoader("dummy.xml", us_only=False)
         assert extractor._should_include_record(us_publication) is True
         assert extractor._should_include_record(non_us_publication) is True
         assert extractor._should_include_record(unknown_country_publication) is True
@@ -107,7 +107,7 @@ class TestUSOnlyFiltering:
         )
         new_us_pub.year = 1950
 
-        extractor = ParallelMarcExtractor("dummy.xml", min_year=1930, us_only=True)
+        extractor = MarcLoader("dummy.xml", min_year=1930, us_only=True)
 
         # Old US publication filtered by year
         assert extractor._should_include_record(old_us_pub) is False
@@ -136,7 +136,7 @@ class TestUSOnlyFiltering:
         )
         non_us_pub_no_year.year = None
 
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor = MarcLoader("dummy.xml", us_only=True)
 
         # US publication with no year should be included
         assert extractor._should_include_record(us_pub_no_year) is True
@@ -157,22 +157,22 @@ class TestUSOnlyFiltering:
         assert args_with_flag.us_only is True
 
     def test_extractor_constructor_accepts_us_only_parameter(self):
-        """Test that ParallelMarcExtractor accepts us_only parameter"""
+        """Test that MarcLoader accepts us_only parameter"""
         # Test default value
-        extractor_default = ParallelMarcExtractor("dummy.xml")
+        extractor_default = MarcLoader("dummy.xml")
         assert extractor_default.us_only is False
 
         # Test explicit False
-        extractor_false = ParallelMarcExtractor("dummy.xml", us_only=False)
+        extractor_false = MarcLoader("dummy.xml", us_only=False)
         assert extractor_false.us_only is False
 
         # Test explicit True
-        extractor_true = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor_true = MarcLoader("dummy.xml", us_only=True)
         assert extractor_true.us_only is True
 
     def test_us_only_filter_edge_cases(self):
         """Test edge cases for US-only filtering"""
-        extractor = ParallelMarcExtractor("dummy.xml", us_only=True)
+        extractor = MarcLoader("dummy.xml", us_only=True)
 
         # Test with publication that has all the other attributes but wrong country
         edge_case_pub = Publication(

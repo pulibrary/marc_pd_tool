@@ -1,53 +1,53 @@
-"""MARC Publication Data Tool Package"""
+# marc_pd_tool/__init__.py
+
+"""MARC Publication Data Tool Package
+
+A library for analyzing MARC bibliographic records against US copyright
+registration and renewal data to determine copyright status.
+"""
+
+# Standard library imports
 
 # Local imports
+# High-level API
+from marc_pd_tool.api import AnalysisResults
+from marc_pd_tool.api import MarcCopyrightAnalyzer
+
+# Data models (for advanced users)
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.csv_exporter import save_matches_csv
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
-from marc_pd_tool.loaders.marc_extractor import ParallelMarcExtractor
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
-from marc_pd_tool.processing.default_matching import DefaultMatchingEngine
-from marc_pd_tool.processing.default_matching import DynamicWeightingCombiner
-from marc_pd_tool.processing.default_matching import FuzzyWuzzySimilarityCalculator
-from marc_pd_tool.processing.indexer import PublicationIndex
-from marc_pd_tool.processing.indexer import build_index
-from marc_pd_tool.processing.matching_api import MatchingEngine
-from marc_pd_tool.processing.matching_api import ScoreCombiner
-from marc_pd_tool.processing.matching_api import SimilarityCalculator
-from marc_pd_tool.processing.matching_api import SimilarityScores
-from marc_pd_tool.processing.matching_engine import find_best_match
-from marc_pd_tool.processing.matching_engine import process_batch
-from marc_pd_tool.utils.marc_utilities import extract_country_from_marc_008
 
-__all__ = [
-    # Core data structures
+# For users who want lower-level control
+from marc_pd_tool.infrastructure.cache_manager import CacheManager
+from marc_pd_tool.infrastructure.config_loader import ConfigLoader
+from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
+from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.processing.matching_engine import DataMatcher
+
+# Version info
+__version__ = "1.0.0"
+
+__all__: list[str] = [
+    # Primary API
+    "MarcCopyrightAnalyzer",
+    "AnalysisResults",
+    # Data models
     "Publication",
     "MatchResult",
     "CopyrightStatus",
     "CountryClassification",
-    # Data loaders
+    # Advanced usage - loaders
+    "MarcLoader",
     "CopyrightDataLoader",
     "RenewalDataLoader",
-    "ParallelMarcExtractor",
-    # Processing functions
-    "process_batch",
-    "find_best_match",
-    # Indexing
-    "PublicationIndex",
-    "build_index",
-    # Utilities
-    "save_matches_csv",
-    "extract_country_from_marc_008",
-    # Matching and Scoring API
-    "SimilarityCalculator",
-    "ScoreCombiner",
-    "MatchingEngine",
-    "SimilarityScores",
-    # Default Implementations
-    "FuzzyWuzzySimilarityCalculator",
-    "DynamicWeightingCombiner",
-    "DefaultMatchingEngine",
+    # Advanced usage - processing
+    "DataMatcher",
+    # Advanced usage - infrastructure
+    "ConfigLoader",
+    "CacheManager",
+    # Version
+    "__version__",
 ]

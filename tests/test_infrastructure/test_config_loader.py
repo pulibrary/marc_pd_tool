@@ -1,11 +1,10 @@
+# tests/test_infrastructure/test_config_loader.py
+
 """Test configuration loading and management"""
 
 # Standard library imports
 from json import dumps
 from tempfile import NamedTemporaryFile
-
-# Third party imports
-import pytest
 
 # Local imports
 from marc_pd_tool.infrastructure.config_loader import ConfigLoader
@@ -26,10 +25,10 @@ class TestConfigLoader:
         assert normal_weights["author"] == 0.25
         assert normal_weights["publisher"] == 0.15
 
-        # Test thresholds
-        assert config.get_threshold("title") == 80
-        assert config.get_threshold("author") == 70
-        assert config.get_threshold("publisher") == 60
+        # Test thresholds - values from config.json
+        assert config.get_threshold("title") == 40
+        assert config.get_threshold("author") == 30
+        assert config.get_threshold("publisher") == 30
 
         # Test word lists
         stopwords = config.get_stopwords()
@@ -129,14 +128,14 @@ class TestConfigLoader:
         config = ConfigLoader()
 
         # Test stopwords
-        stopwords = config.get_stopwords()
+        stopwords = config.get_stopwords_set()
         assert isinstance(stopwords, set)
         assert "the" in stopwords
 
         # Test publisher stopwords
         pub_stopwords = config.get_publisher_stopwords()
         assert isinstance(pub_stopwords, set)
-        assert "press" in pub_stopwords
+        assert "publishing" in pub_stopwords  # Changed from "press" which is no longer a stopword
 
         # Test edition stopwords
         ed_stopwords = config.get_edition_stopwords()
@@ -147,7 +146,7 @@ class TestConfigLoader:
         """Test the global get_config function"""
         config = get_config()
         assert isinstance(config, ConfigLoader)
-        assert config.get_threshold("title") == 80
+        assert config.get_threshold("title") == 40
 
     def test_load_config_function(self):
         """Test the load_config function"""

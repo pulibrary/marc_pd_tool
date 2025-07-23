@@ -38,7 +38,7 @@ This tool implements a comprehensive algorithm to classify publications by copyr
 1. **Run analysis:**
 
    ```bash
-   pdm run python compare.py \
+   pdm run python -m marc_pd_tool \
        --marcxml path/to/marc_file.xml \
        --copyright-dir path/to/copyright_xml/ \
        --renewal-dir path/to/cce-renewals/data/
@@ -56,12 +56,12 @@ This tool implements a comprehensive algorithm to classify publications by copyr
 The tool compares MARC bibliographic records against U.S. copyright registration and renewal data to determine likely copyright status. It uses:
 
 1. **Country Classification**: Identifies US vs. non-US publications using MARC country codes
-1. **Enhanced Fuzzy Matching**: Compares titles, authors, and publishers against both registration (1923-1977) and renewal (1950-1991) datasets
+1. **Enhanced Word-Based Matching**: Compares titles using word overlap with stemming, authors/publishers using fuzzy matching, against both registration (1923-1977) and renewal (1950-1991) datasets
 1. **Generic Title Detection**: Adjusts scoring for generic titles like "collected works" to improve accuracy (English titles only)
 1. **Dynamic Scoring**: Adapts match weighting based on available data and title genericness
 1. **Status Determination**: Assigns one of six copyright status categories based on match patterns, including definitive public domain determination for US works published 1930-1963
 
-For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
+For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md). For technical details on the complete processing pipeline, see [`docs/PROCESSING_PIPELINE.md`](docs/PROCESSING_PIPELINE.md).
 
 ## Basic Usage Examples
 
@@ -69,7 +69,7 @@ For detailed information about the analysis algorithm, matching criteria, and co
 
 ```bash
 # Basic analysis with all available CPU cores
-pdm run python compare.py \
+pdm run python -m marc_pd_tool \
     --marcxml data.xml \
     --copyright-dir copyright_xml/ \
     --renewal-dir cce-renewals/data/
@@ -79,7 +79,7 @@ pdm run python compare.py \
 
 ```bash
 # Process only US publications (50-70% faster)
-pdm run python compare.py \
+pdm run python -m marc_pd_tool \
     --marcxml data.xml \
     --copyright-dir copyright_xml/ \
     --renewal-dir cce-renewals/data/ \
@@ -90,7 +90,7 @@ pdm run python compare.py \
 
 ```bash
 # Focus on 1950s decade
-pdm run python compare.py \
+pdm run python -m marc_pd_tool \
     --marcxml data.xml \
     --copyright-dir copyright_xml/ \
     --renewal-dir cce-renewals/data/ \
@@ -98,141 +98,120 @@ pdm run python compare.py \
     --max-year 1959
 ```
 
-## Key Command Line Options
+### Process Records Without Year Data
 
-### Required Arguments
+```bash
+# Include MARC records that lack year information (slower)
+pdm run python -m marc_pd_tool \
+    --marcxml data.xml \
+    --copyright-dir copyright_xml/ \
+    --renewal-dir cce-renewals/data/ \
+    --brute-force-missing-year
+```
 
-- `--marcxml` - Path to MARC XML file or directory
-- `--copyright-dir` - Path to copyright registration XML directory
-- `--renewal-dir` - Path to renewal TSV directory
+**Note**: By default, MARC records without year data are skipped for performance. Use `--brute-force-missing-year` to process them, but this significantly increases processing time as they must be compared against all copyright/renewal records.
 
-### Common Options
+## Key Options
 
-- `--output` - CSV output filename (default: auto-generated based on filters)
+- `--us-only` - Process only US publications (50-70% faster)
+- `--min-year`, `--max-year` - Filter by publication year
+- `--output-format` - Choose `csv` or `xlsx` output
+- `--debug` - Enable verbose logging
 
-**Automatic Filename Generation:**
-When using the default output, filenames are automatically generated based on applied filters:
-
-- `matches.csv` - No filters applied
-- `matches_us-only.csv` - US-only filtering enabled
-- `matches_1950-1960.csv` - Year range filtering
-- `matches_us-only_1950-1960.csv` - Combined filters
-- `matches_1955-only.csv` - Single year (min_year = max_year)
-- `matches_after-1945.csv` - Minimum year only
-- `matches_before-1970.csv` - Maximum year only
-
-To override automatic naming, specify a custom filename with `--output`.
-
-- `--us-only` - Only process US publications (significantly faster for US-focused research)
-- `--min-year` - Minimum publication year to include (default: current year - 95)
-- `--max-year` - Maximum publication year to include (default: no limit)
-- `--log-file` - Write logs to specified file (default: console only)
-- `--debug` - Enable DEBUG level logging for verbose details
-
-For complete command line options and advanced configuration, see the detailed usage examples below.
+For complete command line reference, see [`docs/REFERENCE.md`](docs/REFERENCE.md).
 
 ## Performance
 
-**Expected Performance:**
-Processing large datasets (190K+ MARC records vs 2.1M+ registration entries + 445K+ renewal entries) typically takes several hours, depending on system specifications and dataset size.
+The tool processes large datasets efficiently using parallel processing and caching. Expected performance: 2,000-5,000 records/minute on modern hardware.
 
-The tool automatically uses CPU cores (default: total cores - 2) and includes several optimization features:
+Key optimizations:
 
-- **Persistent data cache**: Reduces startup time from 5-10 minutes to 10-30 seconds for repeated runs (85%+ improvement)
-- **Public domain filtering**: Excludes records older than current year - 95 by default
-- **Year-based filtering**: Only compares publications within ±2 years of each other
-- **US-only filtering**: Optional `--us-only` flag to process only US publications (50-70% faster)
-- **Parallel processing**: Efficient multi-core utilization with dual dataset matching
-- **Smart memory management**: Streaming XML parsing and batch processing
-- **Country classification**: Official MARC country codes for accurate geographic analysis
+- Persistent cache reduces startup time by 85%
+- Year filtering dramatically reduces comparison space
+- US-only mode processes 50-70% faster
+- Automatic parallel processing across CPU cores
 
 ## Output
 
-The tool generates a CSV file with copyright analysis results for each MARC record, including:
+The tool supports two output formats:
+
+### CSV Output (Default)
+
+The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status:
+
+- `matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
+- `matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
+- `matches_in_copyright.csv` - Works still under copyright
+- `matches_research_us_status.csv` - Requires additional research
+- `matches_research_us_only_pd.csv` - US public domain status unclear
+- `matches_country_unknown.csv` - Country classification unknown
+
+Each CSV includes:
 
 - Original bibliographic data (title, author, year, publisher, place, edition, language)
+- LCCN (both original and normalized forms)
 - Country classification (US/Non-US/Unknown)
 - Copyright status determination
 - Generic title detection information and scoring adjustments
 - Match details and confidence scores for the best match found
 - Source data from matched registration and renewal records
+- Match type indicator ("lccn" for LCCN matches, "similarity" for text-based matches)
 
-For complete output format details and sample data, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md).
+### XLSX Output (Optional)
+
+For a more organized output, use Excel format:
+
+```bash
+# First install the optional dependency
+pdm add -dG xlsx openpyxl
+
+# Then use --output-format xlsx
+pdm run python -m marc_pd_tool \
+    --marcxml data.xml \
+    --copyright-dir nypl-reg/xml/ \
+    --renewal-dir nypl-ren/data/ \
+    --output-format xlsx
+```
+
+The XLSX format provides:
+
+- **Single file output** with multiple tabs organized by copyright status
+- **Summary tab** with processing statistics and parameters used
+- **Proper data types** - numbers, percentages, and booleans (not just text)
+- **Professional formatting** - colored headers, appropriate column widths
+- **Better readability** - no need to open multiple CSV files
+
+For understanding results and match types, see [`docs/GUIDE.md`](docs/GUIDE.md).
+
+## Configuration
+
+The tool supports JSON configuration files for setting defaults. Create a `config.json` file to avoid repeating command-line options.
+
+For configuration details, see [`docs/REFERENCE.md`](docs/REFERENCE.md#configuration-file-format).
 
 ## Advanced Usage
 
-### Custom Thresholds
+For advanced usage including:
 
-```bash
-# Adjust matching sensitivity
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --title-threshold 85 \
-    --author-threshold 75 \
-    --year-tolerance 1
-```
+- Custom threshold tuning
+- Performance optimization
+- Cache management
+- Troubleshooting
 
-### Performance Tuning
-
-```bash
-# Custom worker count and batch size
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --max-workers 8 \
-    --batch-size 200
-```
-
-### Cache Management
-
-```bash
-# Force rebuild cache (when data sources change)
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --force-refresh
-
-# Use custom cache directory
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --cache-dir /path/to/custom/cache
-
-# Disable caching for one-off runs
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --no-cache
-```
-
-### Logging
-
-```bash
-# Save logs to file for analysis
-pdm run python compare.py \
-    --marcxml data.xml \
-    --copyright-dir copyright_xml/ \
-    --renewal-dir cce-renewals/data/ \
-    --log-file copyright_analysis.log \
-    --debug
-```
+See [`docs/GUIDE.md`](docs/GUIDE.md#common-workflows).
 
 ## Documentation
 
-- **[ALGORITHM.md](docs/ALGORITHM.md)** - Domain logic and copyright analysis details
-- **[DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Code architecture and technical implementation
+- **[Usage Guide](docs/GUIDE.md)** - Understanding the tool and interpreting results
+- **[Command Reference](docs/REFERENCE.md)** - Complete CLI options and configuration
+- **[API Guide](docs/API.md)** - Using as a Python library
+- **[Development Guide](docs/DEVELOPMENT.md)** - Architecture and contributing
 
 ## Limitations and Considerations
 
 **This is not legal advice** - the results provide research starting points, not definitive copyright determinations. The analysis has several limitations:
 
-- **Matching accuracy**: Fuzzy matching may miss some matches due to spelling variations, transcription errors, or different citation formats
+- **Matching accuracy**: Word-based title matching and fuzzy author/publisher matching may miss some matches due to spelling variations, transcription errors, or different citation formats
 - **Data completeness**: Not all copyright registrations or renewals may be present in the digitized records
 - **Complex copyright law**: Copyright status depends on many factors beyond registration/renewal patterns
 - **International considerations**: Copyright law varies by country and has changed over time

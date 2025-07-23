@@ -1,28 +1,40 @@
+# marc_pd_tool/loaders/copyright_loader.py
+
 """Copyright data XML loader for publications"""
 
 # Standard library imports
 from logging import getLogger
 from pathlib import Path
 from re import search
-from typing import List
-from typing import Optional
 import xml.etree.ElementTree as ET
 
 # Local imports
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.utils.mixins import YearFilterableMixin
+from marc_pd_tool.utils.text_utils import extract_year
 
 logger = getLogger(__name__)
 
 
-class CopyrightDataLoader:
-    def __init__(self, copyright_dir: str):
+class CopyrightDataLoader(YearFilterableMixin):
+    def __init__(self, copyright_dir: str) -> None:
         self.copyright_dir = Path(copyright_dir)
 
-    def load_all_copyright_data(self) -> List[Publication]:
-        """Load all copyright data (no year indexing)"""
-        logger.info("Loading all copyright data...")
+    def load_all_copyright_data(
+        self, min_year: int | None = None, max_year: int | None = None
+    ) -> list[Publication]:
+        """Load copyright data, optionally filtered by year range
 
-        all_publications = []
+        Args:
+            min_year: Minimum year to include (inclusive)
+            max_year: Maximum year to include (inclusive)
+
+        Returns:
+            List of Publication objects
+        """
+        self._log_year_filtering(min_year, max_year, "copyright")
+
+        all_publications: list[Publication] = []
         xml_files = sorted(self.copyright_dir.rglob("*.xml"), key=lambda x: str(x))
         logger.info(f"Found {len(xml_files)} XML files in copyright directory")
 
@@ -36,6 +48,10 @@ class CopyrightDataLoader:
                 )
 
             pubs = self._extract_from_file(xml_file)
+
+            # Use mixin for year filtering
+            pubs = self._filter_by_year(pubs, min_year, max_year)
+
             all_publications.extend(pubs)
 
             # Log summary after completing each batch of 10 (or at the end)
@@ -57,7 +73,7 @@ class CopyrightDataLoader:
         year_match = search(r"\b(19|20)\d{2}\b", filename)
         return year_match.group() if year_match else ""
 
-    def _extract_from_file(self, xml_file: Path) -> List[Publication]:
+    def _extract_from_file(self, xml_file: Path) -> list[Publication]:
         publications = []
 
         try:
@@ -74,7 +90,7 @@ class CopyrightDataLoader:
 
         return publications
 
-    def _extract_from_entry(self, entry) -> Optional[Publication]:
+    def _extract_from_entry(self, entry: ET.Element) -> Publication | None:
         try:
             # Extract title
             title_elem = entry.find(".//title")
@@ -123,6 +139,10 @@ class CopyrightDataLoader:
                 # Append volume information to title (this is actual bibliographic info, unlike renewal data)
                 title = f"{title} {volume_info.strip()}"
 
+            # Extract LCCN
+            lccn_elem = entry.find(".//lccn")
+            lccn = lccn_elem.text if lccn_elem is not None and lccn_elem.text else ""
+
             # Extract entry ID
             source_id = entry.get("id", entry.get("regnum", ""))
 
@@ -133,9 +153,103 @@ class CopyrightDataLoader:
                 pub_date=pub_date,
                 publisher=publisher,
                 place=place,
+                lccn=lccn,
                 source="Copyright",
                 source_id=source_id,
             )
 
-        except Exception as e:
+        except Exception:
+            return None
+
+    def get_year_range(self) -> tuple[int | None, int | None]:
+        """Get the year range (min, max) of copyright data without loading full publications
+
+        Returns:
+            Tuple of (min_year, max_year) or (None, None) if no valid years found
+        """
+        logger.info("Analyzing year range in copyright data...")
+
+        xml_files = sorted(self.copyright_dir.rglob("*.xml"), key=lambda x: str(x))
+        if not xml_files:
+            logger.warning("No copyright XML files found")
+            return None, None
+
+        min_year = None
+        max_year = None
+        valid_years = 0
+        total_entries = 0
+
+        for xml_file in xml_files:
+            try:
+                # Use iterparse for memory efficiency with large files
+                context = ET.iterparse(xml_file, events=("start", "end"))
+                event, root = next(context)
+
+                for event, elem in context:
+                    if event == "end" and elem.tag == "copyrightEntry":
+                        total_entries += 1
+                        year = self._extract_year_from_entry(elem)
+
+                        if year is not None:
+                            valid_years += 1
+                            if min_year is None or year < min_year:
+                                min_year = year
+                            if max_year is None or year > max_year:
+                                max_year = year
+
+                        # Clear element to save memory
+                        elem.clear()
+                        root.clear()
+
+            except Exception as e:
+                logger.warning(f"Error analyzing years in {xml_file}: {e}")
+                continue
+
+        logger.info(
+            f"Copyright data year analysis: {valid_years:,}/{total_entries:,} entries with valid years"
+        )
+        if min_year is not None and max_year is not None:
+            logger.info(f"Copyright data year range: {min_year} - {max_year}")
+        else:
+            logger.warning("No valid years found in copyright data")
+
+        return min_year, max_year
+
+    def _extract_year_from_entry(self, entry: ET.Element) -> int | None:
+        """Extract year from a copyright entry without creating Publication object
+
+        Args:
+            entry: XML element for a copyright entry
+
+        Returns:
+            Extracted year or None if not found
+        """
+        try:
+            # Extract publication date - try multiple sources (same logic as _extract_from_entry)
+            pub_date = ""
+
+            # First try publication date
+            pub_date_elem = entry.find(".//publisher/pubDate")
+            if pub_date_elem is not None:
+                pub_date = pub_date_elem.get("date", pub_date_elem.text or "")
+
+            # If no publication date, try registration date
+            if not pub_date:
+                reg_date_elem = entry.find(".//regDate")
+                if reg_date_elem is not None:
+                    pub_date = reg_date_elem.get("date", reg_date_elem.text or "")
+
+            # If still no date, try affidavit date
+            if not pub_date:
+                aff_date_elem = entry.find(".//affDate")
+                if aff_date_elem is not None:
+                    pub_date = aff_date_elem.get("date", aff_date_elem.text or "")
+
+            if not pub_date:
+                return None
+
+            # Use centralized year extraction
+            return extract_year(pub_date)
+
+        except Exception:
             return None

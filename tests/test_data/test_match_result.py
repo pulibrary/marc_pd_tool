@@ -1,7 +1,8 @@
+# tests/test_data/test_match_result.py
+
 """Tests for MatchResult dataclass"""
 
 # Third party imports
-from pytest import raises
 
 # Local imports
 from marc_pd_tool.data.publication import MatchResult
@@ -66,7 +67,7 @@ class TestMatchResultCreation:
         )
 
         assert match.matched_date == ""
-        assert match.matched_publisher == ""
+        assert match.matched_publisher is None
         assert match.publisher_score == 0.0
 
 
@@ -228,7 +229,7 @@ class TestMatchResultEdgeCases:
             source_id="",
             source_type="",
             matched_date="",
-            matched_publisher="",
+            matched_publisher=None,
         )
 
         assert match.matched_title == ""
@@ -236,7 +237,7 @@ class TestMatchResultEdgeCases:
         assert match.source_id == ""
         assert match.source_type == ""
         assert match.matched_date == ""
-        assert match.matched_publisher == ""
+        assert match.matched_publisher is None
 
     def test_match_result_with_unicode_characters(self):
         """Test MatchResult with Unicode characters"""

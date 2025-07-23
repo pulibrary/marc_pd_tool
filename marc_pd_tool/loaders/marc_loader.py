@@ -1,10 +1,10 @@
+# marc_pd_tool/loaders/marc_loader.py
+
 """MARC XML data extraction for publications"""
 
 # Standard library imports
 from logging import getLogger
 from pathlib import Path
-from typing import List
-from typing import Optional
 import xml.etree.ElementTree as ET
 
 # Local imports
@@ -15,22 +15,22 @@ from marc_pd_tool.utils.marc_utilities import extract_country_from_marc_008
 logger = getLogger(__name__)
 
 
-class ParallelMarcExtractor:
+class MarcLoader:
     def __init__(
         self,
         marc_path: str,
         batch_size: int = 1000,
-        min_year: int = None,
-        max_year: int = None,
+        min_year: int | None = None,
+        max_year: int | None = None,
         us_only: bool = False,
-    ):
+    ) -> None:
         self.marc_path = Path(marc_path)
         self.batch_size = batch_size
         self.min_year = min_year
         self.max_year = max_year
         self.us_only = us_only
 
-    def extract_all_batches(self) -> List[List[Publication]]:
+    def extract_all_batches(self) -> list[list[Publication]]:
         """Extract all MARC records and return as list of batches"""
         logger.info(f"Extracting all MARC records in batches of {self.batch_size}")
 
@@ -55,7 +55,6 @@ class ParallelMarcExtractor:
             logger.info(f"Processing MARC file: {marc_file.name}")
             try:
                 context = ET.iterparse(marc_file, events=("start", "end"))
-                context = iter(context)
                 event, root = next(context)
 
                 file_record_count = 0
@@ -111,7 +110,34 @@ class ParallelMarcExtractor:
             logger.info(f"Filtered out {filtered_count:,} records ({filter_text})")
         return batches
 
-    def _get_marc_files(self) -> List[Path]:
+    def _extract_marc_field(
+        self, record: ET.Element, ns: dict[str, str], tags: list[str], subfield_code: str
+    ) -> ET.Element | None:
+        """Extract a MARC field using pattern matching, trying multiple tags in order
+
+        Args:
+            record: MARC record element
+            ns: Namespace dictionary
+            tags: List of tags to try in order (e.g., ['264', '260'])
+            subfield_code: Subfield code to extract
+
+        Returns:
+            Element if found, None otherwise
+        """
+        for tag in tags:
+            # Try without namespace first
+            elem = record.find(f".//datafield[@tag='{tag}']/subfield[@code='{subfield_code}']")
+            if elem is not None:
+                return elem
+            # Try with namespace
+            elem = record.find(
+                f".//marc:datafield[@tag='{tag}']/marc:subfield[@code='{subfield_code}']", ns
+            )
+            if elem is not None:
+                return elem
+        return None
+
+    def _get_marc_files(self) -> list[Path]:
         """Get list of MARC XML files from path (file or directory)"""
         if self.marc_path.is_file():
             # Single file
@@ -122,14 +148,14 @@ class ParallelMarcExtractor:
                 return [self.marc_path]  # Try anyway
         elif self.marc_path.is_dir():
             # Directory - find all XML/MARCXML files
-            marc_files = []
+            marc_files: list[Path] = []
             for pattern in ["*.xml", "*.marcxml"]:
                 marc_files.extend(self.marc_path.glob(pattern))
             return sorted(marc_files)
         else:
             return []
 
-    def _extract_from_record(self, record) -> Optional[Publication]:
+    def _extract_from_record(self, record: ET.Element) -> Publication | None:
         try:
             ns = {"marc": "http://www.loc.gov/MARC21/slim"}
 
@@ -154,6 +180,14 @@ class ParallelMarcExtractor:
 
             title = " ".join(title_parts) if title_parts else ""
 
+            # Remove bracketed content from title (e.g., "[microform]", "[electronic resource]")
+            if title:
+                # Import here to avoid circular import issues
+                # Local imports
+                from marc_pd_tool.utils.text_utils import remove_bracketed_content
+
+                title = remove_bracketed_content(title)
+
             if not title:
                 return None
 
@@ -177,7 +211,7 @@ class ParallelMarcExtractor:
                 )
 
             if main_author_elem is not None:
-                main_author = main_author_elem.text
+                main_author = main_author_elem.text or ""
                 # Clean up dates from personal names (e.g., "Smith, John, 1945-" -> "Smith, John")
                 if main_author and "," in main_author:
                     parts = main_author.split(",")
@@ -195,7 +229,7 @@ class ParallelMarcExtractor:
                         ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
                     )
                 if main_author_elem is not None:
-                    main_author = main_author_elem.text
+                    main_author = main_author_elem.text or ""
 
             # If no 100 or 110, try 111$a (meeting name)
             if not main_author:
@@ -205,23 +239,13 @@ class ParallelMarcExtractor:
                         ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
                     )
                 if main_author_elem is not None:
-                    main_author = main_author_elem.text
+                    main_author = main_author_elem.text or ""
 
             # Ensure main_author is a string
             main_author = main_author if main_author else ""
 
             # Extract publication date (try 264 first, then 260)
-            pub_date_elem = record.find(".//datafield[@tag='264']/subfield[@code='c']")
-            if pub_date_elem is None:
-                pub_date_elem = record.find(
-                    ".//marc:datafield[@tag='264']/marc:subfield[@code='c']", ns
-                )
-            if pub_date_elem is None:
-                pub_date_elem = record.find(".//datafield[@tag='260']/subfield[@code='c']")
-            if pub_date_elem is None:
-                pub_date_elem = record.find(
-                    ".//marc:datafield[@tag='260']/marc:subfield[@code='c']", ns
-                )
+            pub_date_elem = self._extract_marc_field(record, ns, ["264", "260"], "c")
 
             # Get 008 field for both publication date and country extraction
             control_008 = record.find(".//controlfield[@tag='008']")
@@ -231,7 +255,7 @@ class ParallelMarcExtractor:
             if pub_date_elem is not None:
                 pub_date = pub_date_elem.text
             else:
-                if control_008 is not None and len(control_008.text) >= 11:
+                if control_008 is not None and control_008.text and len(control_008.text) >= 11:
                     pub_date = control_008.text[7:11]
                 else:
                     pub_date = ""
@@ -259,31 +283,11 @@ class ParallelMarcExtractor:
                     language_code = lang_041_elem.text.strip().lower()[:3]  # Take first 3 chars
 
             # Extract publisher (try 264 first, then 260)
-            publisher_elem = record.find(".//datafield[@tag='264']/subfield[@code='b']")
-            if publisher_elem is None:
-                publisher_elem = record.find(
-                    ".//marc:datafield[@tag='264']/marc:subfield[@code='b']", ns
-                )
-            if publisher_elem is None:
-                publisher_elem = record.find(".//datafield[@tag='260']/subfield[@code='b']")
-            if publisher_elem is None:
-                publisher_elem = record.find(
-                    ".//marc:datafield[@tag='260']/marc:subfield[@code='b']", ns
-                )
+            publisher_elem = self._extract_marc_field(record, ns, ["264", "260"], "b")
             publisher = publisher_elem.text if publisher_elem is not None else ""
 
             # Extract place (try 264 first, then 260)
-            place_elem = record.find(".//datafield[@tag='264']/subfield[@code='a']")
-            if place_elem is None:
-                place_elem = record.find(
-                    ".//marc:datafield[@tag='264']/marc:subfield[@code='a']", ns
-                )
-            if place_elem is None:
-                place_elem = record.find(".//datafield[@tag='260']/subfield[@code='a']")
-            if place_elem is None:
-                place_elem = record.find(
-                    ".//marc:datafield[@tag='260']/marc:subfield[@code='a']", ns
-                )
+            place_elem = self._extract_marc_field(record, ns, ["264", "260"], "a")
             place = place_elem.text if place_elem is not None else ""
 
             # Extract edition statement from field 250$a
@@ -300,6 +304,14 @@ class ParallelMarcExtractor:
                 control_001 = record.find(".//marc:controlfield[@tag='001']", ns)
             source_id = control_001.text if control_001 is not None else ""
 
+            # Extract LCCN from field 010$a
+            lccn_elem = record.find(".//datafield[@tag='010']/subfield[@code='a']")
+            if lccn_elem is None:
+                lccn_elem = record.find(
+                    ".//marc:datafield[@tag='010']/marc:subfield[@code='a']", ns
+                )
+            lccn = lccn_elem.text.strip() if lccn_elem is not None and lccn_elem.text else ""
+
             return Publication(
                 title=title,
                 author=author,
@@ -308,6 +320,7 @@ class ParallelMarcExtractor:
                 publisher=publisher,
                 place=place,
                 edition=edition,
+                lccn=lccn,
                 language_code=language_code,
                 source="MARC",
                 source_id=source_id,
@@ -315,7 +328,7 @@ class ParallelMarcExtractor:
                 country_classification=country_classification,
             )
 
-        except Exception as e:
+        except Exception:
             return None
 
     def _should_include_record(self, pub: Publication) -> bool:

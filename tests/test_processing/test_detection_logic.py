@@ -1,14 +1,13 @@
+# tests/test_processing/test_detection_logic.py
+
 """Tests for GenericTitleDetector detection logic and algorithms"""
 
 # Standard library imports
-from unittest.mock import Mock
-from unittest.mock import patch
 
 # Third party imports
-from pytest import fixture
 
 # Local imports
-from marc_pd_tool.processing.generic_title_detector import GenericTitleDetector
+from marc_pd_tool.processing.text_processing import GenericTitleDetector
 
 
 class TestDetectionAlgorithm:
@@ -243,11 +242,8 @@ class TestDetectionReasonLogic:
         predefined_titles = ["Collected Works", "Complete Poems", "Anthology"]
         for title in predefined_titles:
             reason = detector.get_detection_reason(title)
-            assert reason in [
-                "predefined_pattern",  # Updated to match the actual return value
-                "frequency",
-                "linguistic",
-            ], f"Unexpected reason '{reason}' for '{title}'"
+            # Should start with "pattern:" for pattern-based matches
+            assert reason.startswith("pattern:"), f"Unexpected reason '{reason}' for '{title}'"
 
     def test_reason_with_language_codes(self):
         """Test detection reasoning with different language codes"""

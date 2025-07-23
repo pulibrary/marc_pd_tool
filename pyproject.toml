@@ -1,19 +1,26 @@
 [project]
 name = "marc-pd-comparison-tool"
-version = "0.1.0"
+version = "0.0.1"
 description = "Compare MARC and public domain publication data"
 authors = [
     {name = "Jon Stroop", email = "jsgh@jopast.io"},
 ]
 dependencies = [
     "fuzzywuzzy>=0.18.0",
+    "openpyxl>=3.1.0",
+    "PyStemmer>=2.0.1",
     "python-levenshtein>=0.27.1",
+    "stop-words>=2018.7.23",
+    "unidecode>=1.3.0",
 ]
 
 requires-python = ">=3.13.5"
 readme = "README.md"
 license = "AGPL-3.0-only"
 license-files = ["LICENSE"]
+
+[project.scripts]
+marc-pd-tool = "marc_pd_tool.__main__:main"
 
 [dependency-groups]
 dev = [
@@ -22,7 +29,12 @@ dev = [
     "pytest>=8.4.1",
     "mdformat>=0.7.22",
     "mdformat-gfm>=0.4.1",
+    "mypy>=1.17.0",
+    "autoflake>=2.3.1",
+    "hypothesis>=6.136.6",
+    "pytest-cov>=6.2.1",
 ]
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
@@ -56,10 +68,102 @@ extensions = [
     "gfm"
 ]
 
+[tool.mypy]
+files = "marc_pd_tool"
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+disallow_any_expr = true
+disallow_any_explicit = true
+disallow_any_generics = true
+no_implicit_optional = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+# output formatting
+show_error_codes = true
+pretty = true
+error_summary = true
+show_error_context = true
+
+[[tool.mypy.overrides]]
+module = [
+    "fuzzywuzzy",
+    "unidecode",
+    "openpyxl",
+    "openpyxl.*",
+    "stop_words",
+]
+ignore_missing_imports = true
+
+
+[[tool.mypy.overrides]]
+module = [
+    "marc_pd_tool.cli.main",
+    "marc_pd_tool.infrastructure.run_index_manager",
+    "marc_pd_tool.infrastructure.config_loader",
+    "marc_pd_tool.loaders.renewal_loader",
+    "marc_pd_tool.processing.text_processing",
+    "marc_pd_tool.loaders.copyright_loader",
+    "marc_pd_tool.exporters.xlsx_exporter",
+    "marc_pd_tool.processing.similarity_calculator",
+    "marc_pd_tool.loaders.marc_loader",
+    "marc_pd_tool.exporters.csv_exporter",
+    "marc_pd_tool.processing.matching_engine",
+    "marc_pd_tool.processing.indexer",
+    "marc_pd_tool.infrastructure.cache_manager",
+    "marc_pd_tool.data.publication",
+    "stop_words",
+]
+disallow_any_expr = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+# Exclude submodules from test discovery
+norecursedirs = "nypl-ren nypl-reg .git .venv __pycache__ *.egg build dist .hypothesis"
+addopts = "-ra -q --cov=marc_pd_tool --cache-clear --cov-report=term-missing --no-cov-on-fail --tb=native -W error::DeprecationWarning"
+# Add current directory to Python path
+pythonpath = ["."]
+
+# https://pytest-cov.readthedocs.io/en/latest/config.html
+# https://coverage.readthedocs.io/en/latest/config.html 
+[tool.coverage.run]
+source = ["marc_pd_tool"]
+branch = true
+omit = [ ]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "pass",
+    "if TYPE_CHECKING:",
+    "# TYPE_CHECKING only imports",
+    "raise ImportError",
+    "raise NotImplementedError",
+    "except ImportError",
+    "@abstractmethod",
+]
+
 [tool.pdm.scripts]
 black = { cmd = "black ." }
 isort = { cmd = "isort ." }
-mdformat = { cmd = "mdformat ." }
+mdformat = { cmd = "mdformat . --exclude projects/*" }
+mypy = { cmd = "mypy --pretty --no-incremental --warn-unused-configs" }
+autoflake = { cmd = "autoflake . -i -r --remove-unused-variables --remove-all-unused-imports --ignore-pass-after-docstring --exclude ./.venv/*,./_scripts/*" }
+headers = { cmd = "python lint/add_file_headers.py" }
 test = { cmd = "pytest tests/ -v" }
 # Black can't ignore submodules. Below is the hack:
 submod_clean = { shell = "cd ./nypl-ren ; git checkout . -q ; cd ../nypl-reg ; git checkout . -q ; cd ../" }

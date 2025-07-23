@@ -1,15 +1,16 @@
+# tests/test_exporters/test_multiple_files.py
+
 """Tests for multiple CSV file output functionality"""
 
 # Standard library imports
-from csv import reader
 from os import unlink
 from os.path import exists
 from os.path import splitext
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CopyrightStatus
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv
 

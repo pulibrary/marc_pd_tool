@@ -1,17 +1,19 @@
+# marc_pd_tool/exporters/csv_exporter.py
+
 """CSV export functionality for publication match results"""
 
 # Standard library imports
 from csv import writer
 from os.path import splitext
-from typing import List
 
 # Local imports
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.utils.types import CSVWriter
 
 
 def save_matches_csv(
-    marc_publications: List[Publication], csv_file: str, single_file: bool = False
-):
+    marc_publications: list[Publication], csv_file: str, single_file: bool = False
+) -> None:
     """Save results to CSV file(s) with country and status information
 
     Args:
@@ -21,7 +23,7 @@ def save_matches_csv(
                     If False, create separate files by copyright status (default).
     """
 
-    def write_header(csv_writer):
+    def write_header(csv_writer: CSVWriter) -> None:
         """Write the CSV header row"""
         csv_writer.writerow(
             [
@@ -49,7 +51,10 @@ def save_matches_csv(
                 "Renewal Similarity Score",
                 "MARC Place",
                 "MARC Edition",
+                "MARC LCCN",
+                "MARC Normalized LCCN",
                 "Language Code",
+                "Language Detection Status",
                 "Country Code",
                 "Country Classification",
                 "Copyright Status",
@@ -59,19 +64,21 @@ def save_matches_csv(
                 "Renewal Generic Title",
                 "Registration Source ID",
                 "Renewal Entry ID",
+                "Registration Match Type",
+                "Renewal Match Type",
             ]
         )
 
     if single_file:
-        # Legacy behavior: single file with all records
+        # Single file mode: all records in one file
         with open(csv_file, "w", newline="", encoding="utf-8") as f:
             csv_writer = writer(f)
             write_header(csv_writer)
             _write_publications_to_csv(csv_writer, marc_publications)
     else:
-        # New behavior: separate files by copyright status
+        # Multiple files: separate files by copyright status
         # Group publications by copyright status
-        status_groups = {}
+        status_groups: dict[str, list[Publication]] = {}
         for pub in marc_publications:
             status = pub.copyright_status.value
             if status not in status_groups:
@@ -93,7 +100,7 @@ def save_matches_csv(
                 _write_publications_to_csv(csv_writer, publications)
 
 
-def _write_publications_to_csv(csv_writer, marc_publications: List[Publication]):
+def _write_publications_to_csv(csv_writer: CSVWriter, marc_publications: list[Publication]) -> None:
     """Helper function to write publication data to CSV writer"""
     for pub in marc_publications:
         # Get single match data for registration
@@ -110,7 +117,9 @@ def _write_publications_to_csv(csv_writer, marc_publications: List[Publication])
         reg_author_score = (
             f"{pub.registration_match.author_score:.1f}" if pub.registration_match else ""
         )
-        reg_publisher = pub.registration_match.matched_publisher if pub.registration_match else ""
+        reg_publisher = (
+            pub.registration_match.matched_publisher or "" if pub.registration_match else ""
+        )
         reg_publisher_score = (
             f"{pub.registration_match.publisher_score:.1f}" if pub.registration_match else ""
         )
@@ -127,7 +136,7 @@ def _write_publications_to_csv(csv_writer, marc_publications: List[Publication])
         ren_author_score = f"{pub.renewal_match.author_score:.1f}" if pub.renewal_match else ""
 
         # Get renewal publisher data
-        ren_publisher = pub.renewal_match.matched_publisher if pub.renewal_match else ""
+        ren_publisher = pub.renewal_match.matched_publisher or "" if pub.renewal_match else ""
         ren_publisher_score = (
             f"{pub.renewal_match.publisher_score:.1f}" if pub.renewal_match else ""
         )
@@ -158,7 +167,10 @@ def _write_publications_to_csv(csv_writer, marc_publications: List[Publication])
                 ren_similarity_score,
                 pub.original_place,
                 pub.original_edition,
+                pub.lccn or "",
+                pub.normalized_lccn or "",
                 pub.language_code,
+                pub.language_detection_status,
                 pub.country_code,
                 pub.country_classification.value,
                 pub.copyright_status.value,
@@ -168,5 +180,7 @@ def _write_publications_to_csv(csv_writer, marc_publications: List[Publication])
                 pub.renewal_generic_title,
                 reg_source_id,
                 ren_entry_id,
+                pub.registration_match.match_type if pub.registration_match else "",
+                pub.renewal_match.match_type if pub.renewal_match else "",
             ]
         )

@@ -1,12 +1,13 @@
+# tests/test_loaders/test_year_filtering.py
+
 """Tests for year filtering functionality in MARC extraction"""
 
 # Standard library imports
-from pathlib import Path
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.loaders.marc_extractor import ParallelMarcExtractor
+from marc_pd_tool.loaders.marc_loader import MarcLoader
 
 # pytest imported automatically by test runner
 
@@ -16,7 +17,7 @@ class TestYearFiltering:
 
     def test_should_include_record_no_filters(self):
         """Test that all records are included when no year filters are set"""
-        extractor = ParallelMarcExtractor("dummy_path")
+        extractor = MarcLoader("dummy_path")
 
         # Create test publications with different years
         pub_1940 = Publication(
@@ -38,7 +39,7 @@ class TestYearFiltering:
 
     def test_should_include_record_min_year_only(self):
         """Test filtering with only minimum year set"""
-        extractor = ParallelMarcExtractor("dummy_path", min_year=1950)
+        extractor = MarcLoader("dummy_path", min_year=1950)
 
         pub_1940 = Publication(
             "Test 1940", pub_date="1940", country_classification=CountryClassification.US
@@ -56,7 +57,7 @@ class TestYearFiltering:
 
     def test_should_include_record_max_year_only(self):
         """Test filtering with only maximum year set"""
-        extractor = ParallelMarcExtractor("dummy_path", max_year=1960)
+        extractor = MarcLoader("dummy_path", max_year=1960)
 
         pub_1940 = Publication(
             "Test 1940", pub_date="1940", country_classification=CountryClassification.US
@@ -74,7 +75,7 @@ class TestYearFiltering:
 
     def test_should_include_record_year_range(self):
         """Test filtering with both min and max year set (year range)"""
-        extractor = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
+        extractor = MarcLoader("dummy_path", min_year=1950, max_year=1960)
 
         pub_1940 = Publication(
             "Test 1940", pub_date="1940", country_classification=CountryClassification.US
@@ -100,7 +101,7 @@ class TestYearFiltering:
 
     def test_should_include_record_single_year(self):
         """Test filtering to a single year (min_year == max_year)"""
-        extractor = ParallelMarcExtractor("dummy_path", min_year=1955, max_year=1955)
+        extractor = MarcLoader("dummy_path", min_year=1955, max_year=1955)
 
         pub_1954 = Publication(
             "Test 1954", pub_date="1954", country_classification=CountryClassification.US
@@ -118,9 +119,9 @@ class TestYearFiltering:
 
     def test_should_include_record_no_year_always_included(self):
         """Test that records without publication years are always included"""
-        extractor_min = ParallelMarcExtractor("dummy_path", min_year=1950)
-        extractor_max = ParallelMarcExtractor("dummy_path", max_year=1960)
-        extractor_range = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
+        extractor_min = MarcLoader("dummy_path", min_year=1950)
+        extractor_max = MarcLoader("dummy_path", max_year=1960)
+        extractor_range = MarcLoader("dummy_path", min_year=1950, max_year=1960)
 
         pub_no_year = Publication("Test No Year", country_classification=CountryClassification.US)
 
@@ -130,30 +131,30 @@ class TestYearFiltering:
         assert extractor_range._should_include_record(pub_no_year) is True
 
     def test_extractor_constructor_accepts_max_year(self):
-        """Test that ParallelMarcExtractor constructor accepts max_year parameter"""
+        """Test that MarcLoader constructor accepts max_year parameter"""
         # Test with min_year only
-        extractor1 = ParallelMarcExtractor("dummy_path", min_year=1950)
+        extractor1 = MarcLoader("dummy_path", min_year=1950)
         assert extractor1.min_year == 1950
         assert extractor1.max_year is None
 
         # Test with max_year only
-        extractor2 = ParallelMarcExtractor("dummy_path", max_year=1960)
+        extractor2 = MarcLoader("dummy_path", max_year=1960)
         assert extractor2.min_year is None
         assert extractor2.max_year == 1960
 
         # Test with both min_year and max_year
-        extractor3 = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
+        extractor3 = MarcLoader("dummy_path", min_year=1950, max_year=1960)
         assert extractor3.min_year == 1950
         assert extractor3.max_year == 1960
 
         # Test with neither
-        extractor4 = ParallelMarcExtractor("dummy_path")
+        extractor4 = MarcLoader("dummy_path")
         assert extractor4.min_year is None
         assert extractor4.max_year is None
 
     def test_year_boundary_conditions(self):
         """Test boundary conditions for year filtering"""
-        extractor = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
+        extractor = MarcLoader("dummy_path", min_year=1950, max_year=1960)
 
         # Test exact boundaries
         pub_min_boundary = Publication(
@@ -180,7 +181,7 @@ class TestYearFiltering:
 
     def test_year_filtering_with_various_date_formats(self):
         """Test year filtering works with different publication date formats"""
-        extractor = ParallelMarcExtractor("dummy_path", min_year=1950, max_year=1960)
+        extractor = MarcLoader("dummy_path", min_year=1950, max_year=1960)
 
         # Test different date formats that should all extract to year 1955
         pub_year_only = Publication(
@@ -197,18 +198,3 @@ class TestYearFiltering:
         assert extractor._should_include_record(pub_year_only) is True
         assert extractor._should_include_record(pub_full_date) is True
         assert extractor._should_include_record(pub_complex_date) is True
-
-    def test_command_line_help_includes_max_year(self):
-        """Test that command line help includes max-year option"""
-        # Standard library imports
-        import subprocess
-
-        result = subprocess.run(
-            ["pdm", "run", "python", "compare.py", "--help"],
-            capture_output=True,
-            text=True,
-            cwd="/Users/jstroop/workspace/marc_pd_tool",
-        )
-
-        assert "--max-year" in result.stdout
-        assert "Maximum publication year to include" in result.stdout

@@ -1,4 +1,6 @@
-"""Publication matching engine for parallel batch processing"""
+# marc_pd_tool/processing/matching_engine.py
+
+"""Data matching engine for comparing MARC records against copyright/renewal data"""
 
 # Standard library imports
 from logging import Formatter
@@ -6,54 +8,505 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from os import getpid
-from re import split as re_split
-from typing import Dict
-from typing import List
-from typing import Optional
-from typing import Tuple
-
-# Third party imports
-from fuzzywuzzy import fuzz
+from typing import cast
 
 # Local imports
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.infrastructure.cache_manager import CacheManager
-from marc_pd_tool.processing.default_matching import DefaultMatchingEngine
-from marc_pd_tool.processing.generic_title_detector import GenericTitleDetector
-from marc_pd_tool.processing.matching_api import MatchingEngine
+from marc_pd_tool.infrastructure.config_loader import ConfigLoader
+from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
+from marc_pd_tool.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.processing.text_processing import extract_best_publisher_match
+from marc_pd_tool.utils.mixins import ConfigurableMixin
+from marc_pd_tool.utils.types import BatchProcessingInfo
+from marc_pd_tool.utils.types import BatchStats
+from marc_pd_tool.utils.types import MatchResultDict
 
 logger = getLogger(__name__)
 
 
-def extract_best_publisher_match(marc_publisher: str, full_text: str) -> str:
-    """Extract the best matching publisher snippet from full_text"""
-    if not marc_publisher or not full_text:
-        return ""
+class DataMatcher(ConfigurableMixin):
+    """Data matching engine for comparing MARC records against copyright/renewal data"""
 
-    # Split on common delimiters while keeping some context
-    segments = re_split(r"[,.;]\s*", full_text)
+    def __init__(
+        self,
+        similarity_calculator: SimilarityCalculator | None = None,
+        config: ConfigLoader | None = None,
+    ):
+        """Initialize with optional custom components and configuration
 
-    # Find the segment that best matches the MARC publisher
-    best_match = ""
-    best_score = 0
+        Args:
+            similarity_calculator: Custom similarity calculator
+            config: Configuration loader, uses default if None
+        """
+        self.config = self._init_config(config)
 
-    for segment in segments:
-        if len(segment.strip()) > 5:  # Skip very short segments
-            score = fuzz.partial_ratio(marc_publisher, segment)
-            if score > best_score:
-                best_score = score
-                best_match = segment.strip()
+        # Use default similarity calculator if none provided
+        if similarity_calculator is None:
+            similarity_calculator = SimilarityCalculator(self.config)
+        self.similarity_calculator = similarity_calculator
 
-    # If we found a good match, return it; otherwise return the MARC publisher
-    return best_match if best_score > 70 else marc_publisher
+        # Get adaptive scoring configuration
+        config_dict = self.config.get_config()
+
+        # Get weight values using safe navigation
+        title_weight = self._get_config_value(
+            config_dict, "matching.adaptive_weighting.title_weight", 0.5
+        )
+        self.default_title_weight = (
+            float(title_weight) if isinstance(title_weight, (int, float, str)) else 0.5
+        )
+
+        author_weight = self._get_config_value(
+            config_dict, "matching.adaptive_weighting.author_weight", 0.3
+        )
+        self.default_author_weight = (
+            float(author_weight) if isinstance(author_weight, (int, float, str)) else 0.3
+        )
+
+        publisher_weight = self._get_config_value(
+            config_dict, "matching.adaptive_weighting.publisher_weight", 0.2
+        )
+        self.default_publisher_weight = (
+            float(publisher_weight) if isinstance(publisher_weight, (int, float, str)) else 0.2
+        )
+
+        penalty = self._get_config_value(
+            config_dict, "matching.adaptive_weighting.generic_title_penalty", 0.8
+        )
+        self.generic_title_penalty = (
+            float(penalty) if isinstance(penalty, (int, float, str)) else 0.8
+        )
+
+    def find_best_match(
+        self,
+        marc_pub: Publication,
+        copyright_pubs: list[Publication],
+        title_threshold: int,
+        author_threshold: int,
+        year_tolerance: int,
+        publisher_threshold: int,
+        early_exit_title: int,
+        early_exit_author: int,
+        generic_detector: GenericTitleDetector | None = None,
+    ) -> MatchResultDict | None:
+        """Find the best matching copyright publication using word-based matching
+
+        This method maintains full compatibility with the existing API while using
+        the word-based matching algorithm with stemming and stopwords.
+
+        Args:
+            marc_pub: MARC publication to match
+            copyright_pubs: List of copyright/renewal publications to search
+            title_threshold: Minimum title similarity score (0-100)
+            author_threshold: Minimum author similarity score (0-100)
+            year_tolerance: Maximum year difference for matching
+            publisher_threshold: Minimum publisher similarity score (0-100)
+            early_exit_title: Title score for early termination (0-100)
+            early_exit_author: Author score for early termination (0-100)
+            generic_detector: Optional generic title detector
+
+        Returns:
+            Dictionary with match information or None if no match found
+        """
+        if not copyright_pubs:
+            return None
+
+        best_match = None
+        best_score = 0.0
+
+        for copyright_pub in copyright_pubs:
+            # Year filtering (maintain existing logic)
+            if marc_pub.year and copyright_pub.year:
+                year_diff = abs(marc_pub.year - copyright_pub.year)
+                if year_diff > year_tolerance:
+                    continue
+
+            # LCCN exact matching - highest priority with perfect score
+            if (
+                marc_pub.normalized_lccn
+                and copyright_pub.normalized_lccn
+                and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
+            ):
+                # Perfect match - return immediately with 100% scores
+                return self._create_match_result(
+                    copyright_pub,
+                    100.0,  # title_score
+                    100.0,  # author_score
+                    100.0,  # publisher_score
+                    100.0,  # combined_score
+                    marc_pub,
+                    generic_detector,
+                    is_lccn_match=True,
+                )
+
+            # Calculate individual similarity scores using word-based calculator with publication language
+            title_score = self.similarity_calculator.calculate_title_similarity(
+                marc_pub.title, copyright_pub.title, marc_pub.language_code
+            )
+
+            # Use dual author scoring with publication language
+            author_score = 0.0
+            has_author_data = False
+            if marc_pub.author and copyright_pub.author:
+                has_author_data = True
+                author_score = max(
+                    author_score,
+                    self.similarity_calculator.calculate_author_similarity(
+                        marc_pub.author, copyright_pub.author, marc_pub.language_code
+                    ),
+                )
+            if marc_pub.main_author and copyright_pub.author:
+                has_author_data = True
+                author_score = max(
+                    author_score,
+                    self.similarity_calculator.calculate_author_similarity(
+                        marc_pub.main_author, copyright_pub.author, marc_pub.language_code
+                    ),
+                )
+
+            # Publisher scoring with full_text support for renewals and publication language
+            publisher_score = self.similarity_calculator.calculate_publisher_similarity(
+                marc_pub.publisher,
+                copyright_pub.publisher,
+                getattr(copyright_pub, "full_text", ""),
+                marc_pub.language_code,
+            )
+
+            # Apply thresholds (maintain existing logic)
+            if title_score < title_threshold:
+                continue
+            # Only apply author threshold if there's author data to compare
+            if has_author_data and author_score < author_threshold:
+                continue
+            if (
+                publisher_score < publisher_threshold
+                and marc_pub.publisher
+                and copyright_pub.publisher
+            ):
+                continue
+
+            # Early exit conditions (maintain existing logic)
+            # For early exit, require both high title AND high author scores when author data exists
+            # If no author data, only require high title score
+            if title_score >= early_exit_title and (
+                not has_author_data or author_score >= early_exit_author
+            ):
+                # Found high-confidence match, return immediately
+                combined_score = self._combine_scores(
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    marc_pub,
+                    copyright_pub,
+                    generic_detector,
+                )
+
+                return self._create_match_result(
+                    copyright_pub,
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    combined_score,
+                    marc_pub,
+                    generic_detector,
+                )
+
+            # Combine scores using adaptive weighting
+            combined_score = self._combine_scores(
+                title_score,
+                author_score,
+                publisher_score,
+                marc_pub,
+                copyright_pub,
+                generic_detector,
+            )
+
+            # Track best match
+            if combined_score > best_score:
+                best_score = combined_score
+                best_match = self._create_match_result(
+                    copyright_pub,
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    combined_score,
+                    marc_pub,
+                    generic_detector,
+                )
+
+        return best_match
+
+    def find_best_match_ignore_thresholds(
+        self,
+        marc_pub: Publication,
+        copyright_pubs: list[Publication],
+        year_tolerance: int,
+        early_exit_title: int,
+        early_exit_author: int,
+        generic_detector: GenericTitleDetector | None = None,
+        minimum_combined_score: float | None = None,
+    ) -> MatchResultDict | None:
+        """Find the best matching copyright publication ignoring similarity thresholds
+
+        This method returns the highest-scoring match found, but can enforce
+        a minimum combined score. Used for threshold optimization analysis.
+
+        Args:
+            minimum_combined_score: Optional minimum combined score (0-100).
+                                  If provided, matches below this score are rejected.
+        """
+        best_match = None
+        best_score = -1.0  # Start with -1 so even 0 scores are captured
+
+        for copyright_pub in copyright_pubs:
+            # Check year tolerance filter (still applied even in score-everything mode)
+            if marc_pub.year and copyright_pub.year:
+                if abs(marc_pub.year - copyright_pub.year) > year_tolerance:
+                    continue
+
+            # LCCN exact matching - highest priority with perfect score
+            if (
+                marc_pub.normalized_lccn
+                and copyright_pub.normalized_lccn
+                and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
+            ):
+                # Perfect match - return immediately with 100% scores
+                return self._create_match_result(
+                    copyright_pub,
+                    100.0,  # title_score
+                    100.0,  # author_score
+                    100.0,  # publisher_score
+                    100.0,  # combined_score
+                    marc_pub,
+                    generic_detector,
+                    is_lccn_match=True,
+                )
+
+            # Calculate similarity scores using word-based approach
+            title_score = self.similarity_calculator.calculate_title_similarity(
+                marc_pub.title, copyright_pub.title, marc_pub.language_code or "eng"
+            )
+
+            # Use dual author scoring with publication language (same as regular find_best_match)
+            author_score = 0.0
+            if marc_pub.author and copyright_pub.author:
+                author_score = max(
+                    author_score,
+                    self.similarity_calculator.calculate_author_similarity(
+                        marc_pub.author, copyright_pub.author, marc_pub.language_code or "eng"
+                    ),
+                )
+            if marc_pub.main_author and copyright_pub.author:
+                author_score = max(
+                    author_score,
+                    self.similarity_calculator.calculate_author_similarity(
+                        marc_pub.main_author, copyright_pub.author, marc_pub.language_code or "eng"
+                    ),
+                )
+
+            publisher_score = self.similarity_calculator.calculate_publisher_similarity(
+                marc_pub.publisher,
+                copyright_pub.publisher,
+                getattr(copyright_pub, "full_text", ""),
+                marc_pub.language_code or "eng",
+            )
+
+            # Calculate combined weighted score using adaptive weighting
+            combined_score = self._combine_scores(
+                title_score,
+                author_score,
+                publisher_score,
+                marc_pub,
+                copyright_pub,
+                generic_detector,
+            )
+
+            # Always accept the best score found (no threshold requirements)
+            if combined_score > best_score:
+                best_score = combined_score
+                best_match = self._create_match_result(
+                    copyright_pub,
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    combined_score,
+                    marc_pub,
+                    generic_detector,
+                )
+
+                # Early termination: Only exit if we have BOTH title and author with very high confidence
+                has_author_data = (marc_pub.author and copyright_pub.author) or (
+                    marc_pub.main_author and copyright_pub.author
+                )
+                if (
+                    title_score >= early_exit_title
+                    and has_author_data
+                    and author_score >= early_exit_author
+                ):
+                    break
+
+        # Apply minimum combined score threshold if specified
+        if minimum_combined_score is not None and best_match:
+            if best_match["similarity_scores"]["combined"] < minimum_combined_score:
+                return None  # Reject match below minimum threshold
+
+        return best_match
+
+    def _combine_scores(
+        self,
+        title_score: float,
+        author_score: float,
+        publisher_score: float,
+        marc_pub: Publication,
+        copyright_pub: Publication,
+        generic_detector: GenericTitleDetector | None = None,
+    ) -> float:
+        """Combine individual scores using adaptive weighting
+
+        Redistributes weights when fields are missing to avoid zero penalties.
+
+        Args:
+            title_score: Title similarity score (0-100)
+            author_score: Author similarity score (0-100)
+            publisher_score: Publisher similarity score (0-100)
+            marc_pub: MARC publication object
+            copyright_pub: Copyright publication object
+            generic_detector: Optional generic title detector
+
+        Returns:
+            Combined weighted score (0-100)
+        """
+        # Start with default weights
+        title_weight = self.default_title_weight
+        author_weight = self.default_author_weight
+        publisher_weight = self.default_publisher_weight
+
+        # Check which fields are missing and redistribute weights
+        has_author = (marc_pub.author and copyright_pub.author) or (
+            marc_pub.main_author and copyright_pub.author
+        )
+        has_publisher = marc_pub.publisher and (
+            copyright_pub.publisher or getattr(copyright_pub, "full_text", "")
+        )
+
+        if not has_author and not has_publisher:
+            # Only title available - give it full weight
+            title_weight = 1.0
+            author_weight = 0.0
+            publisher_weight = 0.0
+        elif not has_author:
+            # Title and publisher available - redistribute author weight
+            title_weight += author_weight * 0.7  # Most to title
+            publisher_weight += author_weight * 0.3  # Some to publisher
+            author_weight = 0.0
+        elif not has_publisher:
+            # Title and author available - redistribute publisher weight
+            title_weight += publisher_weight * 0.6  # Most to title
+            author_weight += publisher_weight * 0.4  # Some to author
+            publisher_weight = 0.0
+
+        # Calculate base weighted score
+        weighted_score = (
+            title_score * title_weight
+            + author_score * author_weight
+            + publisher_score * publisher_weight
+        )
+
+        # Apply generic title penalty if either title is generic
+        if generic_detector:
+            marc_is_generic = generic_detector.is_generic(
+                marc_pub.title, marc_pub.language_code or "eng"
+            )
+            copyright_is_generic = generic_detector.is_generic(
+                copyright_pub.title, copyright_pub.language_code or "eng"
+            )
+
+            if marc_is_generic or copyright_is_generic:
+                weighted_score *= self.generic_title_penalty
+
+        return weighted_score
+
+    def _create_match_result(
+        self,
+        copyright_pub: Publication,
+        title_score: float,
+        author_score: float,
+        publisher_score: float,
+        combined_score: float,
+        marc_pub: Publication,
+        generic_detector: GenericTitleDetector | None,
+        is_lccn_match: bool = False,
+    ) -> MatchResultDict:
+        """Create match result dictionary (maintain existing format)
+
+        Args:
+            copyright_pub: Matched copyright publication
+            title_score: Title similarity score
+            author_score: Author similarity score
+            publisher_score: Publisher similarity score
+            combined_score: Combined similarity score
+            marc_pub: MARC publication object
+            generic_detector: Generic title detector
+
+        Returns:
+            Match result dictionary
+        """
+        result: MatchResultDict = {
+            "match": None,  # Will be set later if match is created
+            "copyright_record": {
+                "title": copyright_pub.original_title or copyright_pub.title,
+                "author": copyright_pub.original_author or copyright_pub.author,
+                "year": copyright_pub.year,
+                "publisher": copyright_pub.original_publisher or copyright_pub.publisher,
+                "source_id": copyright_pub.source_id or "",
+                "pub_date": copyright_pub.pub_date or "",
+                "full_text": getattr(copyright_pub, "full_text", ""),
+            },
+            "similarity_scores": {
+                "title": title_score,
+                "author": author_score,
+                "publisher": publisher_score,
+                "combined": combined_score,
+            },
+            "is_lccn_match": is_lccn_match,
+            "generic_title_info": None,  # Will be set if generic detector is used
+        }
+
+        # Add generic title detection info if available
+        if generic_detector:
+            marc_is_generic = generic_detector.is_generic(
+                marc_pub.title, marc_pub.language_code or "eng"
+            )
+            copyright_is_generic = generic_detector.is_generic(
+                copyright_pub.title, copyright_pub.language_code or "eng"
+            )
+
+            result["generic_title_info"] = {
+                "has_generic_title": marc_is_generic or copyright_is_generic,
+                "marc_title_is_generic": marc_is_generic,
+                "copyright_title_is_generic": copyright_is_generic,
+                "marc_detection_reason": (
+                    generic_detector.get_detection_reason(
+                        marc_pub.title, marc_pub.language_code or "eng"
+                    )
+                    if marc_is_generic
+                    else "none"
+                ),
+                "copyright_detection_reason": (
+                    generic_detector.get_detection_reason(
+                        copyright_pub.title, copyright_pub.language_code or "eng"
+                    )
+                    if copyright_is_generic
+                    else "none"
+                ),
+            }
+
+        return result
 
 
-def process_batch(
-    batch_info: Tuple[
-        int, List[Publication], str, str, str, str, Dict, int, int, int, int, int, int
-    ],
-) -> Tuple[int, List[Publication], Dict]:
+def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publication], BatchStats]:
     """
     Process a single batch of MARC records against pre-built indexes.
     This function runs in a separate process.
@@ -72,6 +525,9 @@ def process_batch(
         year_tolerance,
         early_exit_title,
         early_exit_author,
+        score_everything,
+        minimum_combined_score,
+        brute_force_missing_year,
     ) = batch_info
 
     # Set up logging for this process - needed for multiprocessing
@@ -95,9 +551,9 @@ def process_batch(
         # Prevent propagation to avoid duplicate messages
         process_logger.propagate = False
 
-    stats = {
+    stats: BatchStats = {
         "batch_id": batch_id,
-        "marc_count": len(marc_batch),
+        "marc_count": 0,  # Will be updated with actual processed count
         "registration_matches_found": 0,
         "renewal_matches_found": 0,
         "total_comparisons": 0,
@@ -134,14 +590,26 @@ def process_batch(
             f"Failed to load generic title detector from cache in worker process {batch_id}"
         )
 
+    renewal_size = renewal_index.size() if renewal_index else 0
     process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_index.size():,} renewal entries"
+        f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_size:,} renewal entries"
     )
 
     process_logger.debug(f"Batch {batch_id}/{total_batches}: Indexes loaded successfully")
 
+    # Initialize matching engine
+    matching_engine = DataMatcher()
+
+    # Track actually processed publications
+    processed_publications = []
+
     # Process each MARC record in the batch
     for i, marc_pub in enumerate(marc_batch):
+
+        # Skip records without year data unless brute-force mode is enabled
+        if marc_pub.year is None and not brute_force_missing_year:
+            process_logger.debug(f"Skipping MARC record {marc_pub.source_id} - no year data")
+            continue
 
         # Count by country classification
         if hasattr(marc_pub, "country_classification"):
@@ -154,17 +622,29 @@ def process_batch(
 
         # Find registration candidates using index
         reg_candidates = registration_index.get_candidates_list(marc_pub, year_tolerance)
-        reg_match = find_best_match(
-            marc_pub,
-            reg_candidates,
-            title_threshold,
-            author_threshold,
-            year_tolerance,
-            60,  # publisher_threshold
-            early_exit_title,
-            early_exit_author,
-            generic_detector,
-        )
+
+        if score_everything:
+            reg_match = matching_engine.find_best_match_ignore_thresholds(
+                marc_pub,
+                reg_candidates,
+                year_tolerance,
+                early_exit_title,
+                early_exit_author,
+                generic_detector,
+                minimum_combined_score,
+            )
+        else:
+            reg_match = matching_engine.find_best_match(
+                marc_pub,
+                reg_candidates,
+                title_threshold,
+                author_threshold,
+                year_tolerance,
+                60,  # publisher_threshold
+                early_exit_title,
+                early_exit_author,
+                generic_detector,
+            )
 
         # Note: Metaphone fallback matching removed to reduce false positives
 
@@ -185,38 +665,63 @@ def process_batch(
                 matched_publisher=reg_match["copyright_record"]["publisher"],
                 source_type="registration",
                 matched_date=reg_match["copyright_record"]["pub_date"],
+                match_type=(
+                    "lccn"
+                    if reg_match.get("is_lccn_match", False)
+                    else (
+                        "brute_force_without_year"
+                        if marc_pub.year is None and brute_force_missing_year
+                        else "similarity"
+                    )
+                ),
             )
             marc_pub.set_registration_match(match_result)
 
             # Store generic title detection info for registration match
             if "generic_title_info" in reg_match:
-                generic_info = reg_match["generic_title_info"]
-                if generic_info["has_generic_title"]:
+                generic_info = cast(dict[str, bool | str], reg_match["generic_title_info"])
+                if cast(bool, generic_info["has_generic_title"]):
                     marc_pub.generic_title_detected = True
                     marc_pub.registration_generic_title = True
                     # Use MARC detection reason if MARC title is generic, otherwise copyright reason
-                    if generic_info["marc_title_is_generic"]:
-                        marc_pub.generic_detection_reason = generic_info["marc_detection_reason"]
+                    if cast(bool, generic_info["marc_title_is_generic"]):
+                        marc_pub.generic_detection_reason = cast(
+                            str, generic_info["marc_detection_reason"]
+                        )
                     else:
-                        marc_pub.generic_detection_reason = generic_info[
-                            "copyright_detection_reason"
-                        ]
+                        marc_pub.generic_detection_reason = cast(
+                            str, generic_info["copyright_detection_reason"]
+                        )
 
             stats["registration_matches_found"] += 1
 
         # Find renewal candidates using index
-        ren_candidates = renewal_index.get_candidates_list(marc_pub, year_tolerance)
-        ren_match = find_best_match(
-            marc_pub,
-            ren_candidates,
-            title_threshold,
-            author_threshold,
-            year_tolerance,
-            60,  # publisher_threshold
-            early_exit_title,
-            early_exit_author,
-            generic_detector,
+        ren_candidates = (
+            renewal_index.get_candidates_list(marc_pub, year_tolerance) if renewal_index else []
         )
+
+        if score_everything:
+            ren_match = matching_engine.find_best_match_ignore_thresholds(
+                marc_pub,
+                ren_candidates,
+                year_tolerance,
+                early_exit_title,
+                early_exit_author,
+                generic_detector,
+                minimum_combined_score,
+            )
+        else:
+            ren_match = matching_engine.find_best_match(
+                marc_pub,
+                ren_candidates,
+                title_threshold,
+                author_threshold,
+                year_tolerance,
+                60,  # publisher_threshold
+                early_exit_title,
+                early_exit_author,
+                generic_detector,
+            )
 
         # Note: Metaphone fallback matching removed to reduce false positives
 
@@ -239,28 +744,36 @@ def process_batch(
                 ),
                 source_type="renewal",
                 matched_date=ren_match["copyright_record"]["pub_date"],
+                match_type=(
+                    "lccn"
+                    if ren_match.get("is_lccn_match", False)
+                    else (
+                        "brute_force_without_year"
+                        if marc_pub.year is None and brute_force_missing_year
+                        else "similarity"
+                    )
+                ),
             )
             marc_pub.set_renewal_match(match_result)
 
             # Store generic title detection info for renewal match
             if "generic_title_info" in ren_match:
-                generic_info = ren_match["generic_title_info"]
-                if generic_info["has_generic_title"]:
+                generic_info = cast(dict[str, bool | str], ren_match["generic_title_info"])
+                if cast(bool, generic_info["has_generic_title"]):
                     marc_pub.generic_title_detected = True
                     marc_pub.renewal_generic_title = True
                     # Update detection reason if not already set, or if MARC title is generic
-                    if (
-                        marc_pub.generic_detection_reason == "none"
-                        or generic_info["marc_title_is_generic"]
+                    if marc_pub.generic_detection_reason == "none" or cast(
+                        bool, generic_info["marc_title_is_generic"]
                     ):
-                        if generic_info["marc_title_is_generic"]:
-                            marc_pub.generic_detection_reason = generic_info[
-                                "marc_detection_reason"
-                            ]
+                        if cast(bool, generic_info["marc_title_is_generic"]):
+                            marc_pub.generic_detection_reason = cast(
+                                str, generic_info["marc_detection_reason"]
+                            )
                         else:
-                            marc_pub.generic_detection_reason = generic_info[
-                                "copyright_detection_reason"
-                            ]
+                            marc_pub.generic_detection_reason = cast(
+                                str, generic_info["copyright_detection_reason"]
+                            )
 
             stats["renewal_matches_found"] += 1
 
@@ -268,6 +781,12 @@ def process_batch(
 
         # Determine copyright status based on matches and country
         marc_pub.determine_copyright_status()
+
+        # Add to processed publications list
+        processed_publications.append(marc_pub)
+
+    # Update stats to reflect actual processed count
+    stats["marc_count"] = len(processed_publications)
 
     process_logger.debug(
         f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
@@ -278,51 +797,4 @@ def process_batch(
         f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
     )
 
-    return batch_id, marc_batch, stats
-
-
-def find_best_match(
-    marc_pub: Publication,
-    copyright_pubs: List[Publication],
-    title_threshold: int,
-    author_threshold: int,
-    year_tolerance: int,
-    publisher_threshold: int = 60,
-    early_exit_title: int = 95,
-    early_exit_author: int = 90,
-    generic_detector: GenericTitleDetector = None,
-    matching_engine: Optional[MatchingEngine] = None,
-) -> Optional[Dict]:
-    """Find the best matching copyright publication for a MARC record
-
-    This function maintains backward compatibility while delegating to the new API.
-
-    Args:
-        marc_pub: MARC publication to match
-        copyright_pubs: List of copyright/renewal publications to search
-        title_threshold: Minimum title similarity score (0-100)
-        author_threshold: Minimum author similarity score (0-100)
-        year_tolerance: Maximum year difference for matching
-        publisher_threshold: Minimum publisher similarity score (0-100)
-        early_exit_title: Title score for early termination (0-100)
-        early_exit_author: Author score for early termination (0-100)
-        generic_detector: Optional generic title detector
-        matching_engine: Optional custom matching engine (uses default if None)
-
-    Returns:
-        Dictionary with match information or None if no match found
-    """
-    if matching_engine is None:
-        matching_engine = DefaultMatchingEngine()
-
-    return matching_engine.find_best_match(
-        marc_pub,
-        copyright_pubs,
-        title_threshold,
-        author_threshold,
-        year_tolerance,
-        publisher_threshold,
-        early_exit_title,
-        early_exit_author,
-        generic_detector,
-    )
+    return batch_id, processed_publications, stats

@@ -1,10 +1,11 @@
+# tests/test_utils/test_country_extraction.py
+
 """Tests for MARC country extraction functionality"""
 
 # Third party imports
-from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.utils.marc_utilities import US_COUNTRY_CODES
 from marc_pd_tool.utils.marc_utilities import extract_country_from_marc_008
 

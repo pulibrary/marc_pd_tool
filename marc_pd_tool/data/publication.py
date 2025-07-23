@@ -1,16 +1,18 @@
+# marc_pd_tool/data/publication.py
+
 """Publication data model for MARC and Copyright entries"""
 
 # Standard library imports
 from dataclasses import dataclass
-from re import search
-from typing import Dict
-from typing import List
-from typing import Optional
 
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.utils.text_utils import normalize_text
+from marc_pd_tool.utils.marc_utilities import extract_language_from_marc
+from marc_pd_tool.utils.text_utils import extract_year
+from marc_pd_tool.utils.text_utils import normalize_lccn
+from marc_pd_tool.utils.text_utils import normalize_text_comprehensive
+from marc_pd_tool.utils.types import JSONDict
 
 
 @dataclass(slots=True)
@@ -26,8 +28,9 @@ class MatchResult:
     source_id: str
     source_type: str
     matched_date: str = ""  # Source publication/registration date
-    matched_publisher: str = ""  # Source publisher
+    matched_publisher: str | None = None  # Source publisher
     publisher_score: float = 0.0  # Publisher similarity score
+    match_type: str = "similarity"  # Type of match: "lccn" or "similarity"
 
 
 class Publication:
@@ -39,7 +42,10 @@ class Publication:
         "original_publisher",
         "original_place",
         "original_edition",
+        "lccn",
+        "normalized_lccn",
         "language_code",
+        "language_detection_status",
         "source",
         "source_id",
         "full_text",
@@ -64,18 +70,19 @@ class Publication:
     def __init__(
         self,
         title: str,
-        author: Optional[str] = None,
-        main_author: Optional[str] = None,
-        pub_date: Optional[str] = None,
-        publisher: Optional[str] = None,
-        place: Optional[str] = None,
-        edition: Optional[str] = None,
-        language_code: Optional[str] = None,
-        source: Optional[str] = None,
-        source_id: Optional[str] = None,
-        country_code: Optional[str] = None,
+        author: str | None = None,
+        main_author: str | None = None,
+        pub_date: str | None = None,
+        publisher: str | None = None,
+        place: str | None = None,
+        edition: str | None = None,
+        lccn: str | None = None,
+        language_code: str | None = None,
+        source: str | None = None,
+        source_id: str | None = None,
+        country_code: str | None = None,
         country_classification: CountryClassification = CountryClassification.UNKNOWN,
-        full_text: Optional[str] = None,
+        full_text: str | None = None,
     ):
         # Store original values, using None for missing data instead of empty strings
         self.original_title = title
@@ -85,7 +92,23 @@ class Publication:
         self.original_publisher = publisher if publisher else None
         self.original_place = place if place else None
         self.original_edition = edition if edition else None
-        self.language_code = language_code.lower() if language_code else None
+        self.lccn = lccn if lccn else None
+
+        # Normalize LCCN if provided
+        if self.lccn:
+            self.normalized_lccn = normalize_lccn(self.lccn)
+        else:
+            self.normalized_lccn = ""
+
+        # Process language code using MARC language mapping
+        if language_code:
+            self.language_code, self.language_detection_status = extract_language_from_marc(
+                language_code
+            )
+        else:
+            self.language_code = "eng"
+            self.language_detection_status = "fallback_english"
+
         self.source = source if source else None
         self.source_id = source_id if source_id else None
         self.full_text = full_text if full_text else None
@@ -98,8 +121,8 @@ class Publication:
         self.country_classification = country_classification
 
         # Match tracking - single best match only
-        self.registration_match: Optional[MatchResult] = None
-        self.renewal_match: Optional[MatchResult] = None
+        self.registration_match: MatchResult | None = None
+        self.renewal_match: MatchResult | None = None
 
         # Generic title detection info (populated during matching)
         self.generic_title_detected = False
@@ -111,19 +134,21 @@ class Publication:
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
         # Initialize cached normalized text fields (computed lazily)
-        self._cached_title = None
-        self._cached_author = None
-        self._cached_main_author = None
-        self._cached_publisher = None
-        self._cached_place = None
-        self._cached_edition = None
+        self._cached_title: str | None = None
+        self._cached_author: str | None = None
+        self._cached_main_author: str | None = None
+        self._cached_publisher: str | None = None
+        self._cached_place: str | None = None
+        self._cached_edition: str | None = None
 
     # Properties for normalized text fields (cached after first access)
     @property
     def title(self) -> str:
         """Normalized title for matching"""
         if self._cached_title is None:
-            self._cached_title = normalize_text(self.original_title) if self.original_title else ""
+            self._cached_title = (
+                normalize_text_comprehensive(self.original_title) if self.original_title else ""
+            )
         return self._cached_title
 
     @property
@@ -131,7 +156,7 @@ class Publication:
         """Normalized author for matching"""
         if self._cached_author is None:
             self._cached_author = (
-                normalize_text(self.original_author) if self.original_author else ""
+                normalize_text_comprehensive(self.original_author) if self.original_author else ""
             )
         return self._cached_author
 
@@ -140,7 +165,9 @@ class Publication:
         """Normalized main author for matching"""
         if self._cached_main_author is None:
             self._cached_main_author = (
-                normalize_text(self.original_main_author) if self.original_main_author else ""
+                normalize_text_comprehensive(self.original_main_author)
+                if self.original_main_author
+                else ""
             )
         return self._cached_main_author
 
@@ -149,7 +176,9 @@ class Publication:
         """Normalized publisher for matching"""
         if self._cached_publisher is None:
             self._cached_publisher = (
-                normalize_text(self.original_publisher) if self.original_publisher else ""
+                normalize_text_comprehensive(self.original_publisher)
+                if self.original_publisher
+                else ""
             )
         return self._cached_publisher
 
@@ -157,7 +186,9 @@ class Publication:
     def place(self) -> str:
         """Normalized place for matching"""
         if self._cached_place is None:
-            self._cached_place = normalize_text(self.original_place) if self.original_place else ""
+            self._cached_place = (
+                normalize_text_comprehensive(self.original_place) if self.original_place else ""
+            )
         return self._cached_place
 
     @property
@@ -165,18 +196,13 @@ class Publication:
         """Normalized edition for matching"""
         if self._cached_edition is None:
             self._cached_edition = (
-                normalize_text(self.original_edition) if self.original_edition else ""
+                normalize_text_comprehensive(self.original_edition) if self.original_edition else ""
             )
         return self._cached_edition
 
-    def extract_year(self) -> Optional[int]:
-        if not self.pub_date:
-            return None
-        # Expanded to handle historical publications from 1800s onward
-        year_match = search(r"\b(18|19|20)\d{2}\b", self.pub_date)
-        if year_match:
-            return int(year_match.group())
-        return None
+    def extract_year(self) -> int | None:
+        """Extract year from publication date using centralized extraction logic"""
+        return extract_year(self.pub_date) if self.pub_date else None
 
     def set_registration_match(self, match: MatchResult) -> None:
         """Set the best registration match"""
@@ -201,51 +227,47 @@ class Publication:
         has_reg = self.has_registration_match()
         has_ren = self.has_renewal_match()
 
-        if self.country_classification == CountryClassification.US:
-            # Special rule for US works published 1930-1963
-            if self.year and 1930 <= self.year <= 1963:
-                if has_reg and not has_ren:
-                    # US works 1930-1963 with registration but no renewal are PD
-                    self.copyright_status = CopyrightStatus.PD_NO_RENEWAL
-                elif has_ren:
-                    # US works 1930-1963 that were renewed are likely still copyrighted
-                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                else:
-                    # US works 1930-1963 with no registration/renewal need verification
-                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-            else:
-                # General US records logic for other years
-                if has_reg and not has_ren:
-                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-                elif has_ren and not has_reg:
-                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                elif not has_reg and not has_ren:
-                    self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-                else:  # has both
-                    self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        match (self.country_classification, self.year, has_reg, has_ren):
+            # US works 1930-1963 with specific registration/renewal patterns
+            case (CountryClassification.US, year, True, False) if year and 1930 <= year <= 1963:
+                # US works 1930-1963 with registration but no renewal are PD
+                self.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+            case (CountryClassification.US, year, _, True) if year and 1930 <= year <= 1963:
+                # US works 1930-1963 that were renewed are likely still copyrighted
+                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+            case (CountryClassification.US, year, False, False) if year and 1930 <= year <= 1963:
+                # US works 1930-1963 with no registration/renewal need verification
+                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
 
-        elif self.country_classification == CountryClassification.NON_US:
-            # Non-US records logic
-            if has_reg or has_ren:
+            # General US records for other years
+            case (CountryClassification.US, _, True, False):
+                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+            case (CountryClassification.US, _, False, True):
+                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+            case (CountryClassification.US, _, False, False):
+                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+            case (CountryClassification.US, _, True, True):
+                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+
+            # Non-US records
+            case (CountryClassification.NON_US, _, _, _) if has_reg or has_ren:
                 self.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
-            else:
+            case (CountryClassification.NON_US, _, _, _):
                 self.copyright_status = CopyrightStatus.RESEARCH_US_ONLY_PD
-        else:
-            # Unknown country - still track matches but can't determine status
-            self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
+
+            # Unknown country
+            case _:
+                # Unknown country - still track matches but can't determine status
+                self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
 
         return self.copyright_status
 
-    @staticmethod
-    def normalize_text(text: str) -> str:
-        """Static method for tests that expect this interface"""
-        return normalize_text(text)
-
-    def __getstate__(self):
+    def __getstate__(self) -> JSONDict:
         """Support for pickle serialization with __slots__"""
+        # Use type: ignore for getattr with default None to avoid Any propagation
         return {slot: getattr(self, slot, None) for slot in self.__slots__}
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: JSONDict) -> None:
         """Support for pickle deserialization with __slots__"""
         for slot, value in state.items():
             setattr(self, slot, value)
@@ -261,7 +283,7 @@ class Publication:
         ]:
             setattr(self, attr, None)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict[str, str | int | None | dict[str, str | float | int]]:
         return {
             "title": self.original_title,
             "author": self.original_author,
@@ -270,6 +292,8 @@ class Publication:
             "publisher": self.original_publisher,
             "place": self.original_place,
             "edition": self.original_edition,
+            "lccn": self.lccn,
+            "normalized_lccn": self.normalized_lccn,
             "language_code": self.language_code,
             "source": self.source,
             "source_id": self.source_id,
