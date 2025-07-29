@@ -8,6 +8,7 @@ from dataclasses import dataclass
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.utils.marc_utilities import extract_language_from_marc
 from marc_pd_tool.utils.text_utils import extract_year
 from marc_pd_tool.utils.text_utils import normalize_lccn
@@ -30,7 +31,9 @@ class MatchResult:
     matched_date: str = ""  # Source publication/registration date
     matched_publisher: str | None = None  # Source publisher
     publisher_score: float = 0.0  # Publisher similarity score
-    match_type: str = "similarity"  # Type of match: "lccn" or "similarity"
+    match_type: MatchType = (
+        MatchType.SIMILARITY
+    )  # Type of match (LCCN, SIMILARITY, or BRUTE_FORCE_WITHOUT_YEAR)
 
 
 class Publication:

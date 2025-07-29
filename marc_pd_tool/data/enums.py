@@ -23,3 +23,11 @@ class CopyrightStatus(Enum):
     RESEARCH_US_STATUS = "RESEARCH_US_STATUS"
     RESEARCH_US_ONLY_PD = "RESEARCH_US_ONLY_PD"
     COUNTRY_UNKNOWN = "COUNTRY_UNKNOWN"
+
+
+class MatchType(Enum):
+    """Type of match found between MARC record and copyright/renewal data"""
+
+    LCCN = "lccn"  # Match based on Library of Congress Control Number
+    SIMILARITY = "similarity"  # Match based on title/author similarity scores
+    BRUTE_FORCE_WITHOUT_YEAR = "brute_force_without_year"  # Match for records without year data

@@ -8,6 +8,7 @@
 from pytest import fixture
 
 # Local imports
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.processing.matching_engine import process_batch
 
@@ -332,4 +333,4 @@ class TestSkipNoYearRecords:
         # Check that the match was found and has the correct match type
         assert len(processed_pubs) == 1
         assert processed_pubs[0].registration_match is not None
-        assert processed_pubs[0].registration_match.match_type == "brute_force_without_year"
+        assert processed_pubs[0].registration_match.match_type == MatchType.BRUTE_FORCE_WITHOUT_YEAR

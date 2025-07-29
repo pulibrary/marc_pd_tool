@@ -286,7 +286,7 @@ class XLSXExporter:
         reg_publisher_score = (
             pub.registration_match.publisher_score if pub.registration_match else None
         )
-        reg_match_type = pub.registration_match.match_type if pub.registration_match else ""
+        reg_match_type = pub.registration_match.match_type.value if pub.registration_match else ""
 
         # Renewal match data
         ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
@@ -298,7 +298,7 @@ class XLSXExporter:
         ren_author_score = pub.renewal_match.author_score if pub.renewal_match else None
         ren_publisher = pub.renewal_match.matched_publisher or "" if pub.renewal_match else ""
         ren_publisher_score = pub.renewal_match.publisher_score if pub.renewal_match else None
-        ren_match_type = pub.renewal_match.match_type if pub.renewal_match else ""
+        ren_match_type = pub.renewal_match.match_type.value if pub.renewal_match else ""
 
         # Write data with appropriate types
         data = [

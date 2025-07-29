@@ -138,7 +138,7 @@ def _publication_to_dict(pub: Publication) -> JSONDict:
                 "author": pub.registration_match.author_score,
                 "publisher": pub.registration_match.publisher_score,
             },
-            "match_type": pub.registration_match.match_type,
+            "match_type": pub.registration_match.match_type.value,
         }
 
     # Add renewal match if exists
@@ -155,7 +155,7 @@ def _publication_to_dict(pub: Publication) -> JSONDict:
                 "author": pub.renewal_match.author_score,
                 "publisher": pub.renewal_match.publisher_score,
             },
-            "match_type": pub.renewal_match.match_type,
+            "match_type": pub.renewal_match.match_type.value,
         }
 
     return cast(JSONDict, data)

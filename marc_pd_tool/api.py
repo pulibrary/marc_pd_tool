@@ -12,6 +12,7 @@ from logging import getLogger
 from typing import cast
 
 # Local imports
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters import XLSXExporter
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv
@@ -489,9 +490,11 @@ class MarcCopyrightAnalyzer:
             source_type=match_type,
             matched_date=match_result["copyright_record"]["pub_date"],
             match_type=(
-                "lccn"
+                MatchType.LCCN
                 if match_result.get("is_lccn_match", False)
-                else ("brute_force_without_year" if pub.year is None else "similarity")
+                else (
+                    MatchType.BRUTE_FORCE_WITHOUT_YEAR if pub.year is None else MatchType.SIMILARITY
+                )
             ),
         )
 

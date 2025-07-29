@@ -11,6 +11,7 @@ from os import getpid
 from typing import cast
 
 # Local imports
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.infrastructure.cache_manager import CacheManager
@@ -666,12 +667,12 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
                 source_type="registration",
                 matched_date=reg_match["copyright_record"]["pub_date"],
                 match_type=(
-                    "lccn"
+                    MatchType.LCCN
                     if reg_match.get("is_lccn_match", False)
                     else (
-                        "brute_force_without_year"
+                        MatchType.BRUTE_FORCE_WITHOUT_YEAR
                         if marc_pub.year is None and brute_force_missing_year
-                        else "similarity"
+                        else MatchType.SIMILARITY
                     )
                 ),
             )
@@ -745,12 +746,12 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
                 source_type="renewal",
                 matched_date=ren_match["copyright_record"]["pub_date"],
                 match_type=(
-                    "lccn"
+                    MatchType.LCCN
                     if ren_match.get("is_lccn_match", False)
                     else (
-                        "brute_force_without_year"
+                        MatchType.BRUTE_FORCE_WITHOUT_YEAR
                         if marc_pub.year is None and brute_force_missing_year
-                        else "similarity"
+                        else MatchType.SIMILARITY
                     )
                 ),
             )

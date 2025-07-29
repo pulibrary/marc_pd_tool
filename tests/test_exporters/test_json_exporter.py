@@ -15,6 +15,7 @@ import pytest
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters.json_exporter import save_matches_json
@@ -56,7 +57,7 @@ def sample_publications():
         author_score=92.0,
         publisher_score=90.0,
         year_difference=0,
-        match_type="similarity",
+        match_type=MatchType.SIMILARITY,
     )
 
     # Publication with renewal match
@@ -92,7 +93,7 @@ def sample_publications():
         author_score=86.0,
         publisher_score=0.0,
         year_difference=0,
-        match_type="similarity",
+        match_type=MatchType.SIMILARITY,
     )
 
     # Publication with no matches

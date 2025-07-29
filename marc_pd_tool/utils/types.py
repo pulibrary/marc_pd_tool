@@ -222,7 +222,7 @@ class ThresholdRecommendation(TypedDict):
 # Batch processing info type
 BatchProcessingInfo = tuple[
     int,  # batch_id (i + 1)
-    list[Publication],  # batch
+    list["Publication"],  # batch
     str,  # worker_cache_dir
     str,  # copyright_dir
     str,  # renewal_dir

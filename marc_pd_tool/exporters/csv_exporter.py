@@ -180,7 +180,7 @@ def _write_publications_to_csv(csv_writer: CSVWriter, marc_publications: list[Pu
                 pub.renewal_generic_title,
                 reg_source_id,
                 ren_entry_id,
-                pub.registration_match.match_type if pub.registration_match else "",
-                pub.renewal_match.match_type if pub.renewal_match else "",
+                pub.registration_match.match_type.value if pub.registration_match else "",
+                pub.renewal_match.match_type.value if pub.renewal_match else "",
             ]
         )
