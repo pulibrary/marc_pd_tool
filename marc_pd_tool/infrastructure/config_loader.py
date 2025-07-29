@@ -89,7 +89,7 @@ class ConfigLoader:
             "processing": {
                 "batch_size": 200,
                 "max_workers": None,
-                "score_everything": False,
+                "score_everything_mode": False,
                 "brute_force_missing_year": False,
             },
             "filtering": {"min_year": None, "max_year": None, "us_only": False},
@@ -260,7 +260,7 @@ class ConfigLoader:
         """Get processing configuration
 
         Returns:
-            Dictionary with batch_size, max_workers, score_everything, brute_force_missing_year
+            Dictionary with batch_size, max_workers, score_everything_mode, brute_force_missing_year
         """
         processing = self._config.get("processing", {})
         if isinstance(processing, dict):

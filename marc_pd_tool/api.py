@@ -13,6 +13,9 @@ from typing import cast
 
 # Local imports
 from marc_pd_tool.data.enums import MatchType
+from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
+from marc_pd_tool.data.ground_truth import GroundTruthPair
+from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters import XLSXExporter
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv
@@ -22,9 +25,11 @@ from marc_pd_tool.infrastructure.config_loader import get_config
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
 from marc_pd_tool.loaders.marc_loader import MarcLoader
 from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
 from marc_pd_tool.processing.indexer import DataIndexer
 from marc_pd_tool.processing.indexer import build_wordbased_index
 from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.processing.score_analyzer import ScoreAnalyzer
 from marc_pd_tool.processing.text_processing import GenericTitleDetector
 from marc_pd_tool.utils.types import AnalysisOptions
 from marc_pd_tool.utils.types import JSONDict
@@ -53,6 +58,9 @@ class AnalysisResults:
             "research_us_only_pd": 0,
             "country_unknown": 0,
         }
+        self.ground_truth_analysis: GroundTruthAnalysis | None = None
+        self.ground_truth_pairs: list[GroundTruthPair] | None = None
+        self.ground_truth_stats: GroundTruthStats | None = None
 
     def add_publication(self, pub: Publication) -> None:
         """Add a publication to results and update statistics"""
@@ -162,8 +170,8 @@ class MarcCopyrightAnalyzer:
                 - author_threshold: Author similarity threshold (default: 30)
                 - early_exit_title: Early exit title threshold (default: 95)
                 - early_exit_author: Early exit author threshold (default: 90)
-                - score_everything: Find best match regardless of thresholds
-                - minimum_combined_score: Minimum score for score_everything mode
+                - score_everything_mode: Find best match regardless of thresholds
+                - minimum_combined_score: Minimum score for score_everything_mode mode
                 - brute_force_missing_year: Process records without years
                 - format: Output format ('csv', 'xlsx', 'json')
                 - single_file: Export all results to single file
@@ -240,10 +248,10 @@ class MarcCopyrightAnalyzer:
         author_threshold = options.get("author_threshold", 30)
         early_exit_title = options.get("early_exit_title", 95)
         early_exit_author = options.get("early_exit_author", 90)
-        score_everything = options.get("score_everything", False)
+        score_everything_mode = options.get("score_everything_mode", False)
         minimum_combined_score_raw = options.get("minimum_combined_score", 40)
         minimum_combined_score = (
-            float(cast(int | float, minimum_combined_score_raw)) if score_everything else None
+            float(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
 
@@ -262,7 +270,7 @@ class MarcCopyrightAnalyzer:
             if self.registration_index is not None:
                 reg_candidates = self.registration_index.get_candidates_list(pub, year_tolerance)
 
-            if score_everything:
+            if score_everything_mode:
                 reg_match = matching_engine.find_best_match_ignore_thresholds(
                     pub,
                     reg_candidates,
@@ -293,7 +301,7 @@ class MarcCopyrightAnalyzer:
             if self.renewal_index is not None:
                 ren_candidates = self.renewal_index.get_candidates_list(pub, year_tolerance)
 
-            if score_everything:
+            if score_everything_mode:
                 ren_match = matching_engine.find_best_match_ignore_thresholds(
                     pub,
                     ren_candidates,
@@ -352,7 +360,7 @@ class MarcCopyrightAnalyzer:
             save_matches_csv(self.results.publications, output_path, single_file=single_file)
         elif format == "xlsx":
             exporter = XLSXExporter(
-                self.results.publications, output_path, score_everything=single_file
+                self.results.publications, output_path, score_everything_mode=single_file
             )
             exporter.export()
         elif format == "json":
@@ -527,3 +535,188 @@ class MarcCopyrightAnalyzer:
         # Create a stable string representation
         config_str = dumps(config_dict, sort_keys=True)
         return md5(config_str.encode()).hexdigest()
+
+    def extract_ground_truth(
+        self,
+        marc_path: str,
+        copyright_dir: str | None = None,
+        renewal_dir: str | None = None,
+        min_year: int | None = None,
+        max_year: int | None = None,
+    ) -> tuple[list[GroundTruthPair], GroundTruthStats]:
+        """Extract LCCN-verified ground truth pairs
+
+        Args:
+            marc_path: Path to MARC XML file
+            copyright_dir: Directory containing copyright XML files
+            renewal_dir: Directory containing renewal TSV files
+            min_year: Minimum publication year filter
+            max_year: Maximum publication year filter
+
+        Returns:
+            Tuple of (ground_truth_pairs, statistics)
+        """
+        # Set data directories
+        if copyright_dir:
+            self.copyright_dir = copyright_dir
+        if renewal_dir:
+            self.renewal_dir = renewal_dir
+
+        # Load MARC data
+        logger.info(f"Loading MARC records from {marc_path}")
+        marc_loader = MarcLoader(
+            marc_path=marc_path, batch_size=1000, min_year=min_year, max_year=max_year
+        )
+        marc_batches = marc_loader.extract_all_batches()
+
+        # Load copyright and renewal data if not already loaded
+        if not self.copyright_data or not self.renewal_data:
+            self._load_and_index_data({"min_year": min_year, "max_year": max_year})
+
+        # Extract ground truth pairs
+        extractor = GroundTruthExtractor()
+        ground_truth_pairs, stats = extractor.extract_ground_truth_pairs(
+            marc_batches, self.copyright_data or [], self.renewal_data
+        )
+
+        # Apply filters if specified
+        if min_year is not None or max_year is not None:
+            ground_truth_pairs = extractor.filter_by_year_range(
+                ground_truth_pairs, min_year, max_year
+            )
+
+        # Store in results
+        self.results.ground_truth_pairs = ground_truth_pairs
+        self.results.ground_truth_stats = stats
+
+        return ground_truth_pairs, stats
+
+    def analyze_ground_truth_scores(
+        self, ground_truth_pairs: list[GroundTruthPair] | None = None
+    ) -> GroundTruthAnalysis:
+        """Analyze similarity scores for ground truth pairs
+
+        Args:
+            ground_truth_pairs: List of ground truth pairs (uses stored pairs if None)
+
+        Returns:
+            Complete analysis with score distributions
+        """
+        if ground_truth_pairs is None:
+            ground_truth_pairs = self.results.ground_truth_pairs or []
+
+        if not ground_truth_pairs:
+            raise ValueError("No ground truth pairs available for analysis")
+
+        # Analyze scores
+        analyzer = ScoreAnalyzer()
+        analysis = analyzer.analyze_ground_truth_scores(ground_truth_pairs)
+
+        # Store in results
+        self.results.ground_truth_analysis = analysis
+
+        return analysis
+
+    def export_ground_truth_analysis(self, output_path: str, output_format: str = "csv") -> None:
+        """Export ground truth analysis results
+
+        Args:
+            output_path: Path for output file
+            output_format: Output format ('csv', 'xlsx', 'json')
+        """
+        if not self.results.ground_truth_analysis:
+            raise ValueError("No ground truth analysis available to export")
+
+        analyzer = ScoreAnalyzer()
+
+        # Always log the analysis report
+        report = analyzer.generate_analysis_report(self.results.ground_truth_analysis)
+        logger.info("\n" + report)
+
+        # Export based on format
+        if output_format in ("csv", "xlsx"):
+            # Use standard exporters for ground truth pairs
+            if self.results.ground_truth_pairs:
+                # Convert GroundTruthPair objects to Publication list
+                publications = []
+                for pair in self.results.ground_truth_pairs:
+                    # The MARC record already has the match result populated
+                    publications.append(pair.marc_record)
+
+                # Use standard export methods
+                if output_format == "csv":
+                    save_matches_csv(publications, output_path, single_file=True)
+                else:  # xlsx
+                    exporter = XLSXExporter(publications, output_path)
+                    exporter.export()
+
+        elif output_format == "json":
+            # Export full analysis as JSON
+            self._export_ground_truth_json(output_path)
+        else:
+            raise ValueError(f"Unsupported output format: {output_format}")
+
+    def _export_ground_truth_json(self, output_path: str) -> None:
+        """Export ground truth analysis as JSON"""
+        # Standard library imports
+        from json import dumps
+
+        if not self.results.ground_truth_analysis:
+            return
+
+        analysis = self.results.ground_truth_analysis
+
+        data = {
+            "statistics": {
+                "total_pairs": analysis.total_pairs,
+                "registration_pairs": analysis.registration_pairs,
+                "renewal_pairs": analysis.renewal_pairs,
+            },
+            "score_distributions": {
+                "title": {
+                    "mean": analysis.title_distribution.mean_score,
+                    "median": analysis.title_distribution.median_score,
+                    "min": analysis.title_distribution.min_score,
+                    "max": analysis.title_distribution.max_score,
+                    "percentile_5": analysis.title_distribution.percentile_5,
+                    "percentile_25": analysis.title_distribution.percentile_25,
+                    "percentile_75": analysis.title_distribution.percentile_75,
+                    "percentile_95": analysis.title_distribution.percentile_95,
+                },
+                "author": {
+                    "mean": analysis.author_distribution.mean_score,
+                    "median": analysis.author_distribution.median_score,
+                    "min": analysis.author_distribution.min_score,
+                    "max": analysis.author_distribution.max_score,
+                    "percentile_5": analysis.author_distribution.percentile_5,
+                    "percentile_25": analysis.author_distribution.percentile_25,
+                    "percentile_75": analysis.author_distribution.percentile_75,
+                    "percentile_95": analysis.author_distribution.percentile_95,
+                },
+                "publisher": {
+                    "mean": analysis.publisher_distribution.mean_score,
+                    "median": analysis.publisher_distribution.median_score,
+                    "min": analysis.publisher_distribution.min_score,
+                    "max": analysis.publisher_distribution.max_score,
+                    "percentile_5": analysis.publisher_distribution.percentile_5,
+                    "percentile_25": analysis.publisher_distribution.percentile_25,
+                    "percentile_75": analysis.publisher_distribution.percentile_75,
+                    "percentile_95": analysis.publisher_distribution.percentile_95,
+                },
+                "combined": {
+                    "mean": analysis.combined_distribution.mean_score,
+                    "median": analysis.combined_distribution.median_score,
+                    "min": analysis.combined_distribution.min_score,
+                    "max": analysis.combined_distribution.max_score,
+                    "percentile_5": analysis.combined_distribution.percentile_5,
+                    "percentile_25": analysis.combined_distribution.percentile_25,
+                    "percentile_75": analysis.combined_distribution.percentile_75,
+                    "percentile_95": analysis.combined_distribution.percentile_95,
+                },
+            },
+        }
+
+        with open(output_path, "w") as f:
+            f.write(dumps(data, indent=2))
+
+        logger.info(f"Exported ground truth analysis to {output_path}")

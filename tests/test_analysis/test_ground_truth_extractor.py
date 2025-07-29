@@ -3,21 +3,15 @@
 """Test ground truth extraction for LCCN-matched pairs"""
 
 # Standard library imports
-from pathlib import Path
-import sys
 
 # Third party imports
-import pytest
-
-# Add scripts directory to path for analysis module imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
-# Third party imports
-from analysis.ground_truth_extractor import GroundTruthExtractor
-from analysis.ground_truth_extractor import GroundTruthPair
-from analysis.ground_truth_extractor import GroundTruthStats
+from pytest import raises
 
 # Local imports
+from marc_pd_tool.data.ground_truth import GroundTruthPair
+from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
 
 
 class TestGroundTruthPair:
@@ -45,7 +39,7 @@ class TestGroundTruthPair:
         marc_pub = Publication("Test Title", source="MARC")  # No LCCN
         copyright_pub = Publication("Test Title", lccn="n78890351", source="Copyright")
 
-        with pytest.raises(ValueError, match="MARC record must have normalized LCCN"):
+        with raises(ValueError, match="MARC record must have normalized LCCN"):
             GroundTruthPair(
                 marc_record=marc_pub,
                 copyright_record=copyright_pub,
@@ -58,7 +52,7 @@ class TestGroundTruthPair:
         marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
         copyright_pub = Publication("Test Title", source="Copyright")  # No LCCN
 
-        with pytest.raises(ValueError, match="Copyright record must have normalized LCCN"):
+        with raises(ValueError, match="Copyright record must have normalized LCCN"):
             GroundTruthPair(
                 marc_record=marc_pub,
                 copyright_record=copyright_pub,
@@ -71,7 +65,7 @@ class TestGroundTruthPair:
         marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
         copyright_pub = Publication("Test Title", lccn="n79123456", source="Copyright")
 
-        with pytest.raises(ValueError, match="LCCN values must match"):
+        with raises(ValueError, match="LCCN values must match"):
             GroundTruthPair(
                 marc_record=marc_pub,
                 copyright_record=copyright_pub,
@@ -84,7 +78,7 @@ class TestGroundTruthPair:
         marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
         copyright_pub = Publication("Test Title", lccn="n78890351", source="Copyright")
 
-        with pytest.raises(ValueError, match="Match type must be 'registration' or 'renewal'"):
+        with raises(ValueError, match="Match type must be 'registration' or 'renewal'"):
             GroundTruthPair(
                 marc_record=marc_pub,
                 copyright_record=copyright_pub,
@@ -209,36 +203,6 @@ class TestGroundTruthExtractor:
         assert stats.registration_matches == 1
         assert stats.renewal_matches == 0
         assert stats.total_renewal_records == 0
-
-    def test_filter_by_lccn_prefix(self):
-        """Test filtering by LCCN prefix"""
-        extractor = GroundTruthExtractor()
-
-        # Create pairs with different prefixes
-        pairs = [
-            GroundTruthPair(
-                marc_record=Publication("Title 1", lccn="n78890351", source="MARC"),
-                copyright_record=Publication("Title 1", lccn="n78890351", source="Copyright"),
-                match_type="registration",
-                lccn="n78890351",
-            ),
-            GroundTruthPair(
-                marc_record=Publication("Title 2", lccn="85000002", source="MARC"),
-                copyright_record=Publication("Title 2", lccn="85000002", source="Copyright"),
-                match_type="registration",
-                lccn="85000002",
-            ),
-        ]
-
-        # Filter for 'n' prefix
-        n_pairs = extractor.filter_by_lccn_prefix(pairs, "n")
-        assert len(n_pairs) == 1
-        assert n_pairs[0].lccn == "n78890351"
-
-        # Filter for empty prefix (numeric-only LCCNs)
-        numeric_pairs = extractor.filter_by_lccn_prefix(pairs, "")
-        assert len(numeric_pairs) == 1
-        assert numeric_pairs[0].lccn == "85000002"
 
     def test_filter_by_year_range(self):
         """Test filtering by publication year range"""

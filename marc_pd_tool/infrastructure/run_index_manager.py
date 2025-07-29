@@ -38,7 +38,7 @@ class RunIndexManager:
             "min_year",
             "max_year",
             "brute_force",
-            "score_everything",
+            "score_everything_mode",
             "title_threshold",
             "author_threshold",
             "marc_count",

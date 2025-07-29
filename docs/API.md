@@ -156,6 +156,55 @@ Export results in the specified format.
 - `xlsx`: Excel workbook with multiple sheets
 - `json`: JSON format
 
+#### extract_ground_truth()
+
+```python
+def extract_ground_truth(
+    self,
+    marc_path: str,
+    copyright_dir: Optional[str] = None,
+    renewal_dir: Optional[str] = None,
+    min_year: Optional[int] = None,
+    max_year: Optional[int] = None,
+    lccn_prefix: Optional[str] = None,
+) -> Tuple[List[GroundTruthPair], GroundTruthStats]
+```
+
+Extract LCCN-verified ground truth pairs for algorithm validation.
+
+**Parameters:**
+
+- `marc_path`: Path to MARC XML file
+- `copyright_dir`: Directory containing copyright XML files
+- `renewal_dir`: Directory containing renewal TSV files
+- `min_year`: Minimum publication year filter
+- `max_year`: Maximum publication year filter
+
+**Returns:** Tuple of (ground_truth_pairs, statistics)
+
+#### analyze_ground_truth_scores()
+
+```python
+def analyze_ground_truth_scores(
+    self,
+    ground_truth_pairs: Optional[List[GroundTruthPair]] = None
+) -> GroundTruthAnalysis
+```
+
+Analyze similarity scores for ground truth pairs without LCCN matching.
+
+#### export_ground_truth_analysis()
+
+```python
+def export_ground_truth_analysis(
+    self,
+    output_path: str,
+    output_format: str = "csv",
+) -> None
+```
+
+Export ground truth analysis results including score distributions.
+
 ## Data Models
 
 ### Publication
@@ -311,6 +360,53 @@ for marc_file in glob.glob('marc_files/*.xml'):
     )
     
     print(f"{marc_file}: {results.statistics['total_records']} records")
+```
+
+### Threshold Analysis Modes
+
+The API provides two approaches for analyzing and tuning similarity thresholds:
+
+#### Score Everything Mode
+
+Find the best match for every record regardless of thresholds:
+
+```python
+results = analyzer.analyze_marc_file(
+    'data.marcxml',
+    score_everything=True,
+    minimum_combined_score=20  # Still require some minimum
+)
+
+# Analyze score distribution
+for pub in results.publications:
+    if pub.has_registration_match():
+        match = pub.get_registration_match()
+        print(f"{pub.title}: {match.similarity_score}%")
+```
+
+#### Ground Truth Analysis
+
+Extract LCCN-verified matches and analyze their similarity scores:
+
+```python
+# Extract ground truth pairs based on LCCN matching
+ground_truth_pairs, stats = analyzer.extract_ground_truth(
+    'data.marcxml',
+    min_year=1950,
+    max_year=1960
+)
+
+print(f"Found {len(ground_truth_pairs)} verified matches")
+print(f"MARC records with LCCN: {stats.marc_lccn_coverage:.1f}%")
+
+# Analyze similarity scores (without LCCN matching)
+analysis = analyzer.analyze_ground_truth_scores(ground_truth_pairs)
+
+# Export analysis results with score distributions
+analyzer.export_ground_truth_analysis(
+    'ground_truth_analysis.csv',
+    output_format='csv'
+)
 ```
 
 ## Performance Considerations

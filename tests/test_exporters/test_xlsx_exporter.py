@@ -132,7 +132,7 @@ class TestXLSXExporter:
             assert exporter.publications == sample_publications
             assert exporter.output_path == output_path
             assert exporter.parameters == {}
-            assert exporter.score_everything is False
+            assert exporter.score_everything_mode is False
         finally:
             if exists(output_path):
                 remove(output_path)
@@ -190,12 +190,12 @@ class TestXLSXExporter:
             "min_year": 1950,
             "max_year": 1960,
             "us_only": True,
-            "score_everything": False,
+            "score_everything_mode": False,
         }
 
         try:
             exporter = XLSXExporter(
-                sample_publications, output_path, parameters, score_everything=False
+                sample_publications, output_path, parameters, score_everything_mode=False
             )
             exporter.export()
 

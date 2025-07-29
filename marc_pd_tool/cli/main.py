@@ -217,12 +217,12 @@ def create_argument_parser() -> ArgumentParser:
         help="Only process US publications (use --no-us-only to override config)",
     )
 
-    # Advanced options
+    # Threshold tuning modes
     parser.add_argument(
-        "--score-everything",
+        "--score-everything-mode",
         action=BooleanOptionalAction,
-        default=processing_config.get("score_everything", False),
-        help="Find best match for every record (use --no-score-everything to override)",
+        default=processing_config.get("score_everything_mode", False),
+        help="Find best match for every record regardless of thresholds (for threshold analysis)",
     )
     parser.add_argument(
         "--minimum-combined-score",
@@ -248,6 +248,12 @@ def create_argument_parser() -> ArgumentParser:
         "--disable-generic-detection",
         action="store_true",
         help="Disable generic title detection and use normal scoring for all titles",
+    )
+
+    parser.add_argument(
+        "--ground-truth-mode",
+        action="store_true",
+        help="Extract LCCN-verified matches and analyze their similarity scores (for threshold analysis)",
     )
 
     # Configuration options
@@ -304,7 +310,13 @@ def generate_output_filename(args: Namespace) -> str:
         return str(args.output)
 
     # Build filename components
-    components = ["matches"]
+    components = [
+        (
+            "ground_truth"
+            if hasattr(args, "ground_truth_mode") and args.ground_truth_mode
+            else "matches"
+        )
+    ]
 
     if args.us_only:
         components.append("us-only")
@@ -313,7 +325,7 @@ def generate_output_filename(args: Namespace) -> str:
         year_part = f"{args.min_year or 'pre'}-{args.max_year or 'current'}"
         components.append(year_part)
 
-    if args.score_everything:
+    if args.score_everything_mode:
         components.append("score-everything")
 
     # Get file extension
@@ -374,7 +386,7 @@ def main() -> None:
         )
 
     # Force single-file output when score-everything mode is enabled
-    if args.score_everything:
+    if args.score_everything_mode:
         args.single_file = True
 
     # Set number of workers
@@ -407,7 +419,7 @@ def main() -> None:
         "min_year": str(args.min_year) if args.min_year else "",
         "max_year": str(args.max_year) if args.max_year else "",
         "brute_force": str(args.brute_force_missing_year),
-        "score_everything": str(args.score_everything),
+        "score_everything_mode": str(args.score_everything_mode),
         "title_threshold": str(args.title_threshold),
         "author_threshold": str(args.author_threshold),
         "marc_count": "",  # Will be updated at the end
@@ -433,7 +445,43 @@ def main() -> None:
             force_refresh=args.force_refresh,
         )
 
-        # Run analysis through the API
+        # Handle ground truth mode
+        if args.ground_truth_mode:
+            logger.info("=== GROUND TRUTH EXTRACTION MODE ===")
+
+            # Extract ground truth pairs
+            ground_truth_pairs, gt_stats = analyzer.extract_ground_truth(
+                args.marcxml,
+                copyright_dir=args.copyright_dir,
+                renewal_dir=args.renewal_dir,
+                min_year=args.min_year,
+                max_year=args.max_year,
+            )
+
+            # Log coverage statistics
+            logger.info(f"Found {len(ground_truth_pairs)} ground truth pairs")
+            logger.info(
+                f"MARC records with LCCN: {gt_stats.marc_with_lccn:,} ({gt_stats.marc_lccn_coverage:.1f}%)"
+            )
+            logger.info(f"Registration matches: {gt_stats.registration_matches:,}")
+            logger.info(f"Renewal matches: {gt_stats.renewal_matches:,}")
+
+            # Analyze scores
+            analyzer.analyze_ground_truth_scores(ground_truth_pairs)
+
+            # Export results
+            analyzer.export_ground_truth_analysis(output_filename, output_format=args.output_format)
+
+            # Update run info for ground truth mode
+            run_info["marc_count"] = str(gt_stats.total_marc_records)
+            run_info["duration_seconds"] = str(int(time() - start_time))
+            run_info["matches_found"] = str(len(ground_truth_pairs))
+            run_info["status"] = "completed"
+            run_index_manager.update_run(run_info["log_file"], run_info)
+
+            return  # Exit early for ground truth mode
+
+        # Normal analysis mode
         # Local imports
         from marc_pd_tool.utils.types import AnalysisOptions
 
@@ -446,7 +494,7 @@ def main() -> None:
             "author_threshold": args.author_threshold,
             "early_exit_title": args.early_exit_title,
             "early_exit_author": args.early_exit_author,
-            "score_everything": args.score_everything,
+            "score_everything_mode": args.score_everything_mode,
             "brute_force_missing_year": args.brute_force_missing_year,
             "format": args.output_format,
             "single_file": args.single_file,

@@ -24,7 +24,7 @@ class TestDynamicFilenames:
             us_only=False,
             min_year=None,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
 
@@ -97,12 +97,12 @@ class TestDynamicFilenames:
 
     def test_score_everything_indicator(self, base_args):
         """Test filename includes score-everything indicator when enabled"""
-        base_args.score_everything = True
+        base_args.score_everything_mode = True
         assert generate_output_filename(base_args) == "matches_score-everything.csv"
 
     def test_score_everything_with_filters(self, base_args):
         """Test filename with score-everything and other filters"""
-        base_args.score_everything = True
+        base_args.score_everything_mode = True
         base_args.us_only = True
         base_args.min_year = 1930
         base_args.max_year = 1960
@@ -121,7 +121,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=1960,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args) == "custom.csv"
@@ -133,7 +133,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=1960,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args) == "data.tsv"
@@ -145,7 +145,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args) == "./results/analysis.csv"
@@ -158,7 +158,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=1959,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args1) == "matches_us-only_1950-1959.csv"
@@ -169,7 +169,7 @@ class TestFilenameEdgeCases:
             us_only=False,
             min_year=1930,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args2) == "matches_1930-current.csv"
@@ -180,7 +180,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=None,
             max_year=1970,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args3) == "matches_us-only_pre-1970.csv"
@@ -193,7 +193,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert "us-only" in generate_output_filename(args_default)
@@ -204,7 +204,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args_similar) == "matches2.csv"
@@ -214,7 +214,7 @@ class TestFilenameEdgeCases:
             us_only=True,
             min_year=1950,
             max_year=None,
-            score_everything=False,
+            score_everything_mode=False,
             output_format="csv",
         )
         assert generate_output_filename(args_case) == "Matches.csv"

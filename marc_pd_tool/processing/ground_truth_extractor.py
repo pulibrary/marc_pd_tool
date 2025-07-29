@@ -1,71 +1,17 @@
-# scripts/analysis/ground_truth_extractor.py
+# marc_pd_tool/processing/ground_truth_extractor.py
 
-"""Ground truth extraction for LCCN-matched publication pairs"""
+"""Extract ground truth pairs based on LCCN matching"""
 
 # Standard library imports
 from collections import defaultdict
-from dataclasses import dataclass
 from logging import getLogger
 
 # Local imports
+from marc_pd_tool.data.ground_truth import GroundTruthPair
+from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
 
 logger = getLogger(__name__)
-
-
-@dataclass(slots=True)
-class GroundTruthPair:
-    """Represents a verified match between MARC and copyright/renewal records"""
-
-    marc_record: Publication
-    copyright_record: Publication
-    match_type: str  # "registration" or "renewal"
-    lccn: str  # The normalized LCCN that matched
-
-    def __post_init__(self) -> None:
-        """Validate that this is indeed a matching pair"""
-        if not self.marc_record.normalized_lccn:
-            raise ValueError("MARC record must have normalized LCCN")
-        if not self.copyright_record.normalized_lccn:
-            raise ValueError("Copyright record must have normalized LCCN")
-        if self.marc_record.normalized_lccn != self.copyright_record.normalized_lccn:
-            raise ValueError("LCCN values must match")
-        if self.match_type not in ("registration", "renewal"):
-            raise ValueError("Match type must be 'registration' or 'renewal'")
-
-
-@dataclass(slots=True)
-class GroundTruthStats:
-    """Statistics about extracted ground truth pairs"""
-
-    total_marc_records: int
-    marc_with_lccn: int
-    total_copyright_records: int
-    copyright_with_lccn: int
-    total_renewal_records: int
-    registration_matches: int
-    renewal_matches: int
-    unique_lccns_matched: int
-
-    @property
-    def total_matches(self) -> int:
-        return self.registration_matches + self.renewal_matches
-
-    @property
-    def marc_lccn_coverage(self) -> float:
-        return (
-            (self.marc_with_lccn / self.total_marc_records) * 100
-            if self.total_marc_records > 0
-            else 0.0
-        )
-
-    @property
-    def copyright_lccn_coverage(self) -> float:
-        return (
-            (self.copyright_with_lccn / self.total_copyright_records) * 100
-            if self.total_copyright_records > 0
-            else 0.0
-        )
 
 
 class GroundTruthExtractor:
@@ -200,29 +146,6 @@ class GroundTruthExtractor:
                 index[pub.normalized_lccn].append(pub)
 
         return dict(index)
-
-    def filter_by_lccn_prefix(
-        self, ground_truth_pairs: list[GroundTruthPair], prefix: str
-    ) -> list[GroundTruthPair]:
-        """Filter ground truth pairs by LCCN prefix
-
-        Args:
-            ground_truth_pairs: List of ground truth pairs
-            prefix: LCCN prefix to filter by (e.g., 'n' for monographs)
-
-        Returns:
-            Filtered list of ground truth pairs
-        """
-        # Local imports
-        from marc_pd_tool.utils.text_utils import extract_lccn_prefix
-
-        filtered_pairs = []
-        for pair in ground_truth_pairs:
-            if extract_lccn_prefix(pair.lccn) == prefix:
-                filtered_pairs.append(pair)
-
-        self.logger.info(f"Filtered to {len(filtered_pairs)} pairs with LCCN prefix '{prefix}'")
-        return filtered_pairs
 
     def filter_by_year_range(
         self,

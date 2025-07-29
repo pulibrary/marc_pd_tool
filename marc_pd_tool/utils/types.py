@@ -64,7 +64,7 @@ class AnalysisOptions(TypedDict, total=False):
     author_threshold: int
     early_exit_title: int
     early_exit_author: int
-    score_everything: bool
+    score_everything_mode: bool
     lccn_support: bool
     fuzzy_ratio_threshold: int
     num_processes: int
@@ -222,7 +222,7 @@ class ThresholdRecommendation(TypedDict):
 # Batch processing info type
 BatchProcessingInfo = tuple[
     int,  # batch_id (i + 1)
-    list["Publication"],  # batch
+    list[Publication],  # batch
     str,  # worker_cache_dir
     str,  # copyright_dir
     str,  # renewal_dir

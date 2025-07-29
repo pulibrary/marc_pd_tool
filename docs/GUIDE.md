@@ -337,3 +337,70 @@ Consider manual verification for:
 - Borderline similarity scores
 - Complex publication histories
 - International works
+
+## Threshold Analysis and Tuning
+
+The tool provides two special modes to help analyze matching performance and determine appropriate thresholds for your data.
+
+### Score Everything Mode
+
+The `--score-everything-mode` finds the best match for every MARC record regardless of configured thresholds:
+
+```bash
+pdm run python -m marc_pd_tool \
+    --marcxml data.marcxml \
+    --score-everything-mode \
+    --minimum-combined-score 20 \
+    --output all_scores.csv
+```
+
+This mode:
+
+- Ignores title/author thresholds
+- Finds the highest scoring match for each record
+- Includes a combined similarity score column
+- Useful for analyzing score distributions across your entire dataset
+
+### Ground Truth Mode
+
+The `--ground-truth-mode` extracts LCCN-verified matches and analyzes their similarity scores:
+
+```bash
+pdm run python -m marc_pd_tool \
+    --marcxml data.marcxml \
+    --ground-truth-mode \
+    --min-year 1950 \
+    --max-year 1960 \
+    --output ground_truth_analysis.csv
+```
+
+This mode:
+
+1. Finds all MARC records with LCCNs
+1. Matches them against copyright/renewal data using LCCN
+1. Calculates similarity scores WITHOUT using LCCN matching
+1. Generates statistical analysis of the score distributions
+
+### Using the Analysis Results
+
+Both modes export data that helps you understand matching performance:
+
+**Score Everything Mode** provides:
+
+- All records with their best matches
+- Similarity scores for each field (title, author, publisher)
+- Combined scores to see overall match quality
+- Useful for identifying edge cases and outliers
+
+**Ground Truth Mode** provides:
+
+- Statistical analysis of verified matches
+- Score distributions showing mean, median, percentiles
+- Helps determine what thresholds would capture known good matches
+
+Example workflow:
+
+1. Run ground truth mode to analyze verified matches
+1. Review the score distributions (e.g., if 5th percentile for title is 42)
+1. Test thresholds using score everything mode
+1. Apply chosen thresholds to production runs

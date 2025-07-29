@@ -21,7 +21,13 @@ from marc_pd_tool.data.publication import Publication
 class XLSXExporter:
     """Exports publication match results to Excel format"""
 
-    __slots__ = ("publications", "output_path", "parameters", "score_everything", "column_widths")
+    __slots__ = (
+        "publications",
+        "output_path",
+        "parameters",
+        "score_everything_mode",
+        "column_widths",
+    )
 
     # Column width definitions
     COLUMN_WIDTHS = {
@@ -86,7 +92,7 @@ class XLSXExporter:
         publications: list[Publication],
         output_path: str,
         parameters: dict[str, str | None] | None = None,
-        score_everything: bool = False,
+        score_everything_mode: bool = False,
     ):
         """Initialize the XLSX exporter
 
@@ -94,12 +100,12 @@ class XLSXExporter:
             publications: List of publications to export
             output_path: Path for the output XLSX file
             parameters: Processing parameters used (for summary sheet)
-            score_everything: Whether score-everything mode was used
+            score_everything_mode: Whether score-everything mode was used
         """
         self.publications = publications
         self.output_path = output_path
         self.parameters = parameters or {}
-        self.score_everything = score_everything
+        self.score_everything_mode = score_everything_mode
         self.column_widths = self.COLUMN_WIDTHS.copy()
 
     def export(self) -> None:
@@ -183,7 +189,7 @@ class XLSXExporter:
             "max_year": "Max Year",
             "us_only": "US Only",
             "brute_force_missing_year": "Brute Force Missing Year",
-            "score_everything": "Score Everything",
+            "score_everything_mode": "Score Everything Mode",
         }
 
         for key, label in param_mapping.items():

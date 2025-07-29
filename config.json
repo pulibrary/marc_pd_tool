@@ -35,7 +35,7 @@
   "processing": {
     "batch_size": 200,
     "max_workers": null,
-    "score_everything": false,
+    "score_everything_mode": false,
     "brute_force_missing_year": false
   },
   "filtering": {

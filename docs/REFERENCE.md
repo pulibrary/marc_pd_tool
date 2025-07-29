@@ -49,12 +49,20 @@ When using the default output, filenames are automatically generated based on ap
 - `--early-exit-title PERCENT` - Title score for early termination (default: 95)
 - `--early-exit-author PERCENT` - Author score for early termination (default: 90)
 - `--minimum-combined-score PERCENT` - Minimum combined score in score-everything mode (default: 40)
-- `--score-everything` - Find best match regardless of thresholds (for analysis)
 
 ### Performance Options
 
 - `--max-workers NUMBER` - Number of parallel processes (default: CPU count - 2)
 - `--batch-size NUMBER` - Records per batch (default: 200)
+
+### Threshold Analysis Modes
+
+These special modes help analyze and tune similarity thresholds:
+
+- `--score-everything-mode` - Find best match for every record regardless of thresholds
+- `--ground-truth-mode` - Extract LCCN-verified matches and analyze their similarity scores
+
+Both modes are useful for understanding how the matching algorithm performs and determining appropriate thresholds for your data.
 
 ### Cache Management
 

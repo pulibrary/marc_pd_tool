@@ -526,7 +526,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         year_tolerance,
         early_exit_title,
         early_exit_author,
-        score_everything,
+        score_everything_mode,
         minimum_combined_score,
         brute_force_missing_year,
     ) = batch_info
@@ -624,7 +624,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         # Find registration candidates using index
         reg_candidates = registration_index.get_candidates_list(marc_pub, year_tolerance)
 
-        if score_everything:
+        if score_everything_mode:
             reg_match = matching_engine.find_best_match_ignore_thresholds(
                 marc_pub,
                 reg_candidates,
@@ -701,7 +701,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
             renewal_index.get_candidates_list(marc_pub, year_tolerance) if renewal_index else []
         )
 
-        if score_everything:
+        if score_everything_mode:
             ren_match = matching_engine.find_best_match_ignore_thresholds(
                 marc_pub,
                 ren_candidates,

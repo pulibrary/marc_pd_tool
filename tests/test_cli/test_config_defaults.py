@@ -46,7 +46,7 @@ def test_config_defaults_applied():
         "processing": {
             "batch_size": 500,
             "max_workers": 8,
-            "score_everything": True,
+            "score_everything_mode": True,
             "brute_force_missing_year": True,
         },
         "filtering": {"us_only": True, "min_year": 1950, "max_year": 2000},
@@ -65,7 +65,7 @@ def test_config_defaults_applied():
         # Verify config defaults applied
         assert args.batch_size == 500
         assert args.max_workers == 8
-        assert args.score_everything is True
+        assert args.score_everything_mode is True
         assert args.brute_force_missing_year is True
         assert args.us_only is True
         assert args.min_year == 1950
@@ -86,7 +86,7 @@ def test_cli_overrides_config():
     mock_config_dict = {
         "processing": {
             "batch_size": 500,
-            "score_everything": True,
+            "score_everything_mode": True,
             "brute_force_missing_year": True,
         },
         "filtering": {"us_only": True},
@@ -104,7 +104,7 @@ def test_cli_overrides_config():
                 "test.xml",
                 "--batch-size",
                 "100",
-                "--no-score-everything",
+                "--no-score-everything-mode",
                 "--no-brute-force-missing-year",
                 "--no-us-only",
                 "--no-force-refresh",
@@ -114,7 +114,7 @@ def test_cli_overrides_config():
 
         # Verify CLI overrides
         assert args.batch_size == 100
-        assert args.score_everything is False
+        assert args.score_everything_mode is False
         assert args.brute_force_missing_year is False
         assert args.us_only is False
         assert args.force_refresh is False
@@ -124,7 +124,7 @@ def test_cli_overrides_config():
 def test_boolean_flag_negation():
     """Test that boolean flags can be negated with --no- prefix"""
     mock_config_dict = {
-        "processing": {"score_everything": False},
+        "processing": {"score_everything_mode": False},
         "filtering": {"us_only": False},
         "caching": {"force_refresh": False},
         "logging": {"debug": False},
@@ -140,14 +140,14 @@ def test_boolean_flag_negation():
             [
                 "--marcxml",
                 "test.xml",
-                "--score-everything",
+                "--score-everything-mode",
                 "--us-only",
                 "--force-refresh",
                 "--debug",
             ]
         )
 
-        assert args.score_everything is True
+        assert args.score_everything_mode is True
         assert args.us_only is True
         assert args.force_refresh is True
         assert args.debug is True
