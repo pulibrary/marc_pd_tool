@@ -1,6 +1,6 @@
 [submodule "nypl-reg"]
 	path = nypl-reg
-	url = git@github.com:NYPL/catalog_of_copyright_entries_project.git
+	url = https://github.com/NYPL/catalog_of_copyright_entries_project.git
 [submodule "nypl-ren"]
 	path = nypl-ren
-	url = git@github.com:NYPL/cce-renewals.git
+	url = https://github.com/NYPL/cce-renewals.git
