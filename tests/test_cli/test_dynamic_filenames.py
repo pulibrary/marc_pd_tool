@@ -20,7 +20,7 @@ class TestDynamicFilenames:
     def base_args(self):
         """Create base args namespace for testing"""
         return Namespace(
-            output="matches.csv",
+            output_filename="matches.csv",
             us_only=False,
             min_year=None,
             max_year=None,
@@ -28,15 +28,23 @@ class TestDynamicFilenames:
             output_format="csv",
         )
 
-    def test_user_provided_filename_unchanged(self, base_args):
-        """Test that user-provided filenames are not modified"""
-        base_args.output = "my_custom_analysis.csv"
+    def test_user_provided_filename_gets_correct_extension(self, base_args):
+        """Test that user-provided filenames get the correct extension based on output format"""
+        base_args.output_filename = "my_custom_analysis.csv"
         assert generate_output_filename(base_args) == "my_custom_analysis.csv"
 
-    def test_user_provided_filename_with_path_unchanged(self, base_args):
-        """Test that user-provided filenames with paths are not modified"""
-        base_args.output = "/path/to/my_analysis.csv"
+        # If output format is xlsx, the extension should change
+        base_args.output_format = "xlsx"
+        assert generate_output_filename(base_args) == "my_custom_analysis.xlsx"
+
+    def test_user_provided_filename_with_path_gets_correct_extension(self, base_args):
+        """Test that user-provided filenames with paths get correct extension"""
+        base_args.output_filename = "/path/to/my_analysis.csv"
         assert generate_output_filename(base_args) == "/path/to/my_analysis.csv"
+
+        # If output format is json, the extension should change
+        base_args.output_format = "json"
+        assert generate_output_filename(base_args) == "/path/to/my_analysis.json"
 
     def test_default_filename_no_filters(self, base_args):
         """Test default filename when no filters are applied"""
@@ -114,10 +122,10 @@ class TestDynamicFilenames:
 class TestFilenameEdgeCases:
     """Test edge cases and special scenarios"""
 
-    def test_non_default_output_with_filters_unchanged(self):
-        """Test that non-default output is unchanged even with filters"""
+    def test_non_default_output_with_filters_gets_correct_extension(self):
+        """Test that non-default output gets correct extension based on format"""
         args = Namespace(
-            output="custom.csv",
+            output_filename="custom.csv",
             us_only=True,
             min_year=1950,
             max_year=1960,
@@ -126,22 +134,31 @@ class TestFilenameEdgeCases:
         )
         assert generate_output_filename(args) == "custom.csv"
 
+        # Test with xlsx format
+        args.output_format = "xlsx"
+        assert generate_output_filename(args) == "custom.xlsx"
+
     def test_output_with_different_extension(self):
-        """Test that different file extensions are preserved"""
+        """Test that file extensions are replaced based on output format"""
         args = Namespace(
-            output="data.tsv",
+            output_filename="data.tsv",
             us_only=True,
             min_year=1950,
             max_year=1960,
             score_everything_mode=False,
             output_format="csv",
         )
-        assert generate_output_filename(args) == "data.tsv"
+        # Even though input is .tsv, output should be .csv based on format
+        assert generate_output_filename(args) == "data.csv"
+
+        # Test with xlsx format
+        args.output_format = "xlsx"
+        assert generate_output_filename(args) == "data.xlsx"
 
     def test_relative_path_preserved(self):
         """Test that relative paths are preserved"""
         args = Namespace(
-            output="./results/analysis.csv",
+            output_filename="./results/analysis.csv",
             us_only=True,
             min_year=1950,
             max_year=None,
@@ -154,7 +171,7 @@ class TestFilenameEdgeCases:
         """Test complex real-world scenarios"""
         # Scenario 1: Research focused on 1950s US publications
         args1 = Namespace(
-            output="matches.csv",
+            output_filename="matches.csv",
             us_only=True,
             min_year=1950,
             max_year=1959,
@@ -165,7 +182,7 @@ class TestFilenameEdgeCases:
 
         # Scenario 2: Everything after 1930
         args2 = Namespace(
-            output="matches.csv",
+            output_filename="matches.csv",
             us_only=False,
             min_year=1930,
             max_year=None,
@@ -176,7 +193,7 @@ class TestFilenameEdgeCases:
 
         # Scenario 3: US publications up to 1970
         args3 = Namespace(
-            output="matches.csv",
+            output_filename="matches.csv",
             us_only=True,
             min_year=None,
             max_year=1970,
@@ -189,7 +206,7 @@ class TestFilenameEdgeCases:
         """Test that only the exact default triggers dynamic naming"""
         # These should trigger dynamic naming
         args_default = Namespace(
-            output="matches.csv",
+            output_filename="matches.csv",
             us_only=True,
             min_year=1950,
             max_year=None,
@@ -200,7 +217,7 @@ class TestFilenameEdgeCases:
 
         # These should NOT trigger dynamic naming (different from default)
         args_similar = Namespace(
-            output="matches2.csv",
+            output_filename="matches2.csv",
             us_only=True,
             min_year=1950,
             max_year=None,
@@ -209,8 +226,12 @@ class TestFilenameEdgeCases:
         )
         assert generate_output_filename(args_similar) == "matches2.csv"
 
+        # Test extension replacement
+        args_similar.output_format = "json"
+        assert generate_output_filename(args_similar) == "matches2.json"
+
         args_case = Namespace(
-            output="Matches.csv",
+            output_filename="Matches.csv",
             us_only=True,
             min_year=1950,
             max_year=None,
@@ -218,3 +239,25 @@ class TestFilenameEdgeCases:
             output_format="csv",
         )
         assert generate_output_filename(args_case) == "Matches.csv"
+
+        # Test case preservation with extension replacement
+        args_case.output_format = "xlsx"
+        assert generate_output_filename(args_case) == "Matches.xlsx"
+
+    def test_filename_without_extension_gets_added(self):
+        """Test that filenames without extensions get the correct extension added"""
+        args = Namespace(
+            output_filename="my_output",
+            us_only=False,
+            min_year=None,
+            max_year=None,
+            score_everything_mode=False,
+            output_format="csv",
+        )
+        assert generate_output_filename(args) == "my_output.csv"
+
+        args.output_format = "xlsx"
+        assert generate_output_filename(args) == "my_output.xlsx"
+
+        args.output_format = "json"
+        assert generate_output_filename(args) == "my_output.json"

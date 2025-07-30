@@ -351,7 +351,7 @@ pdm run python -m marc_pd_tool \
     --marcxml data.marcxml \
     --score-everything-mode \
     --minimum-combined-score 20 \
-    --output all_scores.csv
+    --output-filename all_scores.csv
 ```
 
 This mode:
@@ -371,7 +371,7 @@ pdm run python -m marc_pd_tool \
     --ground-truth-mode \
     --min-year 1950 \
     --max-year 1960 \
-    --output ground_truth_analysis.csv
+    --output-filename ground_truth_analysis.csv
 ```
 
 This mode:

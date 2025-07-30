@@ -16,8 +16,8 @@ pdm run python -m marc_pd_tool [OPTIONS]
 
 ### Output Options
 
-- `--output PATH` - Output filename (default: auto-generated based on filters)
-- `--output-format {csv,xlsx}` - Output format (default: csv, xlsx requires optional dependency)
+- `--output-filename PATH` - Output filename (default: auto-generated based on filters)
+- `--output-format {csv,xlsx,json}` - Output format (default: csv)
 - `--single-file` - Export all results to single file
 
 **Automatic Filename Generation:**

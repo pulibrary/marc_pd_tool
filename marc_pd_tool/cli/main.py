@@ -133,7 +133,7 @@ def create_argument_parser() -> ArgumentParser:
 
     # Output options
     parser.add_argument(
-        "--output",
+        "--output-filename",
         "-o",
         default="matches.csv",
         help="Output file (default auto-generates descriptive names based on filters)",
@@ -148,7 +148,7 @@ def create_argument_parser() -> ArgumentParser:
         "--single-file",
         action=BooleanOptionalAction,
         default=output_config.get("single_file", False),
-        help="Save all results to a single file (use --no-single-file to override config)",
+        help=f"Save all results to a single file (default: {output_config.get('single_file', False)})",
     )
 
     # Performance options
@@ -226,7 +226,7 @@ def create_argument_parser() -> ArgumentParser:
         "--us-only",
         action=BooleanOptionalAction,
         default=filtering_config.get("us_only", False),
-        help="Only process US publications (use --no-us-only to override config)",
+        help=f"Only process US publications (default: {filtering_config.get('us_only', False)})",
     )
 
     # Threshold tuning modes
@@ -234,7 +234,7 @@ def create_argument_parser() -> ArgumentParser:
         "--score-everything-mode",
         action=BooleanOptionalAction,
         default=processing_config.get("score_everything_mode", False),
-        help="Find best match for every record regardless of thresholds (for threshold analysis)",
+        help=f"Find best match for every record regardless of thresholds (default: {processing_config.get('score_everything_mode', False)})",
     )
     parser.add_argument(
         "--minimum-combined-score",
@@ -246,7 +246,7 @@ def create_argument_parser() -> ArgumentParser:
         "--brute-force-missing-year",
         action=BooleanOptionalAction,
         default=processing_config.get("brute_force_missing_year", False),
-        help="Process records without year data (use --no-brute-force-missing-year to override)",
+        help=f"Process records without year data (default: {processing_config.get('brute_force_missing_year', False)})",
     )
 
     # Generic title detection
@@ -287,13 +287,13 @@ def create_argument_parser() -> ArgumentParser:
         "--force-refresh",
         action=BooleanOptionalAction,
         default=caching_config.get("force_refresh", False),
-        help="Force refresh of all cached data (use --no-force-refresh to override)",
+        help=f"Force refresh of all cached data (default: {caching_config.get('force_refresh', False)})",
     )
     parser.add_argument(
         "--disable-cache",
         action=BooleanOptionalAction,
         default=caching_config.get("no_cache", False),
-        help="Disable caching entirely (use --no-disable-cache to re-enable)",
+        help=f"Disable caching entirely (default: {caching_config.get('no_cache', False)})",
     )
 
     # Logging options
@@ -307,7 +307,7 @@ def create_argument_parser() -> ArgumentParser:
         "--debug",
         action=BooleanOptionalAction,
         default=logging_config.get("debug", False),
-        help="Enable DEBUG level logging (use --no-debug to override)",
+        help=f"Enable DEBUG level logging (default: {logging_config.get('debug', False)})",
     )
     parser.add_argument(
         "--no-log-file", action="store_true", help="Disable file logging (console output only)"
@@ -318,8 +318,19 @@ def create_argument_parser() -> ArgumentParser:
 
 def generate_output_filename(args: Namespace) -> str:
     """Generate descriptive output filename based on filters"""
-    if args.output != "matches.csv":
-        return str(args.output)
+    if args.output_filename != "matches.csv":
+        # User specified a filename - ensure it has the right extension
+        base_name = str(args.output_filename)
+        # Remove any existing extension (more broadly)
+        if "." in base_name:
+            # Split on last dot to handle paths with dots
+            parts = base_name.rsplit(".", 1)
+            # Only remove if the extension part is reasonable (< 5 chars)
+            if len(parts) > 1 and len(parts[1]) < 5:
+                base_name = parts[0]
+        # Add the correct extension based on output format
+        ext = {"csv": ".csv", "xlsx": ".xlsx", "json": ".json"}.get(args.output_format, ".csv")
+        return base_name + ext
 
     # Build filename components
     components = [
