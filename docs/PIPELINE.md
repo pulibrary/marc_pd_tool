@@ -57,9 +57,11 @@ U.S. copyright renewal records from 1950-1991, also digitized by NYPL as part of
 
 1. **Year Filtering**:
 
-   - By default, focus on works published in the current year minus 95 (likely public domain regardless of registration status)
    - Apply `--min-year` and `--max-year` filters during extraction
-   - Skip records outside year range to reduce memory usage
+   - When year filtering is active, records without publication years are excluded by default
+   - Use `--brute-force-missing-year` to include records without years (searches entire dataset)
+   - Year extraction handles standard formats plus copyright notation (e.g., "c1955")
+   - Filtered records are logged with breakdown (no year, out of range, non-US)
 
 #### 1.2 Copyright Registration Data (`CopyrightDataLoader`)
 
@@ -731,5 +733,9 @@ Contains matching configuration:
 1. **Parallel Processing**:
 
    - Batches distributed across CPU cores
-   - Indexes loaded once per worker
+   - Platform-specific optimizations:
+     - Linux: Indexes loaded once in main process, shared via fork()
+     - macOS/Windows: Each worker loads indexes independently
+   - Worker recycling based on workload (prevents memory leaks)
+   - Batch pickling reduces memory usage (only active batch in RAM)
    - Linear scaling with core count

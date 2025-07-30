@@ -50,6 +50,9 @@ class MarcLoader:
         current_batch = []
         total_record_count = 0
         filtered_count = 0
+        no_year_count = 0
+        year_out_of_range_count = 0
+        non_us_count = 0
 
         for marc_file in marc_files:
             logger.info(f"Processing MARC file: {marc_file.name}")
@@ -63,17 +66,24 @@ class MarcLoader:
                     if event == "end" and elem.tag.endswith("record"):
                         pub = self._extract_from_record(elem)
                         if pub:
-                            if self._should_include_record(pub):
+                            include_record, filter_reason = self._should_include_record_with_reason(pub)
+                            if include_record:
                                 current_batch.append(pub)
                             else:
                                 filtered_count += 1
+                                if filter_reason == "no_year":
+                                    no_year_count += 1
+                                elif filter_reason == "year_out_of_range":
+                                    year_out_of_range_count += 1
+                                elif filter_reason == "non_us":
+                                    non_us_count += 1
 
                         file_record_count += 1
                         total_record_count += 1
 
                         if len(current_batch) >= self.batch_size:
                             batches.append(current_batch)
-                            logger.debug(
+                            logger.info(
                                 f"Created batch {len(batches)} with {len(current_batch)} publications (processed {total_record_count:,} records)"
                             )
                             current_batch = []
@@ -99,15 +109,18 @@ class MarcLoader:
             f"Extracted {len(batches)} batches totaling {sum(len(b) for b in batches):,} publications from {len(marc_files)} file(s)"
         )
         if filtered_count > 0:
-            filter_desc = []
-            if self.min_year is not None:
-                filter_desc.append(f"before {self.min_year}")
-            if self.max_year is not None:
-                filter_desc.append(f"after {self.max_year}")
-            if self.us_only:
-                filter_desc.append("non-US publications")
-            filter_text = " or ".join(filter_desc)
-            logger.info(f"Filtered out {filtered_count:,} records ({filter_text})")
+            logger.info(f"Filtered out {filtered_count:,} total records:")
+            if no_year_count > 0:
+                logger.info(f"  - {no_year_count:,} records missing year data")
+            if year_out_of_range_count > 0:
+                if self.min_year and self.max_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}")
+                elif self.min_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records before {self.min_year}")
+                elif self.max_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
+            if non_us_count > 0:
+                logger.info(f"  - {non_us_count:,} non-US publications")
         return batches
 
     def _extract_marc_field(
@@ -333,20 +346,33 @@ class MarcLoader:
 
     def _should_include_record(self, pub: Publication) -> bool:
         """Check if record should be included based on year and country filters"""
+        include_record, _ = self._should_include_record_with_reason(pub)
+        return include_record
+
+    def _should_include_record_with_reason(self, pub: Publication) -> tuple[bool, str | None]:
+        """Check if record should be included and return reason if not
+        
+        Returns:
+            tuple of (should_include, filter_reason)
+            filter_reason is one of: 'no_year', 'year_out_of_range', 'non_us', or None
+        """
         # Check US-only filter first (most restrictive)
         if self.us_only and pub.country_classification != CountryClassification.US:
-            return False
+            return False, "non_us"
 
         # Check year filters
         if pub.year is None:
-            return True  # Include records without years to be safe
+            # When year filtering is active, exclude records without years
+            if self.min_year is not None or self.max_year is not None:
+                return False, "no_year"
+            return True, None  # Include if no year filtering
 
         # Check minimum year
         if self.min_year is not None and pub.year < self.min_year:
-            return False
+            return False, "year_out_of_range"
 
         # Check maximum year
         if self.max_year is not None and pub.year > self.max_year:
-            return False
+            return False, "year_out_of_range"
 
-        return True
+        return True, None

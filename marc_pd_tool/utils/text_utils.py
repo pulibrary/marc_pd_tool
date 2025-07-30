@@ -377,6 +377,10 @@ def extract_year(date_string: str) -> int | None:
         1984
         >>> extract_year("May 15, 1984")
         1984
+        >>> extract_year("c1955")
+        1955
+        >>> extract_year("[c1923]")
+        1923
         >>> extract_year("18th century")
         None
         >>> extract_year("")
@@ -386,10 +390,15 @@ def extract_year(date_string: str) -> int | None:
         return None
 
     # Search for 4-digit year from 1800s to 2000s
-    # This pattern matches years 1800-2099
-    year_match = search(r"\b(18|19|20)\d{2}\b", date_string)
+    # This pattern handles:
+    # - Standard years with word boundaries: 1955, "1955", etc.
+    # - Copyright notation: c1955, [c1955], etc.
+    year_match = search(r"(?:\b|c)(18|19|20)\d{2}\b", date_string)
     if year_match:
-        return int(year_match.group())
+        # Extract just the year digits
+        year_str = search(r"(18|19|20)\d{2}", year_match.group())
+        if year_str:
+            return int(year_str.group())
     return None
 
 

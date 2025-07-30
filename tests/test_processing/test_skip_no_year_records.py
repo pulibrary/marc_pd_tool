@@ -3,6 +3,7 @@
 """Tests for skipping MARC records without year data"""
 
 # Standard library imports
+import pickle
 
 # Third party imports
 from pytest import fixture
@@ -10,11 +11,41 @@ from pytest import fixture
 # Local imports
 from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.processing.matching_engine import DataMatcher
 from marc_pd_tool.processing.matching_engine import process_batch
 
 
 class TestSkipNoYearRecords:
     """Test that MARC records without year data are handled correctly"""
+
+    def _setup_mock_worker_data(self, monkeypatch, mock_index_class=None):
+        """Helper to set up mock worker data for tests"""
+        if mock_index_class is None:
+
+            class MockIndex:
+                def get_candidates_list(self, pub, tolerance):
+                    return []
+
+                def get_stats(self):
+                    return {"title_keys": 0, "author_keys": 0}
+
+                def size(self):
+                    return 0
+
+            mock_index_class = MockIndex
+
+        mock_worker_data = {
+            "registration_index": mock_index_class(),
+            "renewal_index": mock_index_class(),
+            "generic_detector": None,
+            "matching_engine": DataMatcher(),
+            "cache_manager": None,
+        }
+
+        # Patch the global _worker_data
+        monkeypatch.setattr(
+            "marc_pd_tool.processing.matching_engine._worker_data", mock_worker_data
+        )
 
     @fixture
     def mock_batch_info_with_year(self, tmp_path):
@@ -31,9 +62,14 @@ class TestSkipNoYearRecords:
             source_id="test001",
         )
 
+        # Create pickle file for the batch
+        batch_path = tmp_path / "batch_with_year.pkl"
+        with open(batch_path, "wb") as f:
+            pickle.dump([marc_pub_with_year], f)
+
         batch_info = (
             1,  # batch_id
-            [marc_pub_with_year],  # marc_batch
+            str(batch_path),  # batch_path
             str(cache_dir),  # cache_dir
             "copyright_dir",  # copyright_dir
             "renewal_dir",  # renewal_dir
@@ -49,6 +85,8 @@ class TestSkipNoYearRecords:
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
+            None,  # min_year
+            None,  # max_year
         )
         return batch_info
 
@@ -67,9 +105,14 @@ class TestSkipNoYearRecords:
             source_id="test002",
         )
 
+        # Create pickle file for the batch
+        batch_path = tmp_path / "batch_no_year.pkl"
+        with open(batch_path, "wb") as f:
+            pickle.dump([marc_pub_no_year], f)
+
         batch_info = (
             1,  # batch_id
-            [marc_pub_no_year],  # marc_batch
+            str(batch_path),  # batch_path
             str(cache_dir),  # cache_dir
             "copyright_dir",  # copyright_dir
             "renewal_dir",  # renewal_dir
@@ -85,6 +128,8 @@ class TestSkipNoYearRecords:
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
+            None,  # min_year
+            None,  # max_year
         )
         return batch_info
 
@@ -111,9 +156,14 @@ class TestSkipNoYearRecords:
             source_id="test002",
         )
 
+        # Create pickle file for the batch
+        batch_path = tmp_path / "batch_mixed.pkl"
+        with open(batch_path, "wb") as f:
+            pickle.dump([marc_pub_with_year, marc_pub_no_year], f)
+
         batch_info = (
             1,  # batch_id
-            [marc_pub_with_year, marc_pub_no_year],  # marc_batch
+            str(batch_path),  # batch_path
             str(cache_dir),  # cache_dir
             "copyright_dir",  # copyright_dir
             "renewal_dir",  # renewal_dir
@@ -129,39 +179,16 @@ class TestSkipNoYearRecords:
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
+            None,  # min_year
+            None,  # max_year
         )
         return batch_info
 
     def test_skip_records_without_year_by_default(self, mock_batch_info_no_year, monkeypatch):
         """Test that records without year are skipped by default"""
 
-        # Mock the cache manager and indexes to avoid actual file operations
-        def mock_get_cached_indexes(*args):
-            # Return mock indexes
-            class MockIndex:
-                def get_candidates_list(self, pub, tolerance):
-                    return []
-
-                def get_stats(self):
-                    return {"title_keys": 0, "author_keys": 0}
-
-                def size(self):
-                    return 0
-
-            return MockIndex(), MockIndex()
-
-        def mock_get_cached_generic_detector(*args):
-            return None
-
-        # Patch the CacheManager methods
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_indexes",
-            mock_get_cached_indexes,
-        )
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_generic_detector",
-            mock_get_cached_generic_detector,
-        )
+        # Set up mock worker data
+        self._setup_mock_worker_data(monkeypatch)
 
         # Process the batch
         batch_id, processed_pubs, stats = process_batch(mock_batch_info_no_year)
@@ -178,38 +205,13 @@ class TestSkipNoYearRecords:
         """Test that records without year are processed when brute-force option is enabled"""
         # Enable brute force mode
         batch_info_list = list(mock_batch_info_no_year)
-        batch_info_list[-1] = True  # Set brute_force_missing_year to True
+        batch_info_list[-3] = (
+            True  # Set brute_force_missing_year to True (now at -3 due to min_year, max_year)
+        )
         batch_info_brute_force = tuple(batch_info_list)
 
-        # Mock the cache manager and indexes
-        def mock_get_cached_indexes(*args):
-            class MockIndex:
-                def get_candidates_list(self, pub, tolerance):
-                    return []
-
-                def get_stats(self):
-                    return {"title_keys": 0, "author_keys": 0}
-
-                def size(self):
-                    return 0
-
-                def size(self):
-                    return 0
-
-            return MockIndex(), MockIndex()
-
-        def mock_get_cached_generic_detector(*args):
-            return None
-
-        # Patch the CacheManager methods
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_indexes",
-            mock_get_cached_indexes,
-        )
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_generic_detector",
-            mock_get_cached_generic_detector,
-        )
+        # Set up mock worker data
+        self._setup_mock_worker_data(monkeypatch)
 
         # Process the batch
         batch_id, processed_pubs, stats = process_batch(batch_info_brute_force)
@@ -222,32 +224,8 @@ class TestSkipNoYearRecords:
     def test_mixed_batch_skips_only_no_year_records(self, mock_batch_info_mixed, monkeypatch):
         """Test that only records without year are skipped in a mixed batch"""
 
-        # Mock the cache manager and indexes
-        def mock_get_cached_indexes(*args):
-            class MockIndex:
-                def get_candidates_list(self, pub, tolerance):
-                    return []
-
-                def get_stats(self):
-                    return {"title_keys": 0, "author_keys": 0}
-
-                def size(self):
-                    return 0
-
-            return MockIndex(), MockIndex()
-
-        def mock_get_cached_generic_detector(*args):
-            return None
-
-        # Patch the CacheManager methods
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_indexes",
-            mock_get_cached_indexes,
-        )
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_generic_detector",
-            mock_get_cached_generic_detector,
-        )
+        # Set up mock worker data
+        self._setup_mock_worker_data(monkeypatch)
 
         # Process the batch
         batch_id, processed_pubs, stats = process_batch(mock_batch_info_mixed)
@@ -262,43 +240,32 @@ class TestSkipNoYearRecords:
         """Test that matches for no-year records get 'brute_force_without_year' match type"""
         # Enable brute force mode
         batch_info_list = list(mock_batch_info_no_year)
-        batch_info_list[-1] = True  # Set brute_force_missing_year to True
+        batch_info_list[-3] = (
+            True  # Set brute_force_missing_year to True (now at -3 due to min_year, max_year)
+        )
         batch_info_brute_force = tuple(batch_info_list)
 
-        # Mock the cache manager and indexes to return a match
-        def mock_get_cached_indexes(*args):
-            class MockIndex:
-                def get_candidates_list(self, pub, tolerance):
-                    # Return a mock candidate that will match
-                    mock_candidate = Publication(
-                        title="Test Book Without Year",
-                        author="Jones, Jane",
-                        pub_date="1950",
-                        source="Registration",
-                        source_id="reg001",
-                    )
-                    return [mock_candidate]
+        # Mock the indexes to return a match
+        class MockIndexWithMatch:
+            def get_candidates_list(self, pub, tolerance):
+                # Return a mock candidate that will match
+                mock_candidate = Publication(
+                    title="Test Book Without Year",
+                    author="Jones, Jane",
+                    pub_date="1950",
+                    source="Registration",
+                    source_id="reg001",
+                )
+                return [mock_candidate]
 
-                def get_stats(self):
-                    return {"title_keys": 0, "author_keys": 0}
+            def get_stats(self):
+                return {"title_keys": 0, "author_keys": 0}
 
-                def size(self):
-                    return 1
+            def size(self):
+                return 1
 
-            return MockIndex(), MockIndex()
-
-        def mock_get_cached_generic_detector(*args):
-            return None
-
-        # Patch the CacheManager methods
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_indexes",
-            mock_get_cached_indexes,
-        )
-        monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.CacheManager.get_cached_generic_detector",
-            mock_get_cached_generic_detector,
-        )
+        # Set up mock worker data with the custom index
+        self._setup_mock_worker_data(monkeypatch, MockIndexWithMatch)
 
         # Also need to mock the matching engine's find_best_match to return a match
         def mock_find_best_match(self, marc_pub, candidates, *args, **kwargs):

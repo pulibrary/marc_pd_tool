@@ -222,7 +222,7 @@ class ThresholdRecommendation(TypedDict):
 # Batch processing info type
 BatchProcessingInfo = tuple[
     int,  # batch_id (i + 1)
-    list["Publication"],  # batch
+    str,  # batch_path (path to pickled batch file)
     str,  # worker_cache_dir
     str,  # copyright_dir
     str,  # renewal_dir
@@ -238,6 +238,8 @@ BatchProcessingInfo = tuple[
     bool,  # score_everything
     int | None,  # minimum_combined_score
     bool,  # brute_force_missing_year
+    int | None,  # min_year
+    int | None,  # max_year
 ]
 
 # Generic type variables

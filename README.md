@@ -130,6 +130,9 @@ Key optimizations:
 - Year filtering dramatically reduces comparison space
 - US-only mode processes 50-70% faster
 - Automatic parallel processing across CPU cores
+- Linux systems benefit from shared memory (fork) optimization
+- Dynamic worker recycling prevents memory leaks
+- Batch pickling reduces memory footprint for large datasets
 
 ## Output
 

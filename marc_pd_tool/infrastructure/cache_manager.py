@@ -578,14 +578,17 @@ class CacheManager:
             Tuple of (registration_index, renewal_index) or None if not valid
         """
         # Create year-specific cache subdirectory
-        year_suffix = self._get_year_range_cache_filename(
-            "indexes", min_year, max_year, brute_force
-        ).replace(".pkl", "").replace("indexes_", "")
+        year_suffix = (
+            self._get_year_range_cache_filename("indexes", min_year, max_year, brute_force)
+            .replace(".pkl", "")
+            .replace("indexes_", "")
+        )
         cache_subdir = join(self.indexes_cache_dir, year_suffix)
-        
+
         if not exists(cache_subdir):
+            logger.warning(f"Index cache not found at: {cache_subdir}")
             return None
-            
+
         additional_deps = {
             "config_hash": config_hash,
             "min_year": min_year,
@@ -635,14 +638,16 @@ class CacheManager:
             logger.info(
                 f"Caching indexes for years {min_year or 'earliest'}-{max_year or 'present'}..."
             )
-            
+
         # Create year-specific cache subdirectory
-        year_suffix = self._get_year_range_cache_filename(
-            "indexes", min_year, max_year, brute_force
-        ).replace(".pkl", "").replace("indexes_", "")
+        year_suffix = (
+            self._get_year_range_cache_filename("indexes", min_year, max_year, brute_force)
+            .replace(".pkl", "")
+            .replace("indexes_", "")
+        )
         cache_subdir = join(self.indexes_cache_dir, year_suffix)
         makedirs(cache_subdir, exist_ok=True)
-        
+
         additional_deps = {
             "config_hash": config_hash,
             "min_year": min_year,

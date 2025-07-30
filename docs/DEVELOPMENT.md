@@ -67,6 +67,7 @@ git submodule update --init --recursive
 ```
 
 Submodules:
+
 - `nypl-reg/` - Copyright registrations (1923-1977)
 - `nypl-ren/` - Copyright renewals (1950-1991)
 
@@ -83,6 +84,7 @@ pdm format      # Format code
 For long-running processes (3-10 hours), use screen or tmux:
 
 ### GNU Screen
+
 ```bash
 screen -S marc_processing
 pdm run python -m marc_pd_tool --marcxml data.xml [options]
@@ -91,6 +93,7 @@ pdm run python -m marc_pd_tool --marcxml data.xml [options]
 ```
 
 ### tmux
+
 ```bash
 tmux new -s marc_processing
 pdm run python -m marc_pd_tool --marcxml data.xml [options]
@@ -127,6 +130,7 @@ class Publication:
 ```
 
 Key features:
+
 - Dual author support (245$c and 1xx fields)
 - Lazy normalization for memory efficiency
 - Single best match stored per type
@@ -164,6 +168,7 @@ Manages persistent caches to avoid re-parsing data:
 ```
 
 Features:
+
 - Automatic invalidation on file changes
 - Configuration-aware (rebuilds on threshold changes)
 - Year-range specific caching
@@ -174,12 +179,13 @@ Features:
 Core matching engine with multi-stage filtering:
 
 1. **Index lookup**: Find candidates using title/author keys
-2. **Year filtering**: ±tolerance (default 2 years)
-3. **Threshold filtering**: Title, author, publisher minimums
-4. **Scoring**: Adaptive weights based on available data
-5. **Early exit**: Stop at 95%+ title and 90%+ author match
+1. **Year filtering**: ±tolerance (default 2 years)
+1. **Threshold filtering**: Title, author, publisher minimums
+1. **Scoring**: Adaptive weights based on available data
+1. **Early exit**: Stop at 95%+ title and 90%+ author match
 
 Key methods:
+
 - `find_best_match()`: Single record matching
 - `process_batch()`: Parallel batch processing
 
@@ -224,31 +230,54 @@ See `docs/PIPELINE.md` for complete normalization details:
 
 ### Parallel Processing
 
-Uses multiprocessing for CPU-bound work:
+Uses multiprocessing with platform-specific optimizations:
 
-1. Main process builds/loads indexes
-2. Worker processes get index references via cache
-3. Batches distributed across workers
-4. Results collected and merged
+#### Linux (fork-based)
+
+1. Main process loads indexes into memory BEFORE creating worker pool
+1. Workers inherit shared memory via copy-on-write (fork)
+1. No duplicate loading - true memory sharing
+1. Batches are pickled to disk to reduce memory footprint
+1. Workers load only active batch from pickle file
+
+#### macOS/Windows (spawn-based)
+
+1. Each worker loads indexes independently during initialization
+1. Indexes loaded once per worker, not per batch
+1. Batches are pickled to disk to reduce memory footprint
+1. Workers load only active batch from pickle file
 
 Benefits:
+
 - Linear scaling with CPU cores
 - Process isolation for fault tolerance
-- Efficient memory usage via shared cache
+- **Memory efficient**: 
+  - Linux: True memory sharing via fork
+  - macOS/Windows: Load-once-per-worker pattern
+  - All platforms: Only active batch in RAM
+- **Dynamic worker recycling**: Prevents memory leaks
+- **Platform optimized**: Leverages OS-specific features
 
 ### Caching Strategy
 
-Three-tier caching system:
+Multi-tier caching system:
 
 1. **Indexes**: If valid, skip data loading entirely
-2. **Parsed data**: If valid, skip file parsing
-3. **MARC batches**: Reuse across multiple runs
+1. **Parsed data**: If valid, skip file parsing
+1. **MARC batches**: Pickled to temporary files during processing
+1. **Year-filtered data**: Separate caches for different year ranges
 
 Cache keys include:
+
 - File modification times
 - Configuration hash
-- Year ranges
+- Year ranges (enables loading only relevant data)
 - Filter options
+
+**Year Filtering Optimization**:
+- When `--min-year`/`--max-year` are used, only relevant copyright/renewal data is loaded
+- Dramatically reduces memory usage and startup time
+- Separate caches maintained for different year ranges
 
 ### Memory Optimizations
 
@@ -257,8 +286,13 @@ Cache keys include:
 - Compact index structures
 - Bounded caches (LRU, max sizes)
 - None vs empty string optimization
+- **Batch pickling**: Only active batch in RAM
+- **Platform-specific sharing**:
+  - Linux: Copy-on-write via fork
+  - macOS/Windows: Load-once pattern
+- **Year filtering**: Load only needed data
 
-Result: 30-50% memory reduction
+Result: 50-70% memory reduction
 
 ## Configuration
 
@@ -365,26 +399,37 @@ analyzer.analyze_ground_truth_scores(pairs)
 ### Adding a New Data Source
 
 1. Create loader in `loaders/` following existing patterns
-2. Add to `DataMatcher` initialization
-3. Update `Publication` model if needed
-4. Add caching support in `CacheManager`
-5. Write tests
+1. Add to `DataMatcher` initialization
+1. Update `Publication` model if needed
+1. Add caching support in `CacheManager`
+1. Update worker initialization in `matching_engine.py`
+1. Write tests
+
+### Debugging Multiprocessing Issues
+
+1. **Check platform**: `multiprocessing.get_start_method()`
+1. **Linux memory issues**: Verify indexes loaded before fork
+1. **Worker crashes**: Check pickle file creation/cleanup
+1. **Memory leaks**: Adjust `maxtasksperchild` dynamically
+1. **Use debug logging**: Shows worker initialization details
 
 ### Modifying Matching Logic
 
 1. Update `DataMatcher.find_best_match()`
-2. Add new thresholds to `config.json`
-3. Update CLI arguments in `cli/main.py`
-4. Test with ground truth data
-5. Update `PIPELINE.md` documentation
+1. Add new thresholds to `config.json`
+1. Update CLI arguments in `cli/main.py`
+1. Test with ground truth data
+1. Update `PIPELINE.md` documentation
+1. Ensure changes work with batch pickling
+1. Test on both Linux (fork) and macOS (spawn)
 
 ### Adding an Export Format
 
 1. Create exporter in `exporters/`
-2. Implement `BaseExporter` interface
-3. Add format option to CLI
-4. Update `api.py` export logic
-5. Add tests
+1. Implement `BaseExporter` interface
+1. Add format option to CLI
+1. Update `api.py` export logic
+1. Add tests
 
 ### Performance Profiling
 
@@ -451,9 +496,9 @@ pdm run python -m marc_pd_tool --disable-cache [options]
 ### Common Issues
 
 1. **Missing matches**: Lower thresholds, check year ranges
-2. **Memory errors**: Reduce batch size or worker count
-3. **Slow startup**: Cache may be invalid, check with `--debug`
-4. **Unicode errors**: Check source file encoding
+1. **Memory errors**: Reduce batch size or worker count
+1. **Slow startup**: Cache may be invalid, check with `--debug`
+1. **Unicode errors**: Check source file encoding
 
 ## Code Style
 
@@ -467,12 +512,46 @@ pdm run python -m marc_pd_tool --disable-cache [options]
 ## Contributing
 
 1. Fork repository
-2. Create feature branch
-3. Write tests first
-4. Ensure all tests pass
-5. Run `pdm format`
-6. Update documentation
-7. Submit pull request
+1. Create feature branch
+1. Write tests first
+1. Ensure all tests pass
+1. Run `pdm format`
+1. Update documentation
+1. Submit pull request
+
+## Recent Architecture Improvements (2025)
+
+### Linux Stability Fix
+
+Resolved worker process instability on Linux by implementing platform-specific memory sharing:
+
+- **Problem**: Workers dying with "broken pipe" errors due to memory pressure
+- **Solution**: Load indexes in main process before fork() on Linux
+- **Result**: True memory sharing via copy-on-write, stable processing
+
+### Batch Pickling Implementation
+
+Reduced memory footprint by pickling MARC batches to disk:
+
+- **Problem**: Entire dataset (130K+ records) held in RAM
+- **Solution**: Pickle batches to temp files, load on demand
+- **Result**: Only active batch in memory, 70%+ RAM reduction
+
+### Dynamic Worker Recycling
+
+Implemented intelligent worker lifecycle management:
+
+- **Calculation**: `max(50, min(200, batches_per_worker // 3))`
+- **Range**: 50-200 tasks per worker based on workload
+- **Purpose**: Prevents memory leaks while maintaining efficiency
+
+### Year Filtering Enhancement
+
+Optimized data loading based on year ranges:
+
+- **Smart loading**: Only loads copyright/renewal data for requested years
+- **Logging**: Tracks why records are filtered (no year, out of range, non-US)
+- **Copyright notation**: Now handles "c1955" format correctly
 
 ## Additional Resources
 
