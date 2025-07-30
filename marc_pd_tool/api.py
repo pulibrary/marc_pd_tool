@@ -8,7 +8,11 @@ copyright and renewal data.
 """
 
 # Standard library imports
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import as_completed
 from logging import getLogger
+from multiprocessing import cpu_count
+from time import time
 from typing import cast
 
 # Local imports
@@ -28,10 +32,12 @@ from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
 from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
 from marc_pd_tool.processing.indexer import DataIndexer
 from marc_pd_tool.processing.indexer import build_wordbased_index
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.processing.matching_engine import process_batch
 from marc_pd_tool.processing.score_analyzer import ScoreAnalyzer
 from marc_pd_tool.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.utils.time_utils import format_time_duration
 from marc_pd_tool.utils.types import AnalysisOptions
+from marc_pd_tool.utils.types import BatchProcessingInfo
 from marc_pd_tool.utils.types import JSONDict
 from marc_pd_tool.utils.types import MatchResultDict
 
@@ -242,98 +248,61 @@ class MarcCopyrightAnalyzer:
         if not self.registration_index or not self.renewal_index:
             self._load_and_index_data(options)
 
+        # Get processing parameters
+        batch_size = options.get("batch_size", 200)
+        num_processes = options.get("num_processes")
+        if num_processes is None:
+            num_processes = max(1, cpu_count() - 2)
+
         # Get matching parameters with defaults
         year_tolerance = options.get("year_tolerance", 1)
         title_threshold = options.get("title_threshold", 40)
         author_threshold = options.get("author_threshold", 30)
+        publisher_threshold = options.get("publisher_threshold", 60)
         early_exit_title = options.get("early_exit_title", 95)
         early_exit_author = options.get("early_exit_author", 90)
         score_everything_mode = options.get("score_everything_mode", False)
         minimum_combined_score_raw = options.get("minimum_combined_score", 40)
         minimum_combined_score = (
-            float(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
+            int(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
 
-        # Create matching engine
-        matching_engine = DataMatcher(config=self.config)
+        # Check if we should use multiprocessing
+        if len(publications) < batch_size or num_processes == 1:
+            # Process sequentially for small datasets
+            logger.info("Processing sequentially due to small dataset or single process requested")
+            return self._process_sequentially(
+                publications,
+                year_tolerance,
+                title_threshold,
+                author_threshold,
+                publisher_threshold,
+                early_exit_title,
+                early_exit_author,
+                score_everything_mode,
+                minimum_combined_score,
+                brute_force_missing_year,
+            )
 
-        # Process each publication
-        for pub in publications:
-            # Skip records without year unless brute force mode
-            if pub.year is None and not brute_force_missing_year:
-                logger.debug(f"Skipping {pub.source_id} - no year data")
-                continue
-
-            # Find registration matches
-            reg_candidates = []
-            if self.registration_index is not None:
-                reg_candidates = self.registration_index.get_candidates_list(pub, year_tolerance)
-
-            if score_everything_mode:
-                reg_match = matching_engine.find_best_match_ignore_thresholds(
-                    pub,
-                    reg_candidates,
-                    year_tolerance,
-                    early_exit_title,
-                    early_exit_author,
-                    self.generic_detector,
-                    minimum_combined_score,
-                )
-            else:
-                reg_match = matching_engine.find_best_match(
-                    pub,
-                    reg_candidates,
-                    title_threshold,
-                    author_threshold,
-                    year_tolerance,
-                    60,  # publisher threshold
-                    early_exit_title,
-                    early_exit_author,
-                    self.generic_detector,
-                )
-
-            if reg_match:
-                self._apply_match_to_publication(pub, reg_match, "registration")
-
-            # Find renewal matches
-            ren_candidates = []
-            if self.renewal_index is not None:
-                ren_candidates = self.renewal_index.get_candidates_list(pub, year_tolerance)
-
-            if score_everything_mode:
-                ren_match = matching_engine.find_best_match_ignore_thresholds(
-                    pub,
-                    ren_candidates,
-                    year_tolerance,
-                    early_exit_title,
-                    early_exit_author,
-                    self.generic_detector,
-                    minimum_combined_score,
-                )
-            else:
-                ren_match = matching_engine.find_best_match(
-                    pub,
-                    ren_candidates,
-                    title_threshold,
-                    author_threshold,
-                    year_tolerance,
-                    60,  # publisher threshold
-                    early_exit_title,
-                    early_exit_author,
-                    self.generic_detector,
-                )
-
-            if ren_match:
-                self._apply_match_to_publication(pub, ren_match, "renewal")
-
-            # Determine copyright status
-            pub.determine_copyright_status()
-
-            # Add to results
-            self.results.add_publication(pub)
-
-        return self.results.publications
+        # Process in parallel for larger datasets
+        logger.info(
+            f"Processing {len(publications)} records in parallel with {num_processes} workers"
+        )
+        return self._process_parallel(
+            publications,
+            batch_size,
+            num_processes,
+            year_tolerance,
+            title_threshold,
+            author_threshold,
+            publisher_threshold,
+            early_exit_title,
+            early_exit_author,
+            score_everything_mode,
+            minimum_combined_score,
+            brute_force_missing_year,
+        )
 
     def get_results(self) -> AnalysisResults:
         """Get analysis results
@@ -377,6 +346,215 @@ class MarcCopyrightAnalyzer:
             Dictionary of statistics including counts by status and country
         """
         return self.results.statistics.copy()
+
+    def _process_sequentially(
+        self,
+        publications: list[Publication],
+        year_tolerance: int,
+        title_threshold: int,
+        author_threshold: int,
+        publisher_threshold: int,
+        early_exit_title: int,
+        early_exit_author: int,
+        score_everything_mode: bool,
+        minimum_combined_score: int | None,
+        brute_force_missing_year: bool,
+    ) -> list[Publication]:
+        """Process publications sequentially using process_batch"""
+        logger.info(f"Processing {len(publications)} records sequentially")
+
+        # Get configuration for process_batch
+        config_dict = self.config.get_config()
+        config_hash = self._compute_config_hash(config_dict)
+
+        # Get detector config
+        detector_config_raw = config_dict.get("generic_title_detection", {})
+        detector_config: dict[str, int | bool] = {}
+        if isinstance(detector_config_raw, dict):
+            for key, value in detector_config_raw.items():
+                if isinstance(value, (int, bool)):
+                    detector_config[key] = value
+
+        # Create a single batch with all publications
+        batch_info: BatchProcessingInfo = (
+            1,  # batch_id
+            publications,  # marc_batch
+            self.cache_dir,  # cache_dir
+            self.copyright_dir,  # copyright_dir
+            self.renewal_dir,  # renewal_dir
+            config_hash,  # config_hash
+            detector_config,  # detector_config
+            1,  # total_batches
+            title_threshold,
+            author_threshold,
+            publisher_threshold,
+            year_tolerance,
+            early_exit_title,
+            early_exit_author,
+            score_everything_mode,
+            minimum_combined_score,
+            brute_force_missing_year,
+        )
+
+        # Process using the same logic as parallel processing
+        _, processed_publications, stats = process_batch(batch_info)
+
+        # Update results
+        for pub in processed_publications:
+            self.results.add_publication(pub)
+
+        logger.info(
+            f"Sequential processing complete: {stats['registration_matches_found']} registration, "
+            f"{stats['renewal_matches_found']} renewal matches"
+        )
+
+        return self.results.publications
+
+    def _process_parallel(
+        self,
+        publications: list[Publication],
+        batch_size: int,
+        num_processes: int,
+        year_tolerance: int,
+        title_threshold: int,
+        author_threshold: int,
+        publisher_threshold: int,
+        early_exit_title: int,
+        early_exit_author: int,
+        score_everything_mode: bool,
+        minimum_combined_score: int | None,
+        brute_force_missing_year: bool,
+    ) -> list[Publication]:
+        """Process publications in parallel using multiple processes"""
+        start_time = time()
+
+        # Create batches
+        batches = []
+        for i in range(0, len(publications), batch_size):
+            batch = publications[i : i + batch_size]
+            batches.append(batch)
+
+        total_batches = len(batches)
+        logger.info(f"Created {total_batches} batches of ~{batch_size} records each")
+
+        # Get configuration hash for cache validation
+        config_dict = self.config.get_config()
+        config_hash = self._compute_config_hash(config_dict)
+
+        # Get detector config
+        detector_config_raw = config_dict.get("generic_title_detection", {})
+        detector_config: dict[str, int | bool] = {}
+        if isinstance(detector_config_raw, dict):
+            for key, value in detector_config_raw.items():
+                if isinstance(value, (int, bool)):
+                    detector_config[key] = value
+
+        # Create batch info tuples
+        batch_infos = []
+        for i, batch in enumerate(batches):
+            batch_info: BatchProcessingInfo = (
+                i + 1,  # batch_id
+                batch,  # marc_batch
+                self.cache_dir,  # cache_dir
+                self.copyright_dir,  # copyright_dir
+                self.renewal_dir,  # renewal_dir
+                config_hash,  # config_hash
+                detector_config,  # detector_config
+                total_batches,  # total_batches
+                title_threshold,
+                author_threshold,
+                publisher_threshold,
+                year_tolerance,
+                early_exit_title,
+                early_exit_author,
+                score_everything_mode,
+                minimum_combined_score,
+                brute_force_missing_year,
+            )
+            batch_infos.append(batch_info)
+
+        # Process batches in parallel
+        all_processed_publications = []
+        all_stats = []
+        completed_batches = 0
+        total_reg_matches = 0
+        total_ren_matches = 0
+        batch_start_times = {}  # Track when each batch started
+
+        try:
+            with ProcessPoolExecutor(max_workers=num_processes) as executor:
+                # Submit all jobs
+                future_to_batch = {}
+                for batch_info in batch_infos:
+                    batch_id = batch_info[0]
+                    future = executor.submit(process_batch, batch_info)
+                    future_to_batch[future] = batch_id
+                    batch_start_times[batch_id] = time()  # Record submission time
+
+                logger.info(
+                    f"Submitted {total_batches} batches for processing with {num_processes} workers"
+                )
+
+                # Collect results as they complete
+                for future in as_completed(future_to_batch):
+                    batch_id = future_to_batch[future]
+                    batch_complete_time = time()
+
+                    try:
+                        batch_id_result, processed_batch, batch_stats = future.result()
+                        all_processed_publications.extend(processed_batch)
+                        all_stats.append(batch_stats)
+                        completed_batches += 1
+
+                        # Calculate batch duration
+                        batch_duration = batch_complete_time - batch_start_times[batch_id]
+                        batch_duration_str = format_time_duration(batch_duration)
+
+                        # Calculate overall progress and ETA
+                        elapsed = batch_complete_time - start_time
+                        eta = (elapsed / completed_batches) * (total_batches - completed_batches)
+                        eta_str = format_time_duration(eta)
+
+                        # Update totals
+                        reg_matches = batch_stats["registration_matches_found"]
+                        ren_matches = batch_stats["renewal_matches_found"]
+                        total_reg_matches += reg_matches
+                        total_ren_matches += ren_matches
+
+                        # Log progress with all requested info
+                        logger.info(
+                            f"Completed batch {batch_id}/{total_batches}: "
+                            f"{reg_matches} new registration, {ren_matches} new renewal matches | "
+                            f"Total: {total_reg_matches} reg, {total_ren_matches} ren | "
+                            f"Batch time: {batch_duration_str} | "
+                            f"Progress: {completed_batches}/{total_batches} "
+                            f"({completed_batches/total_batches*100:.1f}%) | "
+                            f"ETA: {eta_str}"
+                        )
+
+                    except Exception as e:
+                        logger.error(f"Error processing batch {batch_id}: {e}")
+                        raise
+
+        except Exception as e:
+            logger.error(f"Fatal error during parallel processing: {e}")
+            raise
+
+        # Update results with all processed publications
+        for pub in all_processed_publications:
+            self.results.add_publication(pub)
+
+        # Log final performance stats
+        total_time = time() - start_time
+        total_records = len(all_processed_publications)
+        records_per_minute = total_records / (total_time / 60) if total_time > 0 else 0
+
+        logger.info(
+            f"Parallel processing complete: {total_records} records in "
+            f"{format_time_duration(total_time)} ({records_per_minute:.0f} records/minute)"
+        )
+
+        return self.results.publications
 
     def _load_and_index_data(self, options: AnalysisOptions) -> None:
         """Load and index copyright/renewal data"""

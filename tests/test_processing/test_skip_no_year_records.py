@@ -42,6 +42,7 @@ class TestSkipNoYearRecords:
             1,  # total_batches
             40,  # title_threshold
             30,  # author_threshold
+            60,  # publisher_threshold
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author
@@ -77,6 +78,7 @@ class TestSkipNoYearRecords:
             1,  # total_batches
             40,  # title_threshold
             30,  # author_threshold
+            60,  # publisher_threshold
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author
@@ -120,6 +122,7 @@ class TestSkipNoYearRecords:
             1,  # total_batches
             40,  # title_threshold
             30,  # author_threshold
+            60,  # publisher_threshold
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author

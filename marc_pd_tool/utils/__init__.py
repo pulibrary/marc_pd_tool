@@ -9,6 +9,7 @@ from marc_pd_tool.utils.text_utils import extract_lccn_year
 from marc_pd_tool.utils.text_utils import normalize_lccn
 from marc_pd_tool.utils.text_utils import normalize_unicode
 from marc_pd_tool.utils.text_utils import normalize_word_splits
+from marc_pd_tool.utils.time_utils import format_time_duration
 
 __all__ = [
     "extract_lccn_prefix",
@@ -17,4 +18,5 @@ __all__ = [
     "normalize_lccn",
     "normalize_unicode",
     "normalize_word_splits",
+    "format_time_duration",
 ]

@@ -85,7 +85,7 @@ class TestConfigLoader:
             assert config.get_threshold("title") == 85
 
             # Test that other values remain at defaults
-            assert config.get_threshold("author") == 70
+            assert config.get_threshold("author") == 30
             assert config.get_threshold("publisher") == 60
 
             # Test that scoring weights are unchanged
@@ -107,7 +107,7 @@ class TestConfigLoader:
         try:
             # Should not raise exception, should fall back to defaults
             config = ConfigLoader(config_path)
-            assert config.get_threshold("title") == 80  # Default value
+            assert config.get_threshold("title") == 40  # Default value
 
         finally:
             # Standard library imports
@@ -120,8 +120,8 @@ class TestConfigLoader:
         config = ConfigLoader("nonexistent_file.json")
 
         # Should fall back to defaults
-        assert config.get_threshold("title") == 80
-        assert config.get_threshold("author") == 70
+        assert config.get_threshold("title") == 40
+        assert config.get_threshold("author") == 30
 
     def test_word_list_access(self):
         """Test accessing word lists from configuration"""

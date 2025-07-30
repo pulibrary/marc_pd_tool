@@ -67,8 +67,8 @@ class ConfigLoader:
                 "generic_no_publisher": {"title": 0.4, "author": 0.6},
             },
             "default_thresholds": {
-                "title": 80,
-                "author": 70,
+                "title": 40,
+                "author": 30,
                 "publisher": 60,
                 "early_exit_title": 95,
                 "early_exit_author": 90,

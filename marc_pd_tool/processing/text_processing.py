@@ -220,6 +220,17 @@ def normalize_publisher_text(
     )
 
 
+def _get_publisher_stopwords() -> set[str]:
+    """Helper to get publisher stopwords from config
+
+    Returns:
+        Set of publisher stopwords
+    """
+    config = get_config()
+    stopwords_list = config.get_stopwords("publisher") if config else None
+    return set(stopwords_list) if stopwords_list else set()
+
+
 def extract_best_publisher_match(
     marc_publisher: str | None, full_text: str, threshold: int = 80
 ) -> str | None:
@@ -236,11 +247,10 @@ def extract_best_publisher_match(
     if not marc_publisher or not full_text:
         return None
 
+    # Get publisher stopwords once
+    stopwords = _get_publisher_stopwords()
+
     # Clean and prepare MARC publisher using centralized normalization
-    config = get_config()
-    # Get publisher stopwords from config if available
-    stopwords_list = config.get_stopwords("publisher") if config else None
-    stopwords = set(stopwords_list) if stopwords_list else None
     marc_clean = normalize_publisher_text(marc_publisher, stopwords)
     if not marc_clean:
         return None
@@ -254,9 +264,6 @@ def extract_best_publisher_match(
 
     for candidate in candidates:
         # Normalize candidate using same logic as MARC publisher
-        # Get publisher stopwords from config if available
-        stopwords_list = config.get_stopwords("publisher") if config else None
-        stopwords = set(stopwords_list) if stopwords_list else None
         candidate_clean = normalize_publisher_text(candidate, stopwords)
         score = fuzz.token_sort_ratio(marc_clean, candidate_clean)
         if score > best_score and score >= threshold:

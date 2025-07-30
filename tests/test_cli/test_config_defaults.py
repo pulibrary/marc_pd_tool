@@ -191,6 +191,11 @@ def test_none_values_in_config():
         args = parser.parse_args(["--marcxml", "test.xml"])
 
         assert args.max_workers is None
-        assert args.min_year is None
+        # When min_year is None in config, it defaults to current_year - 96
+        # Standard library imports
+        from datetime import datetime
+
+        expected_min_year = datetime.now().year - 96
+        assert args.min_year == expected_min_year
         assert args.max_year is None
         assert args.log_file is None

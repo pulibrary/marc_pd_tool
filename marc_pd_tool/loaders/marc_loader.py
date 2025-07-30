@@ -101,9 +101,9 @@ class MarcLoader:
         if filtered_count > 0:
             filter_desc = []
             if self.min_year is not None:
-                filter_desc.append(f"after {self.min_year}")
+                filter_desc.append(f"before {self.min_year}")
             if self.max_year is not None:
-                filter_desc.append(f"before {self.max_year} (inclusive)")
+                filter_desc.append(f"after {self.max_year}")
             if self.us_only:
                 filter_desc.append("non-US publications")
             filter_text = " or ".join(filter_desc)

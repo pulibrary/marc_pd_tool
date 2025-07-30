@@ -179,6 +179,12 @@ def create_argument_parser() -> ArgumentParser:
         help="Minimum author similarity score (0-100)",
     )
     parser.add_argument(
+        "--publisher-threshold",
+        type=int,
+        default=config.get_threshold("publisher"),
+        help="Minimum publisher similarity score (0-100)",
+    )
+    parser.add_argument(
         "--year-tolerance",
         type=int,
         default=config.get_threshold("year_tolerance"),
@@ -198,11 +204,17 @@ def create_argument_parser() -> ArgumentParser:
     )
 
     # Filtering options
+    # Calculate default min_year as current year - 96 if not in config
+    default_min_year = filtering_config.get("min_year")
+    if default_min_year is None:
+        current_year = datetime.now().year
+        default_min_year = current_year - 96
+
     parser.add_argument(
         "--min-year",
         type=int,
-        default=filtering_config.get("min_year"),
-        help="Minimum publication year to include (default: current year - 96)",
+        default=default_min_year,
+        help=f"Minimum publication year to include (default: {default_min_year})",
     )
     parser.add_argument(
         "--max-year",
@@ -374,10 +386,9 @@ def main() -> None:
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # Set minimum year if not provided
-    if args.min_year is None:
-        current_year = datetime.now().year
-        args.min_year = current_year - 96
+    # Log the min_year being used
+    if args.min_year is not None:
+        logger.info(f"Using min_year filter: {args.min_year}")
 
     # Validate year range
     if args.max_year is not None and args.max_year < args.min_year:
@@ -436,7 +447,7 @@ def main() -> None:
         logger.info(f"Configuration: {args.max_workers} workers, batch_size={args.batch_size}")
         logger.info(
             f"Thresholds: title={args.title_threshold}, author={args.author_threshold}, "
-            f"year_tolerance={args.year_tolerance}"
+            f"publisher={args.publisher_threshold}, year_tolerance={args.year_tolerance}"
         )
 
         analyzer = MarcCopyrightAnalyzer(
@@ -492,6 +503,7 @@ def main() -> None:
             "year_tolerance": args.year_tolerance,
             "title_threshold": args.title_threshold,
             "author_threshold": args.author_threshold,
+            "publisher_threshold": args.publisher_threshold,
             "early_exit_title": args.early_exit_title,
             "early_exit_author": args.early_exit_author,
             "score_everything_mode": args.score_everything_mode,

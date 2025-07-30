@@ -523,6 +523,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         total_batches,
         title_threshold,
         author_threshold,
+        publisher_threshold,
         year_tolerance,
         early_exit_title,
         early_exit_author,
@@ -641,7 +642,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
                 title_threshold,
                 author_threshold,
                 year_tolerance,
-                60,  # publisher_threshold
+                publisher_threshold,
                 early_exit_title,
                 early_exit_author,
                 generic_detector,
@@ -718,7 +719,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
                 title_threshold,
                 author_threshold,
                 year_tolerance,
-                60,  # publisher_threshold
+                publisher_threshold,
                 early_exit_title,
                 early_exit_author,
                 generic_detector,

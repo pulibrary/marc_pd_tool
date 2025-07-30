@@ -16,7 +16,6 @@ from typing import TypedDict
 if TYPE_CHECKING:
     # Local imports
     from marc_pd_tool.data.publication import MatchResult
-    from marc_pd_tool.data.publication import Publication
 
 
 class CSVWriter(Protocol):
@@ -62,6 +61,7 @@ class AnalysisOptions(TypedDict, total=False):
     year_tolerance: int
     title_threshold: int
     author_threshold: int
+    publisher_threshold: int
     early_exit_title: int
     early_exit_author: int
     score_everything_mode: bool
@@ -231,11 +231,12 @@ BatchProcessingInfo = tuple[
     int,  # total_batches
     int,  # title_threshold
     int,  # author_threshold
+    int,  # publisher_threshold
     int,  # year_tolerance
     int,  # early_exit_title
     int,  # early_exit_author
     bool,  # score_everything
-    int,  # minimum_combined_score
+    int | None,  # minimum_combined_score
     bool,  # brute_force_missing_year
 ]
 
