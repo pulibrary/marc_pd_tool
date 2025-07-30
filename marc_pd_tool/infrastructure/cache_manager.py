@@ -523,7 +523,7 @@ class CacheManager:
             JSONDict, {"year_ranges": year_ranges, "filtering_options": filtering_options}
         )
         if self._is_cache_valid(self.marc_cache_dir, [marc_path], additional_deps):
-            logger.debug(f"Loading MARC data from cache...")
+            logger.info("Using cached MARC data")
             return self._load_cache_data(self.marc_cache_dir, "batches.pkl")
         return None
 

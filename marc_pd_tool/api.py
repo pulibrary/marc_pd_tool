@@ -199,29 +199,79 @@ class MarcCopyrightAnalyzer:
         self._load_and_index_data(options)
 
         # Load MARC records
-        logger.info(f"Loading MARC records from {marc_path}")
-        marc_loader = MarcLoader(
-            marc_path=marc_path,
-            batch_size=options.get("batch_size", 1000),
-            min_year=options.get("min_year"),
-            max_year=options.get("max_year"),
-            us_only=options.get("us_only", False),
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("=== PHASE 1: LOADING MARC RECORDS ===")
+        logger.info("=" * 80)
+        logger.info(f"Loading MARC records from: {marc_path}")
+
+        # Build parameters for MARC caching
+        min_year = options.get("min_year")
+        max_year = options.get("max_year")
+        year_ranges = {"copyright": (min_year, max_year), "renewal": (min_year, max_year)}
+        filtering_options = {
+            "us_only": options.get("us_only", False),
+            "min_year": min_year,
+            "max_year": max_year,
+        }
+
+        # Check for cached MARC data
+        cached_marc_batches = self.cache_manager.get_cached_marc_data(
+            marc_path, year_ranges, filtering_options
         )
 
-        # Extract all batches and flatten
-        marc_batches = marc_loader.extract_all_batches()
-        marc_publications = [pub for batch in marc_batches for pub in batch]
+        if cached_marc_batches:
+            marc_batches = cached_marc_batches
+            marc_publications = [pub for batch in marc_batches for pub in batch]
+            logger.info(f"✓ Loaded {len(marc_publications):,} MARC records from cache")
+        else:
+            # Load from files
+            marc_loader = MarcLoader(
+                marc_path=marc_path,
+                batch_size=options.get("batch_size", 1000),
+                min_year=min_year,
+                max_year=max_year,
+                us_only=options.get("us_only", False),
+            )
 
-        logger.info(f"Loaded {len(marc_publications)} MARC records")
+            # Extract all batches and flatten
+            marc_batches = marc_loader.extract_all_batches()
+            marc_publications = [pub for batch in marc_batches for pub in batch]
+
+            logger.info(f"✓ Loaded {len(marc_publications):,} MARC records")
+
+            # Cache the loaded MARC data
+            self.cache_manager.cache_marc_data(
+                marc_path, year_ranges, filtering_options, marc_batches
+            )
+
+        # Log filtering information if applicable
+        if options.get("us_only"):
+            logger.info("  Filter applied: US publications only")
+        if options.get("min_year") or options.get("max_year"):
+            year_range = (
+                f"{options.get('min_year') or 'earliest'} to {options.get('max_year') or 'present'}"
+            )
+            logger.info(f"  Year range filter: {year_range}")
 
         # Analyze publications
         self.analyze_marc_records(marc_publications, options)
 
         # Export results if output path provided
         if output_path:
+            logger.info("")
+            logger.info("=" * 80)
+            logger.info("=== PHASE 5: EXPORTING RESULTS ===")
+            logger.info("=" * 80)
             output_format = options.get("format", "csv")
             single_file = options.get("single_file", False)
+            logger.info(f"Exporting results to: {output_path}")
+            logger.info(f"  Format: {output_format.upper()}")
+            logger.info(
+                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}"
+            )
             self.export_results(output_path, format=output_format, single_file=single_file)
+            logger.info("✓ Export complete")
 
         return self.results
 
@@ -248,6 +298,12 @@ class MarcCopyrightAnalyzer:
         if not self.registration_index or not self.renewal_index:
             self._load_and_index_data(options)
 
+        # Start matching phase
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("=== PHASE 3: MATCHING RECORDS ===")
+        logger.info("=" * 80)
+
         # Get processing parameters
         batch_size = options.get("batch_size", 200)
         num_processes = options.get("num_processes")
@@ -268,11 +324,28 @@ class MarcCopyrightAnalyzer:
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
 
+        # Log matching configuration
+        logger.info("Matching configuration:")
+        logger.info(f"  Title threshold: {title_threshold}%")
+        logger.info(f"  Author threshold: {author_threshold}%")
+        logger.info(f"  Publisher threshold: {publisher_threshold}%")
+        logger.info(f"  Year tolerance: ±{year_tolerance} years")
+        logger.info(
+            f"  Early exit thresholds: title={early_exit_title}%, author={early_exit_author}%"
+        )
+        if score_everything_mode:
+            logger.info(
+                f"  Score everything mode: ON (minimum combined score: {minimum_combined_score}%)"
+            )
+        if brute_force_missing_year:
+            logger.info("  Brute force mode: ON (processing records without years)")
+
         # Check if we should use multiprocessing
         if len(publications) < batch_size or num_processes == 1:
             # Process sequentially for small datasets
-            logger.info("Processing sequentially due to small dataset or single process requested")
-            return self._process_sequentially(
+            logger.info("")
+            logger.info(f"Processing {len(publications):,} records sequentially...")
+            results = self._process_sequentially(
                 publications,
                 year_tolerance,
                 title_threshold,
@@ -284,25 +357,44 @@ class MarcCopyrightAnalyzer:
                 minimum_combined_score,
                 brute_force_missing_year,
             )
+        else:
+            # Process in parallel for larger datasets
+            logger.info("")
+            logger.info(f"Processing {len(publications):,} records in parallel:")
+            logger.info(f"  Workers: {num_processes}")
+            logger.info(f"  Batch size: {batch_size}")
+            logger.info(f"  Total batches: {(len(publications) + batch_size - 1) // batch_size}")
+            results = self._process_parallel(
+                publications,
+                batch_size,
+                num_processes,
+                year_tolerance,
+                title_threshold,
+                author_threshold,
+                publisher_threshold,
+                early_exit_title,
+                early_exit_author,
+                score_everything_mode,
+                minimum_combined_score,
+                brute_force_missing_year,
+            )
 
-        # Process in parallel for larger datasets
-        logger.info(
-            f"Processing {len(publications)} records in parallel with {num_processes} workers"
-        )
-        return self._process_parallel(
-            publications,
-            batch_size,
-            num_processes,
-            year_tolerance,
-            title_threshold,
-            author_threshold,
-            publisher_threshold,
-            early_exit_title,
-            early_exit_author,
-            score_everything_mode,
-            minimum_combined_score,
-            brute_force_missing_year,
-        )
+        # Analyze copyright status
+        logger.info("")
+        logger.info("=" * 80)
+        logger.info("=== PHASE 4: ANALYZING RESULTS ===")
+        logger.info("=" * 80)
+        logger.info("Determining copyright status for matched records...")
+
+        # Log summary statistics
+        stats = self.results.statistics
+        logger.info(f"\u2713 Analysis complete:")
+        logger.info(f"  Total records processed: {stats['total_records']:,}")
+        logger.info(f"  Registration matches: {stats['registration_matches']:,}")
+        logger.info(f"  Renewal matches: {stats['renewal_matches']:,}")
+        logger.info(f"  No matches found: {stats['no_matches']:,}")
+
+        return results
 
     def get_results(self) -> AnalysisResults:
         """Get analysis results
@@ -558,10 +650,21 @@ class MarcCopyrightAnalyzer:
 
     def _load_and_index_data(self, options: AnalysisOptions) -> None:
         """Load and index copyright/renewal data"""
+        logger.info("=" * 80)
+        logger.info("=== PHASE 1: LOADING DATA ===")
+        logger.info("=" * 80)
+
         # Extract year filtering options
         min_year = options.get("min_year")
         max_year = options.get("max_year")
         brute_force = options.get("brute_force_missing_year", False)
+
+        # Log the loading parameters
+        if brute_force or (min_year is None and max_year is None):
+            logger.info("Loading ALL years of copyright/renewal data")
+        else:
+            year_range = f"{min_year or 'earliest'} to {max_year or 'present'}"
+            logger.info(f"Loading copyright/renewal data for years: {year_range}")
 
         # Check for cached indexes
         config_dict = self.config.get_config()
@@ -576,7 +679,7 @@ class MarcCopyrightAnalyzer:
             logger.info("Loaded indexes from cache")
         else:
             # Load copyright data
-            logger.info(f"Loading copyright data from {self.copyright_dir}")
+            logger.info(f"Loading copyright registration data from: {self.copyright_dir}")
             cached_copyright = self.cache_manager.get_cached_copyright_data(
                 self.copyright_dir, min_year, max_year, brute_force
             )
@@ -591,7 +694,7 @@ class MarcCopyrightAnalyzer:
                 )
 
             # Load renewal data
-            logger.info(f"Loading renewal data from {self.renewal_dir}")
+            logger.info(f"Loading copyright renewal data from: {self.renewal_dir}")
             cached_renewal = self.cache_manager.get_cached_renewal_data(
                 self.renewal_dir, min_year, max_year, brute_force
             )
@@ -606,9 +709,16 @@ class MarcCopyrightAnalyzer:
                 )
 
             # Build indexes
-            logger.info("Building word-based indexes")
+            logger.info("")
+            logger.info("=" * 80)
+            logger.info("=== PHASE 2: BUILDING INDEXES ===")
+            logger.info("=" * 80)
+            logger.info("Building word-based indexes for fast matching...")
             self.registration_index = build_wordbased_index(self.copyright_data, self.config)
             self.renewal_index = build_wordbased_index(self.renewal_data, self.config)
+            logger.info(
+                f"Built indexes: {len(self.registration_index):,} registration, {len(self.renewal_index):,} renewal entries"
+            )
 
             # Cache indexes
             self.cache_manager.cache_indexes(
