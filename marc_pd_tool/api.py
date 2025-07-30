@@ -201,7 +201,7 @@ class MarcCopyrightAnalyzer:
         # Load MARC records
         logger.info("")
         logger.info("=" * 80)
-        logger.info("=== PHASE 1: LOADING MARC RECORDS ===")
+        logger.info("=== PHASE 2: LOADING MARC RECORDS ===")
         logger.info("=" * 80)
         logger.info(f"Loading MARC records from: {marc_path}")
 
@@ -298,7 +298,7 @@ class MarcCopyrightAnalyzer:
         if not self.registration_index or not self.renewal_index:
             self._load_and_index_data(options)
 
-        # Start matching phase
+        # Start matching
         logger.info("")
         logger.info("=" * 80)
         logger.info("=== PHASE 3: MATCHING RECORDS ===")
@@ -651,7 +651,7 @@ class MarcCopyrightAnalyzer:
     def _load_and_index_data(self, options: AnalysisOptions) -> None:
         """Load and index copyright/renewal data"""
         logger.info("=" * 80)
-        logger.info("=== PHASE 1: LOADING DATA ===")
+        logger.info("=== PHASE 1: LOADING COPYRIGHT/RENEWAL DATA ===")
         logger.info("=" * 80)
 
         # Extract year filtering options
@@ -714,15 +714,11 @@ class MarcCopyrightAnalyzer:
                 )
 
             # Build indexes
-            logger.info("")
-            logger.info("=" * 80)
-            logger.info("=== PHASE 2: BUILDING INDEXES ===")
-            logger.info("=" * 80)
             logger.info("Building word-based indexes for fast matching...")
             self.registration_index = build_wordbased_index(self.copyright_data, self.config)
             self.renewal_index = build_wordbased_index(self.renewal_data, self.config)
             logger.info(
-                f"Built indexes: {len(self.registration_index):,} registration, {len(self.renewal_index):,} renewal entries"
+                f"Built indexes: {len(self.registration_index.publications):,} registration, {len(self.renewal_index.publications):,} renewal entries"
             )
 
             # Cache indexes
