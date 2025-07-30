@@ -671,12 +671,17 @@ class MarcCopyrightAnalyzer:
         config_hash = self._compute_config_hash(config_dict)
 
         cached_indexes = self.cache_manager.get_cached_indexes(
-            self.copyright_dir, self.renewal_dir, config_hash
+            self.copyright_dir, self.renewal_dir, config_hash, min_year, max_year, brute_force
         )
 
         if cached_indexes:
             self.registration_index, self.renewal_index = cached_indexes
-            logger.info("Loaded indexes from cache")
+            if brute_force or (min_year is None and max_year is None):
+                logger.info("Loaded indexes from cache (ALL years)")
+            else:
+                logger.info(
+                    f"Loaded indexes from cache (years {min_year or 'earliest'}-{max_year or 'present'})"
+                )
         else:
             # Load copyright data
             logger.info(f"Loading copyright registration data from: {self.copyright_dir}")
@@ -727,6 +732,9 @@ class MarcCopyrightAnalyzer:
                 config_hash,
                 self.registration_index,
                 self.renewal_index,
+                min_year,
+                max_year,
+                brute_force,
             )
 
         # Initialize generic title detector

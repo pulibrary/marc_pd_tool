@@ -556,7 +556,13 @@ class CacheManager:
         )
 
     def get_cached_indexes(
-        self, copyright_dir: str, renewal_dir: str, config_hash: str
+        self,
+        copyright_dir: str,
+        renewal_dir: str,
+        config_hash: str,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
     ) -> tuple["DataIndexer", Optional["DataIndexer"]] | None:
         """Get cached indexes if valid
 
@@ -564,17 +570,32 @@ class CacheManager:
             copyright_dir: Path to copyright XML directory
             renewal_dir: Path to renewal TSV directory
             config_hash: Hash of configuration for cache validation
+            min_year: Minimum year filter used when building indexes
+            max_year: Maximum year filter used when building indexes
+            brute_force: Whether brute-force mode was active
 
         Returns:
             Tuple of (registration_index, renewal_index) or None if not valid
         """
-        additional_deps = {"config_hash": config_hash}
-        if self._is_cache_valid(
-            self.indexes_cache_dir, [copyright_dir, renewal_dir], additional_deps
-        ):
-            logger.debug(f"Loading indexes from cache...")
-            reg_index = self._load_cache_data(self.indexes_cache_dir, "registration.pkl")
-            ren_index = self._load_cache_data(self.indexes_cache_dir, "renewal.pkl")
+        # Create year-specific cache subdirectory
+        year_suffix = self._get_year_range_cache_filename(
+            "indexes", min_year, max_year, brute_force
+        ).replace(".pkl", "").replace("indexes_", "")
+        cache_subdir = join(self.indexes_cache_dir, year_suffix)
+        
+        if not exists(cache_subdir):
+            return None
+            
+        additional_deps = {
+            "config_hash": config_hash,
+            "min_year": min_year,
+            "max_year": max_year,
+            "brute_force": brute_force,
+        }
+        if self._is_cache_valid(cache_subdir, [copyright_dir, renewal_dir], additional_deps):
+            logger.debug(f"Loading indexes from cache for year range: {year_suffix}")
+            reg_index = self._load_cache_data(cache_subdir, "registration.pkl")
+            ren_index = self._load_cache_data(cache_subdir, "renewal.pkl")
             if reg_index is not None and ren_index is not None:  # type: ignore[unreachable]
                 return (reg_index, ren_index)  # type: ignore[unreachable]
         return None
@@ -586,6 +607,9 @@ class CacheManager:
         config_hash: str,
         registration_index: "DataIndexer",
         renewal_index: "DataIndexer",
+        min_year: int | None = None,
+        max_year: int | None = None,
+        brute_force: bool = False,
     ) -> bool:
         """Cache built indexes
 
@@ -595,16 +619,40 @@ class CacheManager:
             config_hash: Hash of configuration
             registration_index: Built registration index
             renewal_index: Built renewal index
+            min_year: Minimum year filter used when building indexes
+            max_year: Maximum year filter used when building indexes
+            brute_force: Whether brute-force mode was active
 
         Returns:
             True if successful
         """
-        logger.info(f"Caching indexes...")
-        additional_deps = {"config_hash": config_hash}
+        # Log what we're caching
+        if brute_force or (min_year is None and max_year is None):
+            logger.info("Caching indexes for ALL years...")
+        elif min_year and max_year:
+            logger.info(f"Caching indexes for years {min_year}-{max_year}...")
+        else:
+            logger.info(
+                f"Caching indexes for years {min_year or 'earliest'}-{max_year or 'present'}..."
+            )
+            
+        # Create year-specific cache subdirectory
+        year_suffix = self._get_year_range_cache_filename(
+            "indexes", min_year, max_year, brute_force
+        ).replace(".pkl", "").replace("indexes_", "")
+        cache_subdir = join(self.indexes_cache_dir, year_suffix)
+        makedirs(cache_subdir, exist_ok=True)
+        
+        additional_deps = {
+            "config_hash": config_hash,
+            "min_year": min_year,
+            "max_year": max_year,
+            "brute_force": brute_force,
+        }
 
         # Cache both indexes
         reg_success = self._save_cache_data(
-            self.indexes_cache_dir,
+            cache_subdir,
             "registration.pkl",
             registration_index,
             [copyright_dir, renewal_dir],
@@ -612,7 +660,7 @@ class CacheManager:
         )
 
         ren_success = self._save_cache_data(
-            self.indexes_cache_dir,
+            cache_subdir,
             "renewal.pkl",
             renewal_index,
             [copyright_dir, renewal_dir],
