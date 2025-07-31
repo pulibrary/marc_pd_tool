@@ -53,6 +53,7 @@ class AnalysisResults:
     def __init__(self) -> None:
         """Initialize empty results container"""
         self.publications: list[Publication] = []
+        self.result_file_paths: list[str] = []  # Store paths to result pickle files
         self.statistics: dict[str, int] = {
             "total_records": 0,
             "us_records": 0,
@@ -71,11 +72,21 @@ class AnalysisResults:
         self.ground_truth_analysis: GroundTruthAnalysis | None = None
         self.ground_truth_pairs: list[GroundTruthPair] | None = None
         self.ground_truth_stats: GroundTruthStats | None = None
+        self.result_temp_dir: str | None = None  # Temporary directory containing result files
 
     def add_publication(self, pub: Publication) -> None:
         """Add a publication to results and update statistics"""
         self.publications.append(pub)
         self._update_statistics(pub)
+    
+    def add_result_file(self, file_path: str) -> None:
+        """Add a result file path for later loading"""
+        self.result_file_paths.append(file_path)
+    
+    def update_statistics_from_batch(self, publications: list[Publication]) -> None:
+        """Update statistics from a batch of publications without storing them"""
+        for pub in publications:
+            self._update_statistics(pub)
 
     def _update_statistics(self, pub: Publication) -> None:
         """Update statistics based on publication"""
@@ -108,6 +119,23 @@ class AnalysisResults:
             status_key = pub.copyright_status.value.lower()
             if status_key in self.statistics:
                 self.statistics[status_key] += 1
+    
+    def load_all_publications(self) -> None:
+        """Load all publications from stored pickle files"""
+        if not self.result_file_paths:
+            return
+            
+        logger.info(f"Loading {len(self.result_file_paths)} result files...")
+        
+        for file_path in self.result_file_paths:
+            try:
+                with open(file_path, "rb") as f:
+                    batch = pickle.load(f)
+                    self.publications.extend(batch)
+            except Exception as e:
+                logger.error(f"Failed to load result file {file_path}: {e}")
+        
+        logger.info(f"Loaded {len(self.publications)} publications from disk")
 
 
 class MarcCopyrightAnalyzer:
@@ -433,6 +461,11 @@ class MarcCopyrightAnalyzer:
         Raises:
             ValueError: If format is not supported
         """
+        # Load publications from disk if not already loaded
+        if not self.results.publications and self.results.result_file_paths:
+            logger.info("Loading publications from disk for export...")
+            self.results.load_all_publications()
+            
         if format == "csv":
             save_matches_csv(self.results.publications, output_path, single_file=single_file)
         elif format == "xlsx":
@@ -451,6 +484,14 @@ class MarcCopyrightAnalyzer:
             raise ValueError(f"Unsupported format: {format}")
 
         logger.info(f"Results exported to {output_path}")
+        
+        # Clean up result directory after export
+        if self.results.result_temp_dir and os.path.exists(self.results.result_temp_dir):
+            import shutil
+            shutil.rmtree(self.results.result_temp_dir)
+            logger.debug(f"Cleaned up result directory: {self.results.result_temp_dir}")
+            self.results.result_temp_dir = None
+            self.results.result_file_paths = []
 
     def get_statistics(self) -> dict[str, int]:
         """Get analysis statistics
@@ -562,22 +603,19 @@ class MarcCopyrightAnalyzer:
         logger.info(f"Creating pickled batches in: {batch_temp_dir}")
         logger.info(f"Worker results will be saved to: {result_temp_dir}")
         
-        # Ensure cleanup on exit
-        def cleanup_temp_dirs():
+        # Ensure cleanup on exit - only clean batch dir, keep results
+        def cleanup_batch_dir():
             if os.path.exists(batch_temp_dir):
                 shutil.rmtree(batch_temp_dir)
                 logger.debug(f"Cleaned up batch directory: {batch_temp_dir}")
-            if os.path.exists(result_temp_dir):
-                shutil.rmtree(result_temp_dir)
-                logger.debug(f"Cleaned up result directory: {result_temp_dir}")
         
         # Register cleanup for normal exit
-        atexit.register(cleanup_temp_dirs)
+        atexit.register(cleanup_batch_dir)
         
         # Register cleanup for signals (interrupt, terminate)
         def signal_cleanup(signum, frame):
             logger.info(f"Received signal {signum}, cleaning up...")
-            cleanup_temp_dirs()
+            cleanup_batch_dir()
             # Re-raise the signal to allow normal termination
             signal.signal(signum, signal.SIG_DFL)
             os.kill(os.getpid(), signum)
@@ -782,21 +820,21 @@ class MarcCopyrightAnalyzer:
                         )
                         batch_complete_time = time()
 
-                        # Load publications from pickle file
+                        # Update statistics without loading publications into memory
                         try:
                             with open(result_file_path, "rb") as f:
                                 processed_batch = pickle.load(f)
                             
-                            # Add publications directly to results
-                            for pub in processed_batch:
-                                self.results.add_publication(pub)
+                            # Update statistics only, don't store publications
+                            self.results.update_statistics_from_batch(processed_batch)
                             
-                            # Delete the result file immediately to free disk space
-                            os.unlink(result_file_path)
-                            logger.debug(f"Loaded and deleted result file: {result_file_path}")
+                            # Track the result file path for later loading
+                            self.results.add_result_file(result_file_path)
+                            
+                            logger.debug(f"Tracked result file: {result_file_path} ({len(processed_batch)} publications)")
                             
                         except Exception as e:
-                            logger.error(f"Failed to load results from {result_file_path}: {e}")
+                            logger.error(f"Failed to process results from {result_file_path}: {e}")
                             # Continue processing other batches
                         
                         # Track stats
@@ -873,20 +911,23 @@ class MarcCopyrightAnalyzer:
             logger.error(f"Fatal error during parallel processing: {e}")
             raise
         finally:
-            # Ensure temp directories are cleaned up even on error
-            cleanup_temp_dirs()
+            # Ensure batch directory is cleaned up even on error
+            cleanup_batch_dir()
             # Unregister the atexit handler since we've already cleaned up
-            atexit.unregister(cleanup_temp_dirs)
+            atexit.unregister(cleanup_batch_dir)
 
         # Log final performance stats
         total_time = time() - start_time
-        total_records = len(self.results.publications)
+        total_records = self.results.statistics["total_records"]
         records_per_minute = total_records / (total_time / 60) if total_time > 0 else 0
 
         logger.info(
             f"Parallel processing complete: {total_records} records in "
             f"{format_time_duration(total_time)} ({records_per_minute:.0f} records/minute)"
         )
+        
+        # Store result directory path for later cleanup
+        self.results.result_temp_dir = result_temp_dir
 
         return self.results.publications
 
