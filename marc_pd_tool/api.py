@@ -876,12 +876,12 @@ class MarcCopyrightAnalyzer:
 
                         # Log progress with all requested info
                         logger.info(
-                            f"Completed batch {batch_id}/{total_batches}: "
+                            f"    Completed batch {batch_id}/{total_batches}: "
                             f"{reg_matches} reg, {ren_matches} ren | "
                             f"Set total: {total_reg_matches} registrations, {total_ren_matches} renewals"
                         )
                         logger.info(
-                            f"Batch time: {batch_duration_str} | "
+                            f"    Batch time: {batch_duration_str} | "
                             f"Progress: {completed_batches}/{total_batches} | "
                             f"({completed_batches/total_batches*100:.1f}%) | "
                             f"ETA: {eta_str}"
@@ -903,7 +903,7 @@ class MarcCopyrightAnalyzer:
                             gc_stats = gc.get_stats()
                             gc0_collections = gc_stats[0]["collections"] if gc_stats else 0
 
-                            logger.info(
+                            logger.debug(
                                 f"Memory after {completed_batches} batches: RSS={mem_mb:.1f}MB, "
                                 f"GC Gen0 collections={gc0_collections}, "
                                 f"Result files={len(self.results.result_file_paths)}, "
