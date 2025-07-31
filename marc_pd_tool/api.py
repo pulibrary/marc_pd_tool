@@ -833,6 +833,11 @@ class MarcCopyrightAnalyzer:
                             
                             logger.debug(f"Tracked result file: {result_file_path} ({len(processed_batch)} publications)")
                             
+                            # Explicitly delete the batch and force garbage collection
+                            del processed_batch
+                            import gc
+                            gc.collect()
+                            
                         except Exception as e:
                             logger.error(f"Failed to process results from {result_file_path}: {e}")
                             # Continue processing other batches
@@ -869,13 +874,23 @@ class MarcCopyrightAnalyzer:
                             f"ETA: {eta_str}"
                         )
                         
-                        # Periodic memory check every 25 batches
-                        if completed_batches % 25 == 0:
+                        # More frequent memory check for debugging
+                        if completed_batches % 5 == 0:
                             import psutil
+                            import gc
                             process = psutil.Process()
-                            mem_mb = process.memory_info().rss / 1024 / 1024
+                            mem_info = process.memory_info()
+                            mem_mb = mem_info.rss / 1024 / 1024
+                            
+                            # Get garbage collection stats
+                            gc_stats = gc.get_stats()
+                            gc0_collections = gc_stats[0]['collections'] if gc_stats else 0
+                            
                             logger.info(
-                                f"Main process memory after {completed_batches} batches: {mem_mb:.1f}MB"
+                                f"Memory after {completed_batches} batches: RSS={mem_mb:.1f}MB, "
+                                f"GC Gen0 collections={gc0_collections}, "
+                                f"Result files={len(self.results.result_file_paths)}, "
+                                f"Stats entries={len(all_stats)}"
                             )
 
                     except Exception as e:

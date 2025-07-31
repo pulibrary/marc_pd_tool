@@ -628,9 +628,15 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     
     # Load the batch from pickle file
     import pickle
+    import os
     try:
         with open(batch_path, "rb") as f:
             marc_batch = pickle.load(f)
+        
+        # Delete the batch file to free disk space
+        os.unlink(batch_path)
+        process_logger.debug(f"Deleted batch file: {batch_path}")
+        
     except Exception as e:
         process_logger.error(f"Failed to load batch from {batch_path}: {e}")
         raise
