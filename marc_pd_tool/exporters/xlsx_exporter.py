@@ -21,7 +21,7 @@ from marc_pd_tool.data.publication import Publication
 
 def _calculate_confidence(pub: Publication) -> str:
     """Calculate confidence level based on match scores and type
-    
+
     Returns:
         HIGH, MEDIUM, LOW, or WARNING
     """
@@ -30,14 +30,14 @@ def _calculate_confidence(pub: Publication) -> str:
         return "HIGH"
     if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
         return "HIGH"
-    
+
     # Calculate best combined score
     best_score = 0.0
     if pub.registration_match:
         best_score = max(best_score, pub.registration_match.similarity_score)
     if pub.renewal_match:
         best_score = max(best_score, pub.renewal_match.similarity_score)
-    
+
     # Apply confidence thresholds
     if best_score >= 85:
         return "HIGH"
@@ -51,12 +51,12 @@ def _calculate_confidence(pub: Publication) -> str:
 
 def _format_match_summary(pub: Publication) -> str:
     """Format a concise match summary
-    
+
     Returns:
         String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
     """
     parts = []
-    
+
     if pub.registration_match:
         if pub.registration_match.match_type == MatchType.LCCN:
             parts.append("Reg: LCCN")
@@ -64,7 +64,7 @@ def _format_match_summary(pub: Publication) -> str:
             parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
     else:
         parts.append("Reg: None")
-        
+
     if pub.renewal_match:
         if pub.renewal_match.match_type == MatchType.LCCN:
             parts.append("Ren: LCCN")
@@ -72,27 +72,27 @@ def _format_match_summary(pub: Publication) -> str:
             parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
     else:
         parts.append("Ren: None")
-        
+
     return ", ".join(parts)
 
 
 def _get_warnings(pub: Publication) -> str:
     """Get warning indicators for the record
-    
+
     Returns:
         Comma-separated warnings or empty string
     """
     warnings = []
-    
+
     if pub.generic_title_detected:
         warnings.append("Generic title")
-        
+
     if not pub.year:
         warnings.append("No year")
-        
+
     if pub.country_classification.value == "Unknown":
         warnings.append("Unknown country")
-        
+
     return ", ".join(warnings)
 
 
@@ -254,37 +254,61 @@ class XLSXExporter:
         ws[f"A{row}"] = "Copyright Status Definitions:"
         ws[f"A{row}"].font = Font(bold=True, size=12)
         row += 1
-        
+
         # Create status definition table
         status_definitions = [
             ("Status Code", "Meaning", "Explanation"),
-            ("PD_NO_RENEWAL", "Public Domain - Not Renewed", "US work 1930-1963 that was registered but not renewed"),
-            ("PD_DATE_VERIFY", "Likely Public Domain - Verify Date", "May be public domain based on publication date"),
-            ("IN_COPYRIGHT", "Protected by Copyright", "Found renewal or other evidence of copyright"),
-            ("RESEARCH_US_STATUS", "Foreign Work - Has US Registration", "Non-US work with US copyright activity"),
-            ("RESEARCH_US_ONLY_PD", "Foreign Work - No US Registration", "Non-US work, likely PD in US only"),
-            ("COUNTRY_UNKNOWN", "Unknown Country - Manual Review", "Cannot determine country of publication"),
+            (
+                "PD_NO_RENEWAL",
+                "Public Domain - Not Renewed",
+                "US work 1930-1963 that was registered but not renewed",
+            ),
+            (
+                "PD_DATE_VERIFY",
+                "Likely Public Domain - Verify Date",
+                "May be public domain based on publication date",
+            ),
+            (
+                "IN_COPYRIGHT",
+                "Protected by Copyright",
+                "Found renewal or other evidence of copyright",
+            ),
+            (
+                "RESEARCH_US_STATUS",
+                "Foreign Work - Has US Registration",
+                "Non-US work with US copyright activity",
+            ),
+            (
+                "RESEARCH_US_ONLY_PD",
+                "Foreign Work - No US Registration",
+                "Non-US work, likely PD in US only",
+            ),
+            (
+                "COUNTRY_UNKNOWN",
+                "Unknown Country - Manual Review",
+                "Cannot determine country of publication",
+            ),
         ]
-        
+
         # Write header row with formatting
         for col, header in enumerate(status_definitions[0], 1):
             cell = ws.cell(row=row, column=col)
             cell.value = header
             cell.font = Font(bold=True)
             cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
-        
+
         # Write definition rows
         for status_row in status_definitions[1:]:
             row += 1
             for col, value in enumerate(status_row, 1):
                 ws.cell(row=row, column=col, value=value)
-        
+
         # Confidence Level Explanations
         row += 2
         ws[f"A{row}"] = "Confidence Level Explanations:"
         ws[f"A{row}"].font = Font(bold=True, size=12)
         row += 1
-        
+
         confidence_definitions = [
             ("Level", "Criteria"),
             ("HIGH", "LCCN match OR combined score ≥85%"),
@@ -292,14 +316,14 @@ class XLSXExporter:
             ("LOW", "Combined score 1-59%"),
             ("WARNING", "No matches found or special conditions (generic title, no year)"),
         ]
-        
+
         for conf_row in confidence_definitions:
             ws[f"A{row}"] = conf_row[0] + ":"
             ws[f"B{row}"] = conf_row[1]
             if row == row - len(confidence_definitions) + 1:  # Header row
                 ws[f"A{row}"].font = Font(bold=True)
             row += 1
-        
+
         # Adjust column widths
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 50
@@ -354,7 +378,7 @@ class XLSXExporter:
         """Write a single publication row with proper data types"""
         # Use 245c author if available, otherwise fall back to 1xx
         author = pub.original_author or pub.original_main_author or ""
-        
+
         # Get source IDs for verification
         reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
         ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""

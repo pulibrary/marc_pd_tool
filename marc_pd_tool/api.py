@@ -9,10 +9,10 @@ copyright and renewal data.
 
 # Standard library imports
 from logging import getLogger
-import os
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from multiprocessing import get_start_method
+import os
 from time import time
 from typing import cast
 
@@ -78,11 +78,11 @@ class AnalysisResults:
         """Add a publication to results and update statistics"""
         self.publications.append(pub)
         self._update_statistics(pub)
-    
+
     def add_result_file(self, file_path: str) -> None:
         """Add a result file path for later loading"""
         self.result_file_paths.append(file_path)
-    
+
     def update_statistics_from_batch(self, publications: list[Publication]) -> None:
         """Update statistics from a batch of publications without storing them"""
         for pub in publications:
@@ -119,14 +119,17 @@ class AnalysisResults:
             status_key = pub.copyright_status.value.lower()
             if status_key in self.statistics:
                 self.statistics[status_key] += 1
-    
+
     def load_all_publications(self) -> None:
         """Load all publications from stored pickle files"""
         if not self.result_file_paths:
             return
-            
+
         logger.info(f"Loading {len(self.result_file_paths)} result files...")
-        
+
+        # Standard library imports
+        import pickle
+
         for file_path in self.result_file_paths:
             try:
                 with open(file_path, "rb") as f:
@@ -134,7 +137,7 @@ class AnalysisResults:
                     self.publications.extend(batch)
             except Exception as e:
                 logger.error(f"Failed to load result file {file_path}: {e}")
-        
+
         logger.info(f"Loaded {len(self.publications)} publications from disk")
 
 
@@ -465,7 +468,7 @@ class MarcCopyrightAnalyzer:
         if not self.results.publications and self.results.result_file_paths:
             logger.info("Loading publications from disk for export...")
             self.results.load_all_publications()
-            
+
         if format == "csv":
             save_matches_csv(self.results.publications, output_path, single_file=single_file)
         elif format == "xlsx":
@@ -484,10 +487,12 @@ class MarcCopyrightAnalyzer:
             raise ValueError(f"Unsupported format: {format}")
 
         logger.info(f"Results exported to {output_path}")
-        
+
         # Clean up result directory after export
         if self.results.result_temp_dir and os.path.exists(self.results.result_temp_dir):
+            # Standard library imports
             import shutil
+
             shutil.rmtree(self.results.result_temp_dir)
             logger.debug(f"Cleaned up result directory: {self.results.result_temp_dir}")
             self.results.result_temp_dir = None
@@ -591,27 +596,28 @@ class MarcCopyrightAnalyzer:
         start_time = time()
 
         # Create batches and pickle them to reduce memory usage
-        import tempfile
-        import pickle
+        # Standard library imports
         import atexit
+        import pickle
         import shutil
         import signal
-        
+        import tempfile
+
         # Create temporary directories for batch files and results
         batch_temp_dir = tempfile.mkdtemp(prefix="marc_batches_")
         result_temp_dir = tempfile.mkdtemp(prefix="marc_results_")
         logger.info(f"Creating pickled batches in: {batch_temp_dir}")
         logger.info(f"Worker results will be saved to: {result_temp_dir}")
-        
+
         # Ensure cleanup on exit - only clean batch dir, keep results
         def cleanup_batch_dir():
             if os.path.exists(batch_temp_dir):
                 shutil.rmtree(batch_temp_dir)
                 logger.debug(f"Cleaned up batch directory: {batch_temp_dir}")
-        
+
         # Register cleanup for normal exit
         atexit.register(cleanup_batch_dir)
-        
+
         # Register cleanup for signals (interrupt, terminate)
         def signal_cleanup(signum, frame):
             logger.info(f"Received signal {signum}, cleaning up...")
@@ -619,28 +625,30 @@ class MarcCopyrightAnalyzer:
             # Re-raise the signal to allow normal termination
             signal.signal(signum, signal.SIG_DFL)
             os.kill(os.getpid(), signum)
-        
+
         signal.signal(signal.SIGINT, signal_cleanup)  # Ctrl+C
         signal.signal(signal.SIGTERM, signal_cleanup)  # kill command
-        
+
         # Create and pickle batches
         batch_paths = []
         total_batches = 0
         for i in range(0, len(publications), batch_size):
             batch = publications[i : i + batch_size]
             batch_path = os.path.join(batch_temp_dir, f"batch_{total_batches:05d}.pkl")
-            
+
             with open(batch_path, "wb") as f:
                 pickle.dump(batch, f, protocol=pickle.HIGHEST_PROTOCOL)
-            
+
             batch_paths.append(batch_path)
             total_batches += 1
-            
+
             # Free memory immediately
             del batch
-        
+
         logger.info(f"Created {total_batches} pickled batches of ~{batch_size} records each")
-        logger.debug(f"Freed {len(publications) * 1000 / 1024 / 1024:.1f}MB (estimate) of MARC data from RAM")
+        logger.debug(
+            f"Freed {len(publications) * 1000 / 1024 / 1024:.1f}MB (estimate) of MARC data from RAM"
+        )
 
         # Get configuration hash for cache validation
         config_dict = self.config.get_config()
@@ -820,28 +828,41 @@ class MarcCopyrightAnalyzer:
                         )
                         batch_complete_time = time()
 
-                        # Update statistics without loading publications into memory
+                        # Load only statistics file - not the full publications
                         try:
-                            with open(result_file_path, "rb") as f:
-                                processed_batch = pickle.load(f)
-                            
-                            # Update statistics only, don't store publications
-                            self.results.update_statistics_from_batch(processed_batch)
-                            
+                            # Construct stats file path from result file path
+                            stats_file_path = result_file_path.replace("result_", "stats_")
+
+                            # Load just the statistics (small data)
+                            with open(stats_file_path, "rb") as f:
+                                detailed_stats = pickle.load(f)
+
+                            # Update statistics directly
+                            for key, value in detailed_stats.items():
+                                if key in self.results.statistics:
+                                    self.results.statistics[key] += value
+                                else:
+                                    # For copyright status counts
+                                    self.results.statistics[key] = (
+                                        self.results.statistics.get(key, 0) + value
+                                    )
+
                             # Track the result file path for later loading
                             self.results.add_result_file(result_file_path)
-                            
-                            logger.debug(f"Tracked result file: {result_file_path} ({len(processed_batch)} publications)")
-                            
-                            # Explicitly delete the batch and force garbage collection
-                            del processed_batch
-                            import gc
-                            gc.collect()
-                            
+
+                            # Delete the stats file - we don't need it anymore
+                            os.unlink(stats_file_path)
+
+                            logger.debug(
+                                f"Tracked result file: {result_file_path} ({detailed_stats['total_records']} publications)"
+                            )
+
                         except Exception as e:
-                            logger.error(f"Failed to process results from {result_file_path}: {e}")
+                            logger.error(
+                                f"Failed to process statistics from {result_file_path}: {e}"
+                            )
                             # Continue processing other batches
-                        
+
                         # Track stats
                         all_stats.append(batch_stats)
                         completed_batches += 1
@@ -873,19 +894,23 @@ class MarcCopyrightAnalyzer:
                             f"({completed_batches/total_batches*100:.1f}%) | "
                             f"ETA: {eta_str}"
                         )
-                        
+
                         # More frequent memory check for debugging
                         if completed_batches % 5 == 0:
-                            import psutil
+                            # Standard library imports
                             import gc
+
+                            # Third party imports
+                            import psutil
+
                             process = psutil.Process()
                             mem_info = process.memory_info()
                             mem_mb = mem_info.rss / 1024 / 1024
-                            
+
                             # Get garbage collection stats
                             gc_stats = gc.get_stats()
-                            gc0_collections = gc_stats[0]['collections'] if gc_stats else 0
-                            
+                            gc0_collections = gc_stats[0]["collections"] if gc_stats else 0
+
                             logger.info(
                                 f"Memory after {completed_batches} batches: RSS={mem_mb:.1f}MB, "
                                 f"GC Gen0 collections={gc0_collections}, "
@@ -940,7 +965,7 @@ class MarcCopyrightAnalyzer:
             f"Parallel processing complete: {total_records} records in "
             f"{format_time_duration(total_time)} ({records_per_minute:.0f} records/minute)"
         )
-        
+
         # Store result directory path for later cleanup
         self.results.result_temp_dir = result_temp_dir
 

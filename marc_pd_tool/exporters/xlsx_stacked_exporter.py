@@ -8,9 +8,9 @@ from datetime import datetime
 # Third party imports
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
+from openpyxl.styles import Border
 from openpyxl.styles import Font
 from openpyxl.styles import PatternFill
-from openpyxl.styles import Border
 from openpyxl.styles import Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
@@ -24,32 +24,28 @@ from marc_pd_tool.data.publication import Publication
 class StackedXLSXExporter:
     """Exports publication match results in stacked format for detailed comparison"""
 
-    __slots__ = (
-        "publications",
-        "output_path",
-        "parameters",
-    )
+    __slots__ = ("publications", "output_path", "parameters")
 
     # Header styling
     HEADER_FONT = Font(bold=True, color="FFFFFF")
     HEADER_FILL = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
     HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center")
-    
+
     # Sub-header styling
     SUBHEADER_FONT = Font(bold=True)
     SUBHEADER_FILL = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
-    
+
     # Score coloring
     HIGH_SCORE_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     MEDIUM_SCORE_FILL = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
     LOW_SCORE_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
-    
+
     # Borders
     THIN_BORDER = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
     )
 
     # Tab name mapping
@@ -133,7 +129,7 @@ class StackedXLSXExporter:
         ws["A8"] = "for easy comparison. Scores appear next to the matched data."
         ws.merge_cells("A7:D7")
         ws.merge_cells("A8:D8")
-        
+
         # Status breakdown
         ws["A10"] = "By Copyright Status:"
         ws["A10"].font = Font(bold=True)
@@ -155,15 +151,15 @@ class StackedXLSXExporter:
     ) -> None:
         """Create a sheet for publications with a specific status"""
         ws = wb.create_sheet(sheet_name)
-        
+
         # Start row for first record
         current_row = 1
-        
+
         # Process each publication
         for i, pub in enumerate(publications):
             current_row = self._write_stacked_record(ws, current_row, pub, i + 1)
             current_row += 2  # Add blank rows between records
-            
+
         # Set column widths
         ws.column_dimensions["A"].width = 12
         ws.column_dimensions["B"].width = 12
@@ -179,17 +175,17 @@ class StackedXLSXExporter:
         self, ws: Worksheet, start_row: int, pub: Publication, record_num: int
     ) -> int:
         """Write a single record in stacked format
-        
+
         Returns:
             The next available row number
         """
         row = start_row
-        
+
         # Record header
         ws.cell(row=row, column=1, value=f"Record {record_num}")
         ws.cell(row=row, column=1).font = Font(bold=True, size=12)
         ws.merge_cells(f"A{row}:I{row}")
-        
+
         # Record summary
         row += 1
         ws.cell(row=row, column=1, value="ID:")
@@ -198,94 +194,143 @@ class StackedXLSXExporter:
         ws.cell(row=row, column=4, value=pub.copyright_status.value)
         ws.cell(row=row, column=5, value="Country:")
         ws.cell(row=row, column=6, value=pub.country_classification.value)
-        
+
         # Overall match summary
         row += 1
         overall_confidence = self._calculate_overall_confidence(pub)
         ws.cell(row=row, column=1, value="Overall:")
         ws.cell(row=row, column=2, value=overall_confidence)
         self._apply_confidence_formatting(ws.cell(row=row, column=2), overall_confidence)
-        
+
         if pub.generic_title_detected:
             ws.cell(row=row, column=3, value="⚠️ Generic title detected")
             ws.cell(row=row, column=3).font = Font(color="FF6600")
-        
+
         # Comparison table headers
         row += 2
-        headers = ["Source", "Version", "Title", "Score", "Author", "Score", "Publisher", "Score", "Year"]
+        headers = [
+            "Source",
+            "Version",
+            "Title",
+            "Score",
+            "Author",
+            "Score",
+            "Publisher",
+            "Score",
+            "Year",
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=row, column=col, value=header)
             cell.font = self.HEADER_FONT
             cell.fill = self.HEADER_FILL
             cell.alignment = self.HEADER_ALIGNMENT
             cell.border = self.THIN_BORDER
-        
+
         # MARC Original
         row += 1
-        self._write_data_row(ws, row, "MARC", "Original", 
-                           pub.original_title, None,
-                           self._get_display_author(pub), None,
-                           pub.original_publisher, None,
-                           pub.year)
-        
+        self._write_data_row(
+            ws,
+            row,
+            "MARC",
+            "Original",
+            pub.original_title,
+            None,
+            self._get_display_author(pub),
+            None,
+            pub.original_publisher,
+            None,
+            pub.year,
+        )
+
         # MARC Normalized
         row += 1
-        self._write_data_row(ws, row, "MARC", "Normalized",
-                           pub.title, None,
-                           pub.author, None,
-                           pub.publisher, None,
-                           None)
-        
+        self._write_data_row(
+            ws,
+            row,
+            "MARC",
+            "Normalized",
+            pub.title,
+            None,
+            pub.author,
+            None,
+            pub.publisher,
+            None,
+            None,
+        )
+
         # Registration data
         row += 1
         if pub.registration_match:
             match = pub.registration_match
-            self._write_data_row(ws, row, "Registration", "Original",
-                               match.matched_title, match.title_score,
-                               match.matched_author, match.author_score,
-                               match.matched_publisher, match.publisher_score,
-                               match.matched_date)
-            
+            self._write_data_row(
+                ws,
+                row,
+                "Registration",
+                "Original",
+                match.matched_title,
+                match.title_score,
+                match.matched_author,
+                match.author_score,
+                match.matched_publisher,
+                match.publisher_score,
+                match.matched_date,
+            )
+
             # Add LCCN indicator if applicable
             if match.match_type == MatchType.LCCN:
                 ws.cell(row=row, column=10, value="LCCN Match")
                 ws.cell(row=row, column=10).font = Font(bold=True, color="006600")
         else:
             self._write_no_match_row(ws, row, "Registration")
-        
+
         # Registration normalized (skipped for brevity - would be same as original in current implementation)
-        
+
         # Renewal data
         row += 1
         if pub.renewal_match:
             match = pub.renewal_match
-            self._write_data_row(ws, row, "Renewal", "Original",
-                               match.matched_title, match.title_score,
-                               match.matched_author, match.author_score,
-                               match.matched_publisher, match.publisher_score,
-                               match.matched_date)
-            
+            self._write_data_row(
+                ws,
+                row,
+                "Renewal",
+                "Original",
+                match.matched_title,
+                match.title_score,
+                match.matched_author,
+                match.author_score,
+                match.matched_publisher,
+                match.publisher_score,
+                match.matched_date,
+            )
+
             # Add LCCN indicator if applicable
             if match.match_type == MatchType.LCCN:
                 ws.cell(row=row, column=10, value="LCCN Match")
                 ws.cell(row=row, column=10).font = Font(bold=True, color="006600")
         else:
             self._write_no_match_row(ws, row, "Renewal")
-        
+
         return row + 1
 
     def _write_data_row(
-        self, ws: Worksheet, row: int, source: str, version: str,
-        title: str | None, title_score: float | None,
-        author: str | None, author_score: float | None,
-        publisher: str | None, publisher_score: float | None,
-        year: str | int | None
+        self,
+        ws: Worksheet,
+        row: int,
+        source: str,
+        version: str,
+        title: str | None,
+        title_score: float | None,
+        author: str | None,
+        author_score: float | None,
+        publisher: str | None,
+        publisher_score: float | None,
+        year: str | int | None,
     ) -> None:
         """Write a single data row with formatting"""
         # Source and version
         ws.cell(row=row, column=1, value=source).border = self.THIN_BORDER
         ws.cell(row=row, column=2, value=version).border = self.THIN_BORDER
-        
+
         # Title
         ws.cell(row=row, column=3, value=title or "").border = self.THIN_BORDER
         if title_score is not None:
@@ -294,7 +339,7 @@ class StackedXLSXExporter:
             self._apply_score_formatting(cell, title_score)
         else:
             ws.cell(row=row, column=4, value="").border = self.THIN_BORDER
-        
+
         # Author
         ws.cell(row=row, column=5, value=author or "").border = self.THIN_BORDER
         if author_score is not None:
@@ -303,7 +348,7 @@ class StackedXLSXExporter:
             self._apply_score_formatting(cell, author_score)
         else:
             ws.cell(row=row, column=6, value="").border = self.THIN_BORDER
-        
+
         # Publisher
         ws.cell(row=row, column=7, value=publisher or "").border = self.THIN_BORDER
         if publisher_score is not None:
@@ -312,7 +357,7 @@ class StackedXLSXExporter:
             self._apply_score_formatting(cell, publisher_score)
         else:
             ws.cell(row=row, column=8, value="").border = self.THIN_BORDER
-        
+
         # Year
         ws.cell(row=row, column=9, value=str(year) if year else "").border = self.THIN_BORDER
 
@@ -334,19 +379,19 @@ class StackedXLSXExporter:
             return "HIGH"
         if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
             return "HIGH"
-        
+
         # Calculate best combined score
         best_score = 0.0
         if pub.registration_match:
             best_score = max(best_score, pub.registration_match.similarity_score)
         if pub.renewal_match:
             best_score = max(best_score, pub.renewal_match.similarity_score)
-        
+
         # Apply thresholds
         if best_score >= 85:
             return "HIGH"
         elif best_score >= 60:
-            return "MEDIUM" 
+            return "MEDIUM"
         elif best_score > 0:
             return "LOW"
         else:

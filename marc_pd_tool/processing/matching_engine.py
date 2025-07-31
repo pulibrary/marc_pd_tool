@@ -599,7 +599,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     """
     Process a single batch of MARC records against pre-built indexes.
     This function runs in a separate process.
-    
+
     Returns:
         Tuple of (batch_id, result_file_path, batch_stats)
     """
@@ -625,7 +625,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         max_year,
         result_temp_dir,  # Directory to save result pickle files
     ) = batch_info
-    
+
     # Set up logging for this process first - needed for multiprocessing
     root_logger = getLogger()
     if not root_logger.handlers:
@@ -640,16 +640,18 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     process_logger = getLogger(f"batch_{batch_id}")
 
     # Load the batch from pickle file
-    import pickle
+    # Standard library imports
     import os
+    import pickle
+
     try:
         with open(batch_path, "rb") as f:
             marc_batch = pickle.load(f)
-        
+
         # Delete the batch file to free disk space
         os.unlink(batch_path)
         process_logger.debug(f"Deleted batch file: {batch_path}")
-        
+
     except Exception as e:
         process_logger.error(f"Failed to load batch from {batch_path}: {e}")
         raise
@@ -891,18 +893,59 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         )
 
         # Save results to pickle file instead of returning through queue
+        # Standard library imports
         import os
+
         result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}.pkl")
-        
+        stats_file_path = os.path.join(result_temp_dir, f"stats_{batch_id:05d}.pkl")
+
         try:
+            # Save publications
             with open(result_file_path, "wb") as f:
                 pickle.dump(processed_publications, f, protocol=pickle.HIGHEST_PROTOCOL)
-            
-            process_logger.debug(f"Batch {batch_id}: Saved {len(processed_publications)} publications to {result_file_path}")
-            
-            # Return just the file path and stats (small data)
+
+            # Calculate detailed statistics for the main process
+            detailed_stats = {
+                "total_records": len(processed_publications),
+                "us_records": sum(
+                    1 for p in processed_publications if p.country_classification.value == "US"
+                ),
+                "non_us_records": sum(
+                    1 for p in processed_publications if p.country_classification.value == "Non-US"
+                ),
+                "unknown_country": sum(
+                    1 for p in processed_publications if p.country_classification.value == "Unknown"
+                ),
+                "registration_matches": sum(
+                    1 for p in processed_publications if p.has_registration_match()
+                ),
+                "renewal_matches": sum(1 for p in processed_publications if p.has_renewal_match()),
+                "no_matches": sum(
+                    1
+                    for p in processed_publications
+                    if not p.has_registration_match() and not p.has_renewal_match()
+                ),
+            }
+
+            # Add copyright status counts
+            for pub in processed_publications:
+                if hasattr(pub, "copyright_status") and pub.copyright_status:
+                    status_key = pub.copyright_status.value.lower()
+                    if status_key not in detailed_stats:
+                        detailed_stats[status_key] = 0
+                    detailed_stats[status_key] += 1
+
+            # Save detailed statistics separately
+            with open(stats_file_path, "wb") as f:
+                pickle.dump(detailed_stats, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            process_logger.debug(
+                f"Batch {batch_id}: Saved {len(processed_publications)} publications and statistics"
+            )
+
+            # Return just the file paths and basic stats (small data)
             return batch_id, result_file_path, stats
-            
+
         except Exception as e:
             process_logger.error(f"Failed to save results for batch {batch_id}: {e}")
             raise
@@ -916,13 +959,15 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         process_logger.error(f"Traceback:\n{traceback.format_exc()}")
 
         # For error case, save empty results to maintain consistency
+        # Standard library imports
         import os
+
         result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}_failed.pkl")
         try:
             with open(result_file_path, "wb") as f:
                 pickle.dump([], f, protocol=pickle.HIGHEST_PROTOCOL)
         except:
             pass
-        
+
         # Return empty results but include the batch_id so we know which failed
         return batch_id, result_file_path, stats

@@ -251,7 +251,7 @@ Benefits:
 
 - Linear scaling with CPU cores
 - Process isolation for fault tolerance
-- **Memory efficient**: 
+- **Memory efficient**:
   - Linux: True memory sharing via fork
   - macOS/Windows: Load-once-per-worker pattern
   - All platforms: Only active batch in RAM
@@ -275,6 +275,7 @@ Cache keys include:
 - Filter options
 
 **Year Filtering Optimization**:
+
 - When `--min-year`/`--max-year` are used, only relevant copyright/renewal data is loaded
 - Dramatically reduces memory usage and startup time
 - Separate caches maintained for different year ranges

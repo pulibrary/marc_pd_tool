@@ -66,7 +66,9 @@ class MarcLoader:
                     if event == "end" and elem.tag.endswith("record"):
                         pub = self._extract_from_record(elem)
                         if pub:
-                            include_record, filter_reason = self._should_include_record_with_reason(pub)
+                            include_record, filter_reason = self._should_include_record_with_reason(
+                                pub
+                            )
                             if include_record:
                                 current_batch.append(pub)
                             else:
@@ -114,7 +116,9 @@ class MarcLoader:
                 logger.info(f"  - {no_year_count:,} records missing year data")
             if year_out_of_range_count > 0:
                 if self.min_year and self.max_year:
-                    logger.info(f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}")
+                    logger.info(
+                        f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}"
+                    )
                 elif self.min_year:
                     logger.info(f"  - {year_out_of_range_count:,} records before {self.min_year}")
                 elif self.max_year:
@@ -351,7 +355,7 @@ class MarcLoader:
 
     def _should_include_record_with_reason(self, pub: Publication) -> tuple[bool, str | None]:
         """Check if record should be included and return reason if not
-        
+
         Returns:
             tuple of (should_include, filter_reason)
             filter_reason is one of: 'no_year', 'year_out_of_range', 'non_us', or None

@@ -130,7 +130,7 @@ class TestYearFiltering:
         assert extractor_min._should_include_record(pub_no_year) is False
         assert extractor_max._should_include_record(pub_no_year) is False
         assert extractor_range._should_include_record(pub_no_year) is False
-        
+
         # But included when no year filtering
         assert extractor_no_filter._should_include_record(pub_no_year) is True
 

@@ -7,14 +7,14 @@ from csv import writer
 from os.path import splitext
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.data.enums import MatchType
+from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.utils.types import CSVWriter
 
 
 def _calculate_confidence(pub: Publication) -> str:
     """Calculate confidence level based on match scores and type
-    
+
     Returns:
         HIGH, MEDIUM, LOW, or WARNING
     """
@@ -23,14 +23,14 @@ def _calculate_confidence(pub: Publication) -> str:
         return "HIGH"
     if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
         return "HIGH"
-    
+
     # Calculate best combined score
     best_score = 0.0
     if pub.registration_match:
         best_score = max(best_score, pub.registration_match.similarity_score)
     if pub.renewal_match:
         best_score = max(best_score, pub.renewal_match.similarity_score)
-    
+
     # Apply confidence thresholds
     if best_score >= 85:
         return "HIGH"
@@ -44,12 +44,12 @@ def _calculate_confidence(pub: Publication) -> str:
 
 def _format_match_summary(pub: Publication) -> str:
     """Format a concise match summary
-    
+
     Returns:
         String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
     """
     parts = []
-    
+
     if pub.registration_match:
         if pub.registration_match.match_type == MatchType.LCCN:
             parts.append("Reg: LCCN")
@@ -57,7 +57,7 @@ def _format_match_summary(pub: Publication) -> str:
             parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
     else:
         parts.append("Reg: None")
-        
+
     if pub.renewal_match:
         if pub.renewal_match.match_type == MatchType.LCCN:
             parts.append("Ren: LCCN")
@@ -65,27 +65,27 @@ def _format_match_summary(pub: Publication) -> str:
             parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
     else:
         parts.append("Ren: None")
-        
+
     return ", ".join(parts)
 
 
 def _get_warnings(pub: Publication) -> str:
     """Get warning indicators for the record
-    
+
     Returns:
         Comma-separated warnings or empty string
     """
     warnings = []
-    
+
     if pub.generic_title_detected:
         warnings.append("Generic title")
-        
+
     if not pub.year:
         warnings.append("No year")
-        
+
     if pub.country_classification.value == "Unknown":
         warnings.append("Unknown country")
-        
+
     return ", ".join(warnings)
 
 
@@ -157,11 +157,11 @@ def _write_publications_to_csv(csv_writer: CSVWriter, marc_publications: list[Pu
     for pub in marc_publications:
         # Simplified output - use 245c author if available, otherwise fall back to 1xx
         author = pub.original_author or pub.original_main_author or ""
-        
+
         # Get source IDs for verification
         reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
         ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
-        
+
         csv_writer.writerow(
             [
                 pub.source_id,
