@@ -15,7 +15,85 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.publication import Publication
+
+
+def _calculate_confidence(pub: Publication) -> str:
+    """Calculate confidence level based on match scores and type
+    
+    Returns:
+        HIGH, MEDIUM, LOW, or WARNING
+    """
+    # If we have an LCCN match, it's always HIGH confidence
+    if pub.registration_match and pub.registration_match.match_type == MatchType.LCCN:
+        return "HIGH"
+    if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
+        return "HIGH"
+    
+    # Calculate best combined score
+    best_score = 0.0
+    if pub.registration_match:
+        best_score = max(best_score, pub.registration_match.similarity_score)
+    if pub.renewal_match:
+        best_score = max(best_score, pub.renewal_match.similarity_score)
+    
+    # Apply confidence thresholds
+    if best_score >= 85:
+        return "HIGH"
+    elif best_score >= 60:
+        return "MEDIUM"
+    elif best_score > 0:
+        return "LOW"
+    else:
+        return "WARNING"
+
+
+def _format_match_summary(pub: Publication) -> str:
+    """Format a concise match summary
+    
+    Returns:
+        String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
+    """
+    parts = []
+    
+    if pub.registration_match:
+        if pub.registration_match.match_type == MatchType.LCCN:
+            parts.append("Reg: LCCN")
+        else:
+            parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
+    else:
+        parts.append("Reg: None")
+        
+    if pub.renewal_match:
+        if pub.renewal_match.match_type == MatchType.LCCN:
+            parts.append("Ren: LCCN")
+        else:
+            parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
+    else:
+        parts.append("Ren: None")
+        
+    return ", ".join(parts)
+
+
+def _get_warnings(pub: Publication) -> str:
+    """Get warning indicators for the record
+    
+    Returns:
+        Comma-separated warnings or empty string
+    """
+    warnings = []
+    
+    if pub.generic_title_detected:
+        warnings.append("Generic title")
+        
+    if not pub.year:
+        warnings.append("No year")
+        
+    if pub.country_classification.value == "Unknown":
+        warnings.append("Unknown country")
+        
+    return ", ".join(warnings)
 
 
 class XLSXExporter:
@@ -31,45 +109,18 @@ class XLSXExporter:
 
     # Column width definitions
     COLUMN_WIDTHS = {
-        "MARC ID": 15,
-        "MARC Title": 50,
-        "Registration Title": 50,
-        "Renewal Title": 50,
-        "Registration Title Score": 12,
-        "Renewal Title Score": 12,
-        "MARC Author (245c)": 30,
-        "MARC Main Author (1xx)": 30,
-        "Registration Author": 30,
-        "Renewal Author": 30,
-        "Registration Author Score": 12,
-        "Renewal Author Score": 12,
-        "MARC Year": 8,
-        "Registration Date": 12,
-        "Renewal Date": 12,
-        "MARC Publisher": 30,
-        "Registration Publisher": 30,
-        "Renewal Publisher": 30,
-        "Registration Publisher Score": 12,
-        "Renewal Publisher Score": 12,
-        "Registration Similarity Score": 12,
-        "Renewal Similarity Score": 12,
-        "MARC Place": 20,
-        "MARC Edition": 20,
-        "MARC LCCN": 15,
-        "MARC Normalized LCCN": 15,
-        "Language Code": 10,
-        "Language Detection Status": 20,
-        "Country Code": 10,
-        "Country Classification": 12,
-        "Copyright Status": 20,
-        "Generic Title Detected": 12,
-        "Generic Detection Reason": 30,
-        "Registration Generic Title": 12,
-        "Renewal Generic Title": 12,
+        "ID": 15,
+        "Title": 50,
+        "Author": 30,
+        "Year": 8,
+        "Publisher": 30,
+        "Country": 12,
+        "Status": 20,
+        "Match Summary": 25,
+        "Confidence": 12,
+        "Warning": 20,
         "Registration Source ID": 20,
         "Renewal Entry ID": 20,
-        "Registration Match Type": 15,
-        "Renewal Match Type": 15,
     }
 
     # Header styling
@@ -198,9 +249,61 @@ class XLSXExporter:
                 ws[f"B{row}"] = str(self.parameters[key])
                 row += 1
 
+        # Status Definitions
+        row += 2
+        ws[f"A{row}"] = "Copyright Status Definitions:"
+        ws[f"A{row}"].font = Font(bold=True, size=12)
+        row += 1
+        
+        # Create status definition table
+        status_definitions = [
+            ("Status Code", "Meaning", "Explanation"),
+            ("PD_NO_RENEWAL", "Public Domain - Not Renewed", "US work 1930-1963 that was registered but not renewed"),
+            ("PD_DATE_VERIFY", "Likely Public Domain - Verify Date", "May be public domain based on publication date"),
+            ("IN_COPYRIGHT", "Protected by Copyright", "Found renewal or other evidence of copyright"),
+            ("RESEARCH_US_STATUS", "Foreign Work - Has US Registration", "Non-US work with US copyright activity"),
+            ("RESEARCH_US_ONLY_PD", "Foreign Work - No US Registration", "Non-US work, likely PD in US only"),
+            ("COUNTRY_UNKNOWN", "Unknown Country - Manual Review", "Cannot determine country of publication"),
+        ]
+        
+        # Write header row with formatting
+        for col, header in enumerate(status_definitions[0], 1):
+            cell = ws.cell(row=row, column=col)
+            cell.value = header
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+        
+        # Write definition rows
+        for status_row in status_definitions[1:]:
+            row += 1
+            for col, value in enumerate(status_row, 1):
+                ws.cell(row=row, column=col, value=value)
+        
+        # Confidence Level Explanations
+        row += 2
+        ws[f"A{row}"] = "Confidence Level Explanations:"
+        ws[f"A{row}"].font = Font(bold=True, size=12)
+        row += 1
+        
+        confidence_definitions = [
+            ("Level", "Criteria"),
+            ("HIGH", "LCCN match OR combined score ≥85%"),
+            ("MEDIUM", "Combined score 60-84%"),
+            ("LOW", "Combined score 1-59%"),
+            ("WARNING", "No matches found or special conditions (generic title, no year)"),
+        ]
+        
+        for conf_row in confidence_definitions:
+            ws[f"A{row}"] = conf_row[0] + ":"
+            ws[f"B{row}"] = conf_row[1]
+            if row == row - len(confidence_definitions) + 1:  # Header row
+                ws[f"A{row}"].font = Font(bold=True)
+            row += 1
+        
         # Adjust column widths
         ws.column_dimensions["A"].width = 25
-        ws.column_dimensions["B"].width = 20
+        ws.column_dimensions["B"].width = 50
+        ws.column_dimensions["C"].width = 60
 
     def _create_status_sheet(
         self, wb: Workbook, sheet_name: str, publications: list[Publication]
@@ -210,45 +313,18 @@ class XLSXExporter:
 
         # Headers
         headers = [
-            "MARC ID",
-            "MARC Title",
-            "Registration Title",
-            "Renewal Title",
-            "Registration Title Score",
-            "Renewal Title Score",
-            "MARC Author (245c)",
-            "MARC Main Author (1xx)",
-            "Registration Author",
-            "Renewal Author",
-            "Registration Author Score",
-            "Renewal Author Score",
-            "MARC Year",
-            "Registration Date",
-            "Renewal Date",
-            "MARC Publisher",
-            "Registration Publisher",
-            "Renewal Publisher",
-            "Registration Publisher Score",
-            "Renewal Publisher Score",
-            "Registration Similarity Score",
-            "Renewal Similarity Score",
-            "MARC Place",
-            "MARC Edition",
-            "MARC LCCN",
-            "MARC Normalized LCCN",
-            "Language Code",
-            "Language Detection Status",
-            "Country Code",
-            "Country Classification",
-            "Copyright Status",
-            "Generic Title Detected",
-            "Generic Detection Reason",
-            "Registration Generic Title",
-            "Renewal Generic Title",
+            "ID",
+            "Title",
+            "Author",
+            "Year",
+            "Publisher",
+            "Country",
+            "Status",
+            "Match Summary",
+            "Confidence",
+            "Warning",
             "Registration Source ID",
             "Renewal Entry ID",
-            "Registration Match Type",
-            "Renewal Match Type",
         ]
 
         # Write headers
@@ -276,77 +352,27 @@ class XLSXExporter:
 
     def _write_publication_row(self, ws: Worksheet, row_num: int, pub: Publication) -> None:
         """Write a single publication row with proper data types"""
-        # Registration match data
+        # Use 245c author if available, otherwise fall back to 1xx
+        author = pub.original_author or pub.original_main_author or ""
+        
+        # Get source IDs for verification
         reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
-        reg_title = pub.registration_match.matched_title if pub.registration_match else ""
-        reg_author = pub.registration_match.matched_author if pub.registration_match else ""
-        reg_date = pub.registration_match.matched_date if pub.registration_match else ""
-        reg_similarity_score = (
-            pub.registration_match.similarity_score if pub.registration_match else None
-        )
-        reg_title_score = pub.registration_match.title_score if pub.registration_match else None
-        reg_author_score = pub.registration_match.author_score if pub.registration_match else None
-        reg_publisher = (
-            pub.registration_match.matched_publisher or "" if pub.registration_match else ""
-        )
-        reg_publisher_score = (
-            pub.registration_match.publisher_score if pub.registration_match else None
-        )
-        reg_match_type = pub.registration_match.match_type.value if pub.registration_match else ""
-
-        # Renewal match data
         ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
-        ren_title = pub.renewal_match.matched_title if pub.renewal_match else ""
-        ren_author = pub.renewal_match.matched_author if pub.renewal_match else ""
-        ren_date = pub.renewal_match.matched_date if pub.renewal_match else ""
-        ren_similarity_score = pub.renewal_match.similarity_score if pub.renewal_match else None
-        ren_title_score = pub.renewal_match.title_score if pub.renewal_match else None
-        ren_author_score = pub.renewal_match.author_score if pub.renewal_match else None
-        ren_publisher = pub.renewal_match.matched_publisher or "" if pub.renewal_match else ""
-        ren_publisher_score = pub.renewal_match.publisher_score if pub.renewal_match else None
-        ren_match_type = pub.renewal_match.match_type.value if pub.renewal_match else ""
 
         # Write data with appropriate types
         data = [
             pub.source_id,  # Text
             pub.original_title,  # Text
-            reg_title,  # Text
-            ren_title,  # Text
-            reg_title_score,  # Float (None if no match)
-            ren_title_score,  # Float
-            pub.original_author,  # Text
-            pub.original_main_author,  # Text
-            reg_author,  # Text
-            ren_author,  # Text
-            reg_author_score,  # Float
-            ren_author_score,  # Float
+            author,  # Text
             pub.year,  # Integer (might be None)
-            reg_date,  # Text
-            ren_date,  # Text
-            pub.original_publisher,  # Text
-            reg_publisher,  # Text
-            ren_publisher,  # Text
-            reg_publisher_score,  # Float
-            ren_publisher_score,  # Float
-            reg_similarity_score,  # Float
-            ren_similarity_score,  # Float
-            pub.original_place,  # Text
-            pub.original_edition,  # Text
-            pub.lccn or "",  # Text
-            pub.normalized_lccn or "",  # Text
-            pub.language_code,  # Text
-            pub.language_detection_status,  # Text
-            pub.country_code,  # Text
+            pub.original_publisher or "",  # Text
             pub.country_classification.value,  # Text
             pub.copyright_status.value,  # Text
-            pub.generic_title_detected,  # Boolean
-            pub.generic_detection_reason,  # Text
-            pub.registration_generic_title,  # Boolean
-            pub.renewal_generic_title,  # Boolean
+            _format_match_summary(pub),  # Text
+            _calculate_confidence(pub),  # Text
+            _get_warnings(pub),  # Text
             reg_source_id,  # Text
             ren_entry_id,  # Text
-            reg_match_type,  # Text
-            ren_match_type,  # Text
         ]
 
         for col, value in enumerate(data, 1):

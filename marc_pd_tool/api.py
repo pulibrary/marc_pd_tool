@@ -25,6 +25,7 @@ from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters import XLSXExporter
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv
 from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.exporters.xlsx_stacked_exporter import StackedXLSXExporter
 from marc_pd_tool.infrastructure.cache_manager import CacheManager
 from marc_pd_tool.infrastructure.config_loader import get_config
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
@@ -437,6 +438,11 @@ class MarcCopyrightAnalyzer:
         elif format == "xlsx":
             exporter = XLSXExporter(
                 self.results.publications, output_path, score_everything_mode=single_file
+            )
+            exporter.export()
+        elif format == "xlsx-stacked":
+            exporter = StackedXLSXExporter(
+                self.results.publications, output_path, parameters=self.options
             )
             exporter.export()
         elif format == "json":

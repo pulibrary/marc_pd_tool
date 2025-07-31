@@ -8,7 +8,85 @@ from os.path import splitext
 
 # Local imports
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.utils.types import CSVWriter
+
+
+def _calculate_confidence(pub: Publication) -> str:
+    """Calculate confidence level based on match scores and type
+    
+    Returns:
+        HIGH, MEDIUM, LOW, or WARNING
+    """
+    # If we have an LCCN match, it's always HIGH confidence
+    if pub.registration_match and pub.registration_match.match_type == MatchType.LCCN:
+        return "HIGH"
+    if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
+        return "HIGH"
+    
+    # Calculate best combined score
+    best_score = 0.0
+    if pub.registration_match:
+        best_score = max(best_score, pub.registration_match.similarity_score)
+    if pub.renewal_match:
+        best_score = max(best_score, pub.renewal_match.similarity_score)
+    
+    # Apply confidence thresholds
+    if best_score >= 85:
+        return "HIGH"
+    elif best_score >= 60:
+        return "MEDIUM"
+    elif best_score > 0:
+        return "LOW"
+    else:
+        return "WARNING"
+
+
+def _format_match_summary(pub: Publication) -> str:
+    """Format a concise match summary
+    
+    Returns:
+        String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
+    """
+    parts = []
+    
+    if pub.registration_match:
+        if pub.registration_match.match_type == MatchType.LCCN:
+            parts.append("Reg: LCCN")
+        else:
+            parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
+    else:
+        parts.append("Reg: None")
+        
+    if pub.renewal_match:
+        if pub.renewal_match.match_type == MatchType.LCCN:
+            parts.append("Ren: LCCN")
+        else:
+            parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
+    else:
+        parts.append("Ren: None")
+        
+    return ", ".join(parts)
+
+
+def _get_warnings(pub: Publication) -> str:
+    """Get warning indicators for the record
+    
+    Returns:
+        Comma-separated warnings or empty string
+    """
+    warnings = []
+    
+    if pub.generic_title_detected:
+        warnings.append("Generic title")
+        
+    if not pub.year:
+        warnings.append("No year")
+        
+    if pub.country_classification.value == "Unknown":
+        warnings.append("Unknown country")
+        
+    return ", ".join(warnings)
 
 
 def save_matches_csv(
@@ -25,47 +103,21 @@ def save_matches_csv(
 
     def write_header(csv_writer: CSVWriter) -> None:
         """Write the CSV header row"""
+        # Simplified headers for better readability
         csv_writer.writerow(
             [
-                "MARC ID",
-                "MARC Title",
-                "Registration Title",
-                "Renewal Title",
-                "Registration Title Score",
-                "Renewal Title Score",
-                "MARC Author (245c)",
-                "MARC Main Author (1xx)",
-                "Registration Author",
-                "Renewal Author",
-                "Registration Author Score",
-                "Renewal Author Score",
-                "MARC Year",
-                "Registration Date",
-                "Renewal Date",
-                "MARC Publisher",
-                "Registration Publisher",
-                "Renewal Publisher",
-                "Registration Publisher Score",
-                "Renewal Publisher Score",
-                "Registration Similarity Score",
-                "Renewal Similarity Score",
-                "MARC Place",
-                "MARC Edition",
-                "MARC LCCN",
-                "MARC Normalized LCCN",
-                "Language Code",
-                "Language Detection Status",
-                "Country Code",
-                "Country Classification",
-                "Copyright Status",
-                "Generic Title Detected",
-                "Generic Detection Reason",
-                "Registration Generic Title",
-                "Renewal Generic Title",
+                "ID",
+                "Title",
+                "Author",
+                "Year",
+                "Publisher",
+                "Country",
+                "Status",
+                "Match Summary",
+                "Confidence",
+                "Warning",
                 "Registration Source ID",
                 "Renewal Entry ID",
-                "Registration Match Type",
-                "Renewal Match Type",
             ]
         )
 
@@ -103,84 +155,26 @@ def save_matches_csv(
 def _write_publications_to_csv(csv_writer: CSVWriter, marc_publications: list[Publication]) -> None:
     """Helper function to write publication data to CSV writer"""
     for pub in marc_publications:
-        # Get single match data for registration
+        # Simplified output - use 245c author if available, otherwise fall back to 1xx
+        author = pub.original_author or pub.original_main_author or ""
+        
+        # Get source IDs for verification
         reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
-        reg_title = pub.registration_match.matched_title if pub.registration_match else ""
-        reg_author = pub.registration_match.matched_author if pub.registration_match else ""
-        reg_date = pub.registration_match.matched_date if pub.registration_match else ""
-        reg_similarity_score = (
-            f"{pub.registration_match.similarity_score:.1f}" if pub.registration_match else ""
-        )
-        reg_title_score = (
-            f"{pub.registration_match.title_score:.1f}" if pub.registration_match else ""
-        )
-        reg_author_score = (
-            f"{pub.registration_match.author_score:.1f}" if pub.registration_match else ""
-        )
-        reg_publisher = (
-            pub.registration_match.matched_publisher or "" if pub.registration_match else ""
-        )
-        reg_publisher_score = (
-            f"{pub.registration_match.publisher_score:.1f}" if pub.registration_match else ""
-        )
-
-        # Get single match data for renewal
         ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
-        ren_title = pub.renewal_match.matched_title if pub.renewal_match else ""
-        ren_author = pub.renewal_match.matched_author if pub.renewal_match else ""
-        ren_date = pub.renewal_match.matched_date if pub.renewal_match else ""
-        ren_similarity_score = (
-            f"{pub.renewal_match.similarity_score:.1f}" if pub.renewal_match else ""
-        )
-        ren_title_score = f"{pub.renewal_match.title_score:.1f}" if pub.renewal_match else ""
-        ren_author_score = f"{pub.renewal_match.author_score:.1f}" if pub.renewal_match else ""
-
-        # Get renewal publisher data
-        ren_publisher = pub.renewal_match.matched_publisher or "" if pub.renewal_match else ""
-        ren_publisher_score = (
-            f"{pub.renewal_match.publisher_score:.1f}" if pub.renewal_match else ""
-        )
-
+        
         csv_writer.writerow(
             [
                 pub.source_id,
                 pub.original_title,
-                reg_title,
-                ren_title,
-                reg_title_score,
-                ren_title_score,
-                pub.original_author,
-                pub.original_main_author,
-                reg_author,
-                ren_author,
-                reg_author_score,
-                ren_author_score,
-                pub.year,
-                reg_date,
-                ren_date,
-                pub.original_publisher,
-                reg_publisher,
-                ren_publisher,
-                reg_publisher_score,
-                ren_publisher_score,
-                reg_similarity_score,
-                ren_similarity_score,
-                pub.original_place,
-                pub.original_edition,
-                pub.lccn or "",
-                pub.normalized_lccn or "",
-                pub.language_code,
-                pub.language_detection_status,
-                pub.country_code,
+                author,
+                pub.year or "",
+                pub.original_publisher or "",
                 pub.country_classification.value,
                 pub.copyright_status.value,
-                pub.generic_title_detected,
-                pub.generic_detection_reason,
-                pub.registration_generic_title,
-                pub.renewal_generic_title,
+                _format_match_summary(pub),
+                _calculate_confidence(pub),
+                _get_warnings(pub),
                 reg_source_id,
                 ren_entry_id,
-                pub.registration_match.match_type.value if pub.registration_match else "",
-                pub.renewal_match.match_type.value if pub.renewal_match else "",
             ]
         )
