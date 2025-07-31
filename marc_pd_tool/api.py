@@ -556,23 +556,28 @@ class MarcCopyrightAnalyzer:
         import shutil
         import signal
         
-        # Create temporary directory for batch files
+        # Create temporary directories for batch files and results
         batch_temp_dir = tempfile.mkdtemp(prefix="marc_batches_")
+        result_temp_dir = tempfile.mkdtemp(prefix="marc_results_")
         logger.info(f"Creating pickled batches in: {batch_temp_dir}")
+        logger.info(f"Worker results will be saved to: {result_temp_dir}")
         
         # Ensure cleanup on exit
-        def cleanup_batch_dir():
+        def cleanup_temp_dirs():
             if os.path.exists(batch_temp_dir):
                 shutil.rmtree(batch_temp_dir)
                 logger.debug(f"Cleaned up batch directory: {batch_temp_dir}")
+            if os.path.exists(result_temp_dir):
+                shutil.rmtree(result_temp_dir)
+                logger.debug(f"Cleaned up result directory: {result_temp_dir}")
         
         # Register cleanup for normal exit
-        atexit.register(cleanup_batch_dir)
+        atexit.register(cleanup_temp_dirs)
         
         # Register cleanup for signals (interrupt, terminate)
         def signal_cleanup(signum, frame):
             logger.info(f"Received signal {signum}, cleaning up...")
-            cleanup_batch_dir()
+            cleanup_temp_dirs()
             # Re-raise the signal to allow normal termination
             signal.signal(signum, signal.SIG_DFL)
             os.kill(os.getpid(), signum)
@@ -634,11 +639,11 @@ class MarcCopyrightAnalyzer:
                 brute_force_missing_year,
                 min_year,
                 max_year,
+                result_temp_dir,  # result_temp_dir for workers to save results
             )
             batch_infos.append(batch_info)
 
         # Process batches in parallel
-        all_processed_publications = []
         all_stats = []
         completed_batches = 0
         total_reg_matches = 0
@@ -772,12 +777,29 @@ class MarcCopyrightAnalyzer:
                 for batch_id, async_result in async_results:
                     try:
                         # Get result with timeout (15 minutes per batch)
-                        batch_id_result, processed_batch, batch_stats = async_result.get(
+                        batch_id_result, result_file_path, batch_stats = async_result.get(
                             timeout=900
                         )
                         batch_complete_time = time()
 
-                        all_processed_publications.extend(processed_batch)
+                        # Load publications from pickle file
+                        try:
+                            with open(result_file_path, "rb") as f:
+                                processed_batch = pickle.load(f)
+                            
+                            # Add publications directly to results
+                            for pub in processed_batch:
+                                self.results.add_publication(pub)
+                            
+                            # Delete the result file immediately to free disk space
+                            os.unlink(result_file_path)
+                            logger.debug(f"Loaded and deleted result file: {result_file_path}")
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to load results from {result_file_path}: {e}")
+                            # Continue processing other batches
+                        
+                        # Track stats
                         all_stats.append(batch_stats)
                         completed_batches += 1
 
@@ -808,6 +830,15 @@ class MarcCopyrightAnalyzer:
                             f"({completed_batches/total_batches*100:.1f}%) | "
                             f"ETA: {eta_str}"
                         )
+                        
+                        # Periodic memory check every 25 batches
+                        if completed_batches % 25 == 0:
+                            import psutil
+                            process = psutil.Process()
+                            mem_mb = process.memory_info().rss / 1024 / 1024
+                            logger.info(
+                                f"Main process memory after {completed_batches} batches: {mem_mb:.1f}MB"
+                            )
 
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
@@ -842,18 +873,14 @@ class MarcCopyrightAnalyzer:
             logger.error(f"Fatal error during parallel processing: {e}")
             raise
         finally:
-            # Ensure batch files are cleaned up even on error
-            cleanup_batch_dir()
+            # Ensure temp directories are cleaned up even on error
+            cleanup_temp_dirs()
             # Unregister the atexit handler since we've already cleaned up
-            atexit.unregister(cleanup_batch_dir)
-
-        # Update results with all processed publications
-        for pub in all_processed_publications:
-            self.results.add_publication(pub)
+            atexit.unregister(cleanup_temp_dirs)
 
         # Log final performance stats
         total_time = time() - start_time
-        total_records = len(all_processed_publications)
+        total_records = len(self.results.publications)
         records_per_minute = total_records / (total_time / 60) if total_time > 0 else 0
 
         logger.info(

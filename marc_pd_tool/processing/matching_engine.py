@@ -595,10 +595,13 @@ def init_worker(
         raise
 
 
-def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publication], BatchStats]:
+def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats]:
     """
     Process a single batch of MARC records against pre-built indexes.
     This function runs in a separate process.
+    
+    Returns:
+        Tuple of (batch_id, result_file_path, batch_stats)
     """
     (
         batch_id,
@@ -620,6 +623,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         brute_force_missing_year,
         min_year,
         max_year,
+        result_temp_dir,  # Directory to save result pickle files
     ) = batch_info
     
     # Load the batch from pickle file
@@ -880,7 +884,22 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
             f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
         )
 
-        return batch_id, processed_publications, stats
+        # Save results to pickle file instead of returning through queue
+        import os
+        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}.pkl")
+        
+        try:
+            with open(result_file_path, "wb") as f:
+                pickle.dump(processed_publications, f, protocol=pickle.HIGHEST_PROTOCOL)
+            
+            process_logger.debug(f"Batch {batch_id}: Saved {len(processed_publications)} publications to {result_file_path}")
+            
+            # Return just the file path and stats (small data)
+            return batch_id, result_file_path, stats
+            
+        except Exception as e:
+            process_logger.error(f"Failed to save results for batch {batch_id}: {e}")
+            raise
 
     except Exception as e:
         process_logger.error(f"Error in batch {batch_id}: {str(e)}")
@@ -890,5 +909,14 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
 
         process_logger.error(f"Traceback:\n{traceback.format_exc()}")
 
+        # For error case, save empty results to maintain consistency
+        import os
+        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}_failed.pkl")
+        try:
+            with open(result_file_path, "wb") as f:
+                pickle.dump([], f, protocol=pickle.HIGHEST_PROTOCOL)
+        except:
+            pass
+        
         # Return empty results but include the batch_id so we know which failed
-        return batch_id, [], stats
+        return batch_id, result_file_path, stats

@@ -240,6 +240,7 @@ BatchProcessingInfo = tuple[
     bool,  # brute_force_missing_year
     int | None,  # min_year
     int | None,  # max_year
+    str,  # result_temp_dir (path to directory for result pickle files)
 ]
 
 # Generic type variables
