@@ -33,7 +33,7 @@
     "disable_generic_detection": false
   },
   "processing": {
-    "batch_size": 200,
+    "batch_size": 100,
     "max_workers": null,
     "score_everything_mode": false,
     "brute_force_missing_year": false

@@ -140,9 +140,9 @@ def create_argument_parser() -> ArgumentParser:
     )
     parser.add_argument(
         "--output-format",
-        choices=["csv", "xlsx", "json"],
+        choices=["csv", "xlsx", "xlsx-stacked", "json"],
         default="csv",
-        help="Output format: csv, xlsx, or json",
+        help="Output format: csv, xlsx, xlsx-stacked (detailed comparison), or json",
     )
     parser.add_argument(
         "--single-file",
@@ -155,7 +155,7 @@ def create_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=processing_config.get("batch_size", 200),
+        default=processing_config.get("batch_size", 100),
         help="MARC records per batch",
     )
     parser.add_argument(

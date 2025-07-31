@@ -90,24 +90,21 @@ class TestConfidenceScores:
             with open(temp_file, "r") as f:
                 headers = f.readline().strip().split(",")
 
-            # Check for confidence score headers
+            # Check for simplified headers
             expected_headers = [
-                "Registration Title",
-                "Registration Author",
-                "Registration Date",
-                "Registration Similarity Score",
-                "Registration Title Score",
-                "Registration Author Score",
-                "Renewal Title",
-                "Renewal Author",
-                "Renewal Date",
-                "Renewal Similarity Score",
-                "Renewal Title Score",
-                "Renewal Author Score",
+                "ID",
+                "Title",
+                "Author",
+                "Year",
+                "Publisher",
+                "Country",
+                "Status",
+                "Match Summary",
+                "Confidence",
+                "Warning",
+                "Registration Source ID",
+                "Renewal Entry ID",
             ]
-
-            # Check for renewal entry ID header
-            assert "Renewal Entry ID" in headers, "Missing 'Renewal Entry ID' header"
 
             for header in expected_headers:
                 assert header in headers, f"Missing header: {header}"

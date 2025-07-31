@@ -118,17 +118,21 @@ class TestYearFiltering:
         assert extractor._should_include_record(pub_1956) is False  # After target year
 
     def test_should_include_record_no_year_always_included(self):
-        """Test that records without publication years are always included"""
+        """Test that records without publication years are excluded when year filtering is active"""
         extractor_min = MarcLoader("dummy_path", min_year=1950)
         extractor_max = MarcLoader("dummy_path", max_year=1960)
         extractor_range = MarcLoader("dummy_path", min_year=1950, max_year=1960)
+        extractor_no_filter = MarcLoader("dummy_path")
 
         pub_no_year = Publication("Test No Year", country_classification=CountryClassification.US)
 
-        # Records without years should always be included regardless of filters
-        assert extractor_min._should_include_record(pub_no_year) is True
-        assert extractor_max._should_include_record(pub_no_year) is True
-        assert extractor_range._should_include_record(pub_no_year) is True
+        # Records without years should be excluded when year filtering is active
+        assert extractor_min._should_include_record(pub_no_year) is False
+        assert extractor_max._should_include_record(pub_no_year) is False
+        assert extractor_range._should_include_record(pub_no_year) is False
+
+        # But included when no year filtering
+        assert extractor_no_filter._should_include_record(pub_no_year) is True
 
     def test_extractor_constructor_accepts_max_year(self):
         """Test that MarcLoader constructor accepts max_year parameter"""

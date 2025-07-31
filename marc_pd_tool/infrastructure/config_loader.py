@@ -119,10 +119,10 @@ class ConfigLoader:
             return self._deep_merge(defaults, user_config)
 
         except (FileNotFoundError, PermissionError, OSError) as e:
-            print(f"Warning: Could not read config file {self.config_path}: {e}")
+            logger.warning(f"Could not read config file {self.config_path}: {e}")
             return defaults
         except Exception as e:
-            print(f"Warning: Invalid JSON in config file {self.config_path}: {e}")
+            logger.warning(f"Invalid JSON in config file {self.config_path}: {e}")
             return defaults
 
     def _deep_merge(self, base: JSONDict, update: JSONDict) -> JSONDict:

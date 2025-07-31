@@ -8,6 +8,7 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from os import getpid
+from time import time
 from typing import cast
 
 # Local imports
@@ -507,14 +508,104 @@ class DataMatcher(ConfigurableMixin):
         return result
 
 
-def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publication], BatchStats]:
+# Global storage for worker-specific data
+_worker_data = {}
+
+# Global storage for shared data (Linux fork mode)
+_shared_data = {}
+
+
+def init_worker(
+    cache_dir: str,
+    copyright_dir: str,
+    renewal_dir: str,
+    config_hash: str,
+    detector_config: dict[str, int | bool],
+    min_year: int | None,
+    max_year: int | None,
+    brute_force: bool,
+) -> None:
+    """Initialize worker process with pre-loaded indexes and components
+
+    This function is called once when a worker process starts.
+    It loads all heavy data structures (indexes, detector, etc.) once
+    and stores them for reuse across all batches processed by this worker.
+    """
+    global _worker_data
+    process_logger = getLogger(__name__)
+    pid = getpid()
+
+    try:
+        process_logger.info(f"Worker {pid} initializing...")
+
+        # Load indexes once per worker
+        cache_manager = CacheManager(cache_dir)
+
+        process_logger.debug(f"Worker {pid}: Loading indexes from cache")
+        start_time = time()
+        cached_indexes = cache_manager.get_cached_indexes(
+            copyright_dir, renewal_dir, config_hash, min_year, max_year, brute_force
+        )
+        load_time = time() - start_time
+
+        if cached_indexes is None:
+            raise RuntimeError(f"Worker {pid}: Failed to load indexes from cache")
+
+        process_logger.info(f"Worker {pid}: Index loading took {load_time:.1f} seconds")
+
+        registration_index, renewal_index = cached_indexes
+        renewal_size = renewal_index.size() if renewal_index else 0
+        process_logger.info(
+            f"Worker {pid}: Loaded {registration_index.size():,} registration, "
+            f"{renewal_size:,} renewal entries"
+        )
+
+        # Log memory usage
+        # Third party imports
+        import psutil
+
+        process = psutil.Process(pid)
+        mem_mb = process.memory_info().rss / 1024 / 1024
+        process_logger.info(f"Worker {pid}: Current memory usage: {mem_mb:.1f}MB")
+
+        # Load generic title detector
+        process_logger.debug(f"Worker {pid}: Loading generic title detector")
+        generic_detector = cache_manager.get_cached_generic_detector(
+            copyright_dir, renewal_dir, detector_config
+        )
+        if generic_detector is None and not detector_config.get("disabled", False):
+            process_logger.warning(f"Worker {pid}: No generic title detector loaded")
+
+        # Initialize matching engine
+        matching_engine = DataMatcher()
+
+        # Store everything for reuse
+        _worker_data = {
+            "registration_index": registration_index,
+            "renewal_index": renewal_index,
+            "generic_detector": generic_detector,
+            "matching_engine": matching_engine,
+            "cache_manager": cache_manager,
+        }
+
+        process_logger.info(f"Worker {pid} initialized successfully")
+
+    except Exception as e:
+        process_logger.error(f"Worker {pid} initialization failed: {e}")
+        raise
+
+
+def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats]:
     """
     Process a single batch of MARC records against pre-built indexes.
     This function runs in a separate process.
+
+    Returns:
+        Tuple of (batch_id, result_file_path, batch_stats)
     """
     (
         batch_id,
-        marc_batch,
+        batch_path,  # Changed from marc_batch to batch_path
         cache_dir,
         copyright_dir,
         renewal_dir,
@@ -530,9 +621,12 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         score_everything_mode,
         minimum_combined_score,
         brute_force_missing_year,
+        min_year,
+        max_year,
+        result_temp_dir,  # Directory to save result pickle files
     ) = batch_info
 
-    # Set up logging for this process - needed for multiprocessing
+    # Set up logging for this process first - needed for multiprocessing
     root_logger = getLogger()
     if not root_logger.handlers:
         # Configure logging in worker process if not already configured
@@ -544,6 +638,23 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         root_logger.setLevel(INFO)
 
     process_logger = getLogger(f"batch_{batch_id}")
+
+    # Load the batch from pickle file
+    # Standard library imports
+    import os
+    import pickle
+
+    try:
+        with open(batch_path, "rb") as f:
+            marc_batch = pickle.load(f)
+
+        # Delete the batch file to free disk space
+        os.unlink(batch_path)
+        process_logger.debug(f"Deleted batch file: {batch_path}")
+
+    except Exception as e:
+        process_logger.error(f"Failed to load batch from {batch_path}: {e}")
+        raise
 
     # Configure the batch logger to use the same handler as root logger
     if not process_logger.handlers and root_logger.handlers:
@@ -562,212 +673,116 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
         "us_records": 0,
         "non_us_records": 0,
         "unknown_country_records": 0,
+        "processing_time": 0.0,  # Will be updated with actual processing time
     }
 
-    # Log batch start with process logger (same as completion messages)
-    process_logger.info(
-        f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
-    )
+    try:
+        # Track actual processing time
+        batch_start_time = time()
 
-    # Load pre-built indexes and detector directly from cache
-    if not cache_dir:
-        raise RuntimeError("No cache directory provided to worker process - this shouldn't occur")
-
-    cache_manager = CacheManager(cache_dir)
-
-    process_logger.debug(f"Batch {batch_id}/{total_batches}: Loading indexes from cache")
-    cached_indexes = cache_manager.get_cached_indexes(copyright_dir, renewal_dir, config_hash)
-    if cached_indexes is None:
-        raise RuntimeError(f"Failed to load indexes from cache in worker process {batch_id}")
-    registration_index, renewal_index = cached_indexes
-
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: Loading generic title detector from cache"
-    )
-    generic_detector = cache_manager.get_cached_generic_detector(
-        copyright_dir, renewal_dir, detector_config
-    )
-    if generic_detector is None and not detector_config.get("disabled", False):
-        raise RuntimeError(
-            f"Failed to load generic title detector from cache in worker process {batch_id}"
+        # Log batch start
+        process_logger.info(
+            f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
         )
 
-    renewal_size = renewal_index.size() if renewal_index else 0
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches}: {registration_index.size():,} registration entries, {renewal_size:,} renewal entries"
-    )
+        # Use pre-loaded data from worker initialization
+        global _worker_data
+        if not _worker_data:
+            raise RuntimeError(
+                f"Worker not properly initialized - _worker_data is empty. "
+                f"This usually means the worker initializer wasn't called."
+            )
 
-    process_logger.debug(f"Batch {batch_id}/{total_batches}: Indexes loaded successfully")
+        # Get pre-loaded components
+        registration_index = _worker_data["registration_index"]
+        renewal_index = _worker_data["renewal_index"]
+        generic_detector = _worker_data["generic_detector"]
+        matching_engine = _worker_data["matching_engine"]
 
-    # Initialize matching engine
-    matching_engine = DataMatcher()
+        # Track actually processed publications
+        processed_publications = []
 
-    # Track actually processed publications
-    processed_publications = []
+        # Process each MARC record in the batch
+        for i, marc_pub in enumerate(marc_batch):
 
-    # Process each MARC record in the batch
-    for i, marc_pub in enumerate(marc_batch):
+            # Skip records without year data unless brute-force mode is enabled
+            if marc_pub.year is None and not brute_force_missing_year:
+                process_logger.debug(f"Skipping MARC record {marc_pub.source_id} - no year data")
+                continue
 
-        # Skip records without year data unless brute-force mode is enabled
-        if marc_pub.year is None and not brute_force_missing_year:
-            process_logger.debug(f"Skipping MARC record {marc_pub.source_id} - no year data")
-            continue
+            # Count by country classification
+            if hasattr(marc_pub, "country_classification"):
+                if marc_pub.country_classification.value == "US":
+                    stats["us_records"] += 1
+                elif marc_pub.country_classification.value == "Non-US":
+                    stats["non_us_records"] += 1
+                else:
+                    stats["unknown_country_records"] += 1
 
-        # Count by country classification
-        if hasattr(marc_pub, "country_classification"):
-            if marc_pub.country_classification.value == "US":
-                stats["us_records"] += 1
-            elif marc_pub.country_classification.value == "Non-US":
-                stats["non_us_records"] += 1
+            # Find registration candidates using index
+            reg_candidates = registration_index.get_candidates_list(marc_pub, year_tolerance)
+
+            if score_everything_mode:
+                reg_match = matching_engine.find_best_match_ignore_thresholds(
+                    marc_pub,
+                    reg_candidates,
+                    year_tolerance,
+                    early_exit_title,
+                    early_exit_author,
+                    generic_detector,
+                    minimum_combined_score,
+                )
             else:
-                stats["unknown_country_records"] += 1
+                reg_match = matching_engine.find_best_match(
+                    marc_pub,
+                    reg_candidates,
+                    title_threshold,
+                    author_threshold,
+                    year_tolerance,
+                    publisher_threshold,
+                    early_exit_title,
+                    early_exit_author,
+                    generic_detector,
+                )
 
-        # Find registration candidates using index
-        reg_candidates = registration_index.get_candidates_list(marc_pub, year_tolerance)
+            # Note: Metaphone fallback matching removed to reduce false positives
 
-        if score_everything_mode:
-            reg_match = matching_engine.find_best_match_ignore_thresholds(
-                marc_pub,
-                reg_candidates,
-                year_tolerance,
-                early_exit_title,
-                early_exit_author,
-                generic_detector,
-                minimum_combined_score,
-            )
-        else:
-            reg_match = matching_engine.find_best_match(
-                marc_pub,
-                reg_candidates,
-                title_threshold,
-                author_threshold,
-                year_tolerance,
-                publisher_threshold,
-                early_exit_title,
-                early_exit_author,
-                generic_detector,
-            )
-
-        # Note: Metaphone fallback matching removed to reduce false positives
-
-        if reg_match:
-            match_result = MatchResult(
-                matched_title=reg_match["copyright_record"]["title"],
-                matched_author=reg_match["copyright_record"]["author"],
-                similarity_score=reg_match["similarity_scores"]["combined"],
-                title_score=reg_match["similarity_scores"]["title"],
-                author_score=reg_match["similarity_scores"]["author"],
-                publisher_score=reg_match["similarity_scores"]["publisher"],
-                year_difference=(
-                    abs(marc_pub.year - reg_match["copyright_record"]["year"])
-                    if marc_pub.year and reg_match["copyright_record"]["year"]
-                    else 0
-                ),
-                source_id=reg_match["copyright_record"]["source_id"],
-                matched_publisher=reg_match["copyright_record"]["publisher"],
-                source_type="registration",
-                matched_date=reg_match["copyright_record"]["pub_date"],
-                match_type=(
-                    MatchType.LCCN
-                    if reg_match.get("is_lccn_match", False)
-                    else (
-                        MatchType.BRUTE_FORCE_WITHOUT_YEAR
-                        if marc_pub.year is None and brute_force_missing_year
-                        else MatchType.SIMILARITY
-                    )
-                ),
-            )
-            marc_pub.set_registration_match(match_result)
-
-            # Store generic title detection info for registration match
-            if "generic_title_info" in reg_match:
-                generic_info = cast(dict[str, bool | str], reg_match["generic_title_info"])
-                if cast(bool, generic_info["has_generic_title"]):
-                    marc_pub.generic_title_detected = True
-                    marc_pub.registration_generic_title = True
-                    # Use MARC detection reason if MARC title is generic, otherwise copyright reason
-                    if cast(bool, generic_info["marc_title_is_generic"]):
-                        marc_pub.generic_detection_reason = cast(
-                            str, generic_info["marc_detection_reason"]
+            if reg_match:
+                match_result = MatchResult(
+                    matched_title=reg_match["copyright_record"]["title"],
+                    matched_author=reg_match["copyright_record"]["author"],
+                    similarity_score=reg_match["similarity_scores"]["combined"],
+                    title_score=reg_match["similarity_scores"]["title"],
+                    author_score=reg_match["similarity_scores"]["author"],
+                    publisher_score=reg_match["similarity_scores"]["publisher"],
+                    year_difference=(
+                        abs(marc_pub.year - reg_match["copyright_record"]["year"])
+                        if marc_pub.year and reg_match["copyright_record"]["year"]
+                        else 0
+                    ),
+                    source_id=reg_match["copyright_record"]["source_id"],
+                    matched_publisher=reg_match["copyright_record"]["publisher"],
+                    source_type="registration",
+                    matched_date=reg_match["copyright_record"]["pub_date"],
+                    match_type=(
+                        MatchType.LCCN
+                        if reg_match.get("is_lccn_match", False)
+                        else (
+                            MatchType.BRUTE_FORCE_WITHOUT_YEAR
+                            if marc_pub.year is None and brute_force_missing_year
+                            else MatchType.SIMILARITY
                         )
-                    else:
-                        marc_pub.generic_detection_reason = cast(
-                            str, generic_info["copyright_detection_reason"]
-                        )
+                    ),
+                )
+                marc_pub.set_registration_match(match_result)
 
-            stats["registration_matches_found"] += 1
-
-        # Find renewal candidates using index
-        ren_candidates = (
-            renewal_index.get_candidates_list(marc_pub, year_tolerance) if renewal_index else []
-        )
-
-        if score_everything_mode:
-            ren_match = matching_engine.find_best_match_ignore_thresholds(
-                marc_pub,
-                ren_candidates,
-                year_tolerance,
-                early_exit_title,
-                early_exit_author,
-                generic_detector,
-                minimum_combined_score,
-            )
-        else:
-            ren_match = matching_engine.find_best_match(
-                marc_pub,
-                ren_candidates,
-                title_threshold,
-                author_threshold,
-                year_tolerance,
-                publisher_threshold,
-                early_exit_title,
-                early_exit_author,
-                generic_detector,
-            )
-
-        # Note: Metaphone fallback matching removed to reduce false positives
-
-        if ren_match:
-            match_result = MatchResult(
-                matched_title=ren_match["copyright_record"]["title"],
-                matched_author=ren_match["copyright_record"]["author"],
-                similarity_score=ren_match["similarity_scores"]["combined"],
-                title_score=ren_match["similarity_scores"]["title"],
-                author_score=ren_match["similarity_scores"]["author"],
-                publisher_score=ren_match["similarity_scores"]["publisher"],
-                year_difference=(
-                    abs(marc_pub.year - ren_match["copyright_record"]["year"])
-                    if marc_pub.year and ren_match["copyright_record"]["year"]
-                    else 0
-                ),
-                source_id=ren_match["copyright_record"]["source_id"],
-                matched_publisher=extract_best_publisher_match(
-                    marc_pub.original_publisher, ren_match["copyright_record"]["full_text"]
-                ),
-                source_type="renewal",
-                matched_date=ren_match["copyright_record"]["pub_date"],
-                match_type=(
-                    MatchType.LCCN
-                    if ren_match.get("is_lccn_match", False)
-                    else (
-                        MatchType.BRUTE_FORCE_WITHOUT_YEAR
-                        if marc_pub.year is None and brute_force_missing_year
-                        else MatchType.SIMILARITY
-                    )
-                ),
-            )
-            marc_pub.set_renewal_match(match_result)
-
-            # Store generic title detection info for renewal match
-            if "generic_title_info" in ren_match:
-                generic_info = cast(dict[str, bool | str], ren_match["generic_title_info"])
-                if cast(bool, generic_info["has_generic_title"]):
-                    marc_pub.generic_title_detected = True
-                    marc_pub.renewal_generic_title = True
-                    # Update detection reason if not already set, or if MARC title is generic
-                    if marc_pub.generic_detection_reason == "none" or cast(
-                        bool, generic_info["marc_title_is_generic"]
-                    ):
+                # Store generic title detection info for registration match
+                if "generic_title_info" in reg_match:
+                    generic_info = cast(dict[str, bool | str], reg_match["generic_title_info"])
+                    if cast(bool, generic_info["has_generic_title"]):
+                        marc_pub.generic_title_detected = True
+                        marc_pub.registration_generic_title = True
+                        # Use MARC detection reason if MARC title is generic, otherwise copyright reason
                         if cast(bool, generic_info["marc_title_is_generic"]):
                             marc_pub.generic_detection_reason = cast(
                                 str, generic_info["marc_detection_reason"]
@@ -777,26 +792,193 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, list[Publicatio
                                 str, generic_info["copyright_detection_reason"]
                             )
 
-            stats["renewal_matches_found"] += 1
+                stats["registration_matches_found"] += 1
 
-        stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
+            # Find renewal candidates using index
+            ren_candidates = (
+                renewal_index.get_candidates_list(marc_pub, year_tolerance) if renewal_index else []
+            )
 
-        # Determine copyright status based on matches and country
-        marc_pub.determine_copyright_status()
+            if score_everything_mode:
+                ren_match = matching_engine.find_best_match_ignore_thresholds(
+                    marc_pub,
+                    ren_candidates,
+                    year_tolerance,
+                    early_exit_title,
+                    early_exit_author,
+                    generic_detector,
+                    minimum_combined_score,
+                )
+            else:
+                ren_match = matching_engine.find_best_match(
+                    marc_pub,
+                    ren_candidates,
+                    title_threshold,
+                    author_threshold,
+                    year_tolerance,
+                    publisher_threshold,
+                    early_exit_title,
+                    early_exit_author,
+                    generic_detector,
+                )
 
-        # Add to processed publications list
-        processed_publications.append(marc_pub)
+            # Note: Metaphone fallback matching removed to reduce false positives
 
-    # Update stats to reflect actual processed count
-    stats["marc_count"] = len(processed_publications)
+            if ren_match:
+                match_result = MatchResult(
+                    matched_title=ren_match["copyright_record"]["title"],
+                    matched_author=ren_match["copyright_record"]["author"],
+                    similarity_score=ren_match["similarity_scores"]["combined"],
+                    title_score=ren_match["similarity_scores"]["title"],
+                    author_score=ren_match["similarity_scores"]["author"],
+                    publisher_score=ren_match["similarity_scores"]["publisher"],
+                    year_difference=(
+                        abs(marc_pub.year - ren_match["copyright_record"]["year"])
+                        if marc_pub.year and ren_match["copyright_record"]["year"]
+                        else 0
+                    ),
+                    source_id=ren_match["copyright_record"]["source_id"],
+                    matched_publisher=extract_best_publisher_match(
+                        marc_pub.original_publisher, ren_match["copyright_record"]["full_text"]
+                    ),
+                    source_type="renewal",
+                    matched_date=ren_match["copyright_record"]["pub_date"],
+                    match_type=(
+                        MatchType.LCCN
+                        if ren_match.get("is_lccn_match", False)
+                        else (
+                            MatchType.BRUTE_FORCE_WITHOUT_YEAR
+                            if marc_pub.year is None and brute_force_missing_year
+                            else MatchType.SIMILARITY
+                        )
+                    ),
+                )
+                marc_pub.set_renewal_match(match_result)
 
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
-        f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records"
-    )
-    process_logger.debug(
-        f"Batch {batch_id}/{total_batches} country breakdown: {stats['us_records']} US, "
-        f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
-    )
+                # Store generic title detection info for renewal match
+                if "generic_title_info" in ren_match:
+                    generic_info = cast(dict[str, bool | str], ren_match["generic_title_info"])
+                    if cast(bool, generic_info["has_generic_title"]):
+                        marc_pub.generic_title_detected = True
+                        marc_pub.renewal_generic_title = True
+                        # Update detection reason if not already set, or if MARC title is generic
+                        if marc_pub.generic_detection_reason == "none" or cast(
+                            bool, generic_info["marc_title_is_generic"]
+                        ):
+                            if cast(bool, generic_info["marc_title_is_generic"]):
+                                marc_pub.generic_detection_reason = cast(
+                                    str, generic_info["marc_detection_reason"]
+                                )
+                            else:
+                                marc_pub.generic_detection_reason = cast(
+                                    str, generic_info["copyright_detection_reason"]
+                                )
 
-    return batch_id, processed_publications, stats
+                stats["renewal_matches_found"] += 1
+
+            stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
+
+            # Determine copyright status based on matches and country
+            marc_pub.determine_copyright_status()
+
+            # Add to processed publications list
+            processed_publications.append(marc_pub)
+
+        # Update stats to reflect actual processed count
+        stats["marc_count"] = len(processed_publications)
+
+        # Calculate actual processing time
+        batch_processing_time = time() - batch_start_time
+
+        process_logger.debug(
+            f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
+            f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records "
+            f"(processing time: {batch_processing_time:.1f}s)"
+        )
+        process_logger.debug(
+            f"Batch {batch_id}/{total_batches} country breakdown: {stats['us_records']} US, "
+            f"{stats['non_us_records']} Non-US, {stats['unknown_country_records']} Unknown"
+        )
+
+        # Save results to pickle file instead of returning through queue
+        # Standard library imports
+        import os
+
+        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}.pkl")
+        stats_file_path = os.path.join(result_temp_dir, f"stats_{batch_id:05d}.pkl")
+
+        try:
+            # Save publications
+            with open(result_file_path, "wb") as f:
+                pickle.dump(processed_publications, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # Calculate detailed statistics for the main process
+            detailed_stats = {
+                "total_records": len(processed_publications),
+                "us_records": sum(
+                    1 for p in processed_publications if p.country_classification.value == "US"
+                ),
+                "non_us_records": sum(
+                    1 for p in processed_publications if p.country_classification.value == "Non-US"
+                ),
+                "unknown_country": sum(
+                    1 for p in processed_publications if p.country_classification.value == "Unknown"
+                ),
+                "registration_matches": sum(
+                    1 for p in processed_publications if p.has_registration_match()
+                ),
+                "renewal_matches": sum(1 for p in processed_publications if p.has_renewal_match()),
+                "no_matches": sum(
+                    1
+                    for p in processed_publications
+                    if not p.has_registration_match() and not p.has_renewal_match()
+                ),
+            }
+
+            # Add copyright status counts
+            for pub in processed_publications:
+                if hasattr(pub, "copyright_status") and pub.copyright_status:
+                    status_key = pub.copyright_status.value.lower()
+                    if status_key not in detailed_stats:
+                        detailed_stats[status_key] = 0
+                    detailed_stats[status_key] += 1
+
+            # Save detailed statistics separately
+            with open(stats_file_path, "wb") as f:
+                pickle.dump(detailed_stats, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            process_logger.debug(
+                f"Batch {batch_id}: Saved {len(processed_publications)} publications and statistics"
+            )
+
+            # Update stats with actual processing time
+            stats["processing_time"] = batch_processing_time
+
+            # Return just the file paths and basic stats (small data)
+            return batch_id, result_file_path, stats
+
+        except Exception as e:
+            process_logger.error(f"Failed to save results for batch {batch_id}: {e}")
+            raise
+
+    except Exception as e:
+        process_logger.error(f"Error in batch {batch_id}: {str(e)}")
+        process_logger.error(f"Error type: {type(e).__name__}")
+        # Standard library imports
+        import traceback
+
+        process_logger.error(f"Traceback:\n{traceback.format_exc()}")
+
+        # For error case, save empty results to maintain consistency
+        # Standard library imports
+        import os
+
+        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}_failed.pkl")
+        try:
+            with open(result_file_path, "wb") as f:
+                pickle.dump([], f, protocol=pickle.HIGHEST_PROTOCOL)
+        except:
+            pass
+
+        # Return empty results but include the batch_id so we know which failed
+        return batch_id, result_file_path, stats

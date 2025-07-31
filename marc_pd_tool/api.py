@@ -8,10 +8,11 @@ copyright and renewal data.
 """
 
 # Standard library imports
-from concurrent.futures import ProcessPoolExecutor
-from concurrent.futures import as_completed
 from logging import getLogger
+from multiprocessing import Pool
 from multiprocessing import cpu_count
+from multiprocessing import get_start_method
+import os
 from time import time
 from typing import cast
 
@@ -24,6 +25,7 @@ from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters import XLSXExporter
 from marc_pd_tool.exporters.csv_exporter import save_matches_csv
 from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.exporters.xlsx_stacked_exporter import StackedXLSXExporter
 from marc_pd_tool.infrastructure.cache_manager import CacheManager
 from marc_pd_tool.infrastructure.config_loader import get_config
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
@@ -32,6 +34,7 @@ from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
 from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
 from marc_pd_tool.processing.indexer import DataIndexer
 from marc_pd_tool.processing.indexer import build_wordbased_index
+from marc_pd_tool.processing.matching_engine import init_worker
 from marc_pd_tool.processing.matching_engine import process_batch
 from marc_pd_tool.processing.score_analyzer import ScoreAnalyzer
 from marc_pd_tool.processing.text_processing import GenericTitleDetector
@@ -50,6 +53,7 @@ class AnalysisResults:
     def __init__(self) -> None:
         """Initialize empty results container"""
         self.publications: list[Publication] = []
+        self.result_file_paths: list[str] = []  # Store paths to result pickle files
         self.statistics: dict[str, int] = {
             "total_records": 0,
             "us_records": 0,
@@ -57,6 +61,7 @@ class AnalysisResults:
             "unknown_country": 0,
             "registration_matches": 0,
             "renewal_matches": 0,
+            "no_matches": 0,
             "pd_no_renewal": 0,
             "pd_date_verify": 0,
             "in_copyright": 0,
@@ -67,11 +72,21 @@ class AnalysisResults:
         self.ground_truth_analysis: GroundTruthAnalysis | None = None
         self.ground_truth_pairs: list[GroundTruthPair] | None = None
         self.ground_truth_stats: GroundTruthStats | None = None
+        self.result_temp_dir: str | None = None  # Temporary directory containing result files
 
     def add_publication(self, pub: Publication) -> None:
         """Add a publication to results and update statistics"""
         self.publications.append(pub)
         self._update_statistics(pub)
+
+    def add_result_file(self, file_path: str) -> None:
+        """Add a result file path for later loading"""
+        self.result_file_paths.append(file_path)
+
+    def update_statistics_from_batch(self, publications: list[Publication]) -> None:
+        """Update statistics from a batch of publications without storing them"""
+        for pub in publications:
+            self._update_statistics(pub)
 
     def _update_statistics(self, pub: Publication) -> None:
         """Update statistics based on publication"""
@@ -87,16 +102,43 @@ class AnalysisResults:
                 self.statistics["unknown_country"] += 1
 
         # Match statistics
+        has_any_match = False
         if pub.has_registration_match():
             self.statistics["registration_matches"] += 1
+            has_any_match = True
         if pub.has_renewal_match():
             self.statistics["renewal_matches"] += 1
+            has_any_match = True
+
+        # Track records with no matches
+        if not has_any_match:
+            self.statistics["no_matches"] = self.statistics.get("no_matches", 0) + 1
 
         # Copyright status
         if hasattr(pub, "copyright_status") and pub.copyright_status:
             status_key = pub.copyright_status.value.lower()
             if status_key in self.statistics:
                 self.statistics[status_key] += 1
+
+    def load_all_publications(self) -> None:
+        """Load all publications from stored pickle files"""
+        if not self.result_file_paths:
+            return
+
+        logger.info(f"Loading {len(self.result_file_paths)} result files...")
+
+        # Standard library imports
+        import pickle
+
+        for file_path in self.result_file_paths:
+            try:
+                with open(file_path, "rb") as f:
+                    batch = pickle.load(f)
+                    self.publications.extend(batch)
+            except Exception as e:
+                logger.error(f"Failed to load result file {file_path}: {e}")
+
+        logger.info(f"Loaded {len(self.publications)} publications from disk")
 
 
 class MarcCopyrightAnalyzer:
@@ -199,7 +241,6 @@ class MarcCopyrightAnalyzer:
         self._load_and_index_data(options)
 
         # Load MARC records
-        logger.info("")
         logger.info("=" * 80)
         logger.info("=== PHASE 2: LOADING MARC RECORDS ===")
         logger.info("=" * 80)
@@ -323,6 +364,8 @@ class MarcCopyrightAnalyzer:
             int(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
+        min_year = options.get("min_year")
+        max_year = options.get("max_year")
 
         # Log matching configuration
         logger.info("Matching configuration:")
@@ -356,6 +399,8 @@ class MarcCopyrightAnalyzer:
                 score_everything_mode,
                 minimum_combined_score,
                 brute_force_missing_year,
+                min_year,
+                max_year,
             )
         else:
             # Process in parallel for larger datasets
@@ -377,6 +422,8 @@ class MarcCopyrightAnalyzer:
                 score_everything_mode,
                 minimum_combined_score,
                 brute_force_missing_year,
+                min_year,
+                max_year,
             )
 
         # Analyze copyright status
@@ -417,11 +464,21 @@ class MarcCopyrightAnalyzer:
         Raises:
             ValueError: If format is not supported
         """
+        # Load publications from disk if not already loaded
+        if not self.results.publications and self.results.result_file_paths:
+            logger.info("Loading publications from disk for export...")
+            self.results.load_all_publications()
+
         if format == "csv":
             save_matches_csv(self.results.publications, output_path, single_file=single_file)
         elif format == "xlsx":
             exporter = XLSXExporter(
                 self.results.publications, output_path, score_everything_mode=single_file
+            )
+            exporter.export()
+        elif format == "xlsx-stacked":
+            exporter = StackedXLSXExporter(
+                self.results.publications, output_path, parameters=self.options
             )
             exporter.export()
         elif format == "json":
@@ -430,6 +487,16 @@ class MarcCopyrightAnalyzer:
             raise ValueError(f"Unsupported format: {format}")
 
         logger.info(f"Results exported to {output_path}")
+
+        # Clean up result directory after export
+        if self.results.result_temp_dir and os.path.exists(self.results.result_temp_dir):
+            # Standard library imports
+            import shutil
+
+            shutil.rmtree(self.results.result_temp_dir)
+            logger.debug(f"Cleaned up result directory: {self.results.result_temp_dir}")
+            self.results.result_temp_dir = None
+            self.results.result_file_paths = []
 
     def get_statistics(self) -> dict[str, int]:
         """Get analysis statistics
@@ -451,6 +518,8 @@ class MarcCopyrightAnalyzer:
         score_everything_mode: bool,
         minimum_combined_score: int | None,
         brute_force_missing_year: bool,
+        min_year: int | None,
+        max_year: int | None,
     ) -> list[Publication]:
         """Process publications sequentially using process_batch"""
         logger.info(f"Processing {len(publications)} records sequentially")
@@ -466,6 +535,8 @@ class MarcCopyrightAnalyzer:
             for key, value in detector_config_raw.items():
                 if isinstance(value, (int, bool)):
                     detector_config[key] = value
+
+        # Year filtering options are already passed as parameters
 
         # Create a single batch with all publications
         batch_info: BatchProcessingInfo = (
@@ -486,6 +557,8 @@ class MarcCopyrightAnalyzer:
             score_everything_mode,
             minimum_combined_score,
             brute_force_missing_year,
+            min_year,
+            max_year,
         )
 
         # Process using the same logic as parallel processing
@@ -516,18 +589,66 @@ class MarcCopyrightAnalyzer:
         score_everything_mode: bool,
         minimum_combined_score: int | None,
         brute_force_missing_year: bool,
+        min_year: int | None,
+        max_year: int | None,
     ) -> list[Publication]:
         """Process publications in parallel using multiple processes"""
         start_time = time()
 
-        # Create batches
-        batches = []
+        # Create batches and pickle them to reduce memory usage
+        # Standard library imports
+        import atexit
+        import pickle
+        import shutil
+        import signal
+        import tempfile
+
+        # Create temporary directories for batch files and results
+        batch_temp_dir = tempfile.mkdtemp(prefix="marc_batches_")
+        result_temp_dir = tempfile.mkdtemp(prefix="marc_results_")
+        logger.info(f"Creating pickled batches in: {batch_temp_dir}")
+        logger.info(f"Worker results will be saved to: {result_temp_dir}")
+
+        # Ensure cleanup on exit - only clean batch dir, keep results
+        def cleanup_batch_dir():
+            if os.path.exists(batch_temp_dir):
+                shutil.rmtree(batch_temp_dir)
+                logger.debug(f"Cleaned up batch directory: {batch_temp_dir}")
+
+        # Register cleanup for normal exit
+        atexit.register(cleanup_batch_dir)
+
+        # Register cleanup for signals (interrupt, terminate)
+        def signal_cleanup(signum, frame):
+            logger.info(f"Received signal {signum}, cleaning up...")
+            cleanup_batch_dir()
+            # Re-raise the signal to allow normal termination
+            signal.signal(signum, signal.SIG_DFL)
+            os.kill(os.getpid(), signum)
+
+        signal.signal(signal.SIGINT, signal_cleanup)  # Ctrl+C
+        signal.signal(signal.SIGTERM, signal_cleanup)  # kill command
+
+        # Create and pickle batches
+        batch_paths = []
+        total_batches = 0
         for i in range(0, len(publications), batch_size):
             batch = publications[i : i + batch_size]
-            batches.append(batch)
+            batch_path = os.path.join(batch_temp_dir, f"batch_{total_batches:05d}.pkl")
 
-        total_batches = len(batches)
-        logger.info(f"Created {total_batches} batches of ~{batch_size} records each")
+            with open(batch_path, "wb") as f:
+                pickle.dump(batch, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            batch_paths.append(batch_path)
+            total_batches += 1
+
+            # Free memory immediately
+            del batch
+
+        logger.info(f"Created {total_batches} pickled batches of ~{batch_size} records each")
+        logger.debug(
+            f"Freed {len(publications) * 1000 / 1024 / 1024:.1f}MB (estimate) of MARC data from RAM"
+        )
 
         # Get configuration hash for cache validation
         config_dict = self.config.get_config()
@@ -541,12 +662,12 @@ class MarcCopyrightAnalyzer:
                 if isinstance(value, (int, bool)):
                     detector_config[key] = value
 
-        # Create batch info tuples
+        # Create batch info tuples with paths instead of data
         batch_infos = []
-        for i, batch in enumerate(batches):
+        for i, batch_path in enumerate(batch_paths):
             batch_info: BatchProcessingInfo = (
                 i + 1,  # batch_id
-                batch,  # marc_batch
+                batch_path,  # batch_path (changed from marc_batch)
                 self.cache_dir,  # cache_dir
                 self.copyright_dir,  # copyright_dir
                 self.renewal_dir,  # renewal_dir
@@ -562,44 +683,184 @@ class MarcCopyrightAnalyzer:
                 score_everything_mode,
                 minimum_combined_score,
                 brute_force_missing_year,
+                min_year,
+                max_year,
+                result_temp_dir,  # result_temp_dir for workers to save results
             )
             batch_infos.append(batch_info)
 
         # Process batches in parallel
-        all_processed_publications = []
         all_stats = []
         completed_batches = 0
         total_reg_matches = 0
         total_ren_matches = 0
-        batch_start_times = {}  # Track when each batch started
+
+        # Log multiprocessing configuration
+        start_method = get_start_method()
+        logger.info(f"Multiprocessing start method: {start_method}")
 
         try:
-            with ProcessPoolExecutor(max_workers=num_processes) as executor:
-                # Submit all jobs
-                future_to_batch = {}
-                for batch_info in batch_infos:
-                    batch_id = batch_info[0]
-                    future = executor.submit(process_batch, batch_info)
-                    future_to_batch[future] = batch_id
-                    batch_start_times[batch_id] = time()  # Record submission time
+            # Use Pool for multiprocessing with maxtasksperchild to prevent memory leaks
+            # Calculate optimal recycling frequency based on workload
+            # Goal: Each worker recycles 2-3 times max during the full run
+            batches_per_worker = total_batches // num_processes
 
+            if batches_per_worker < 20:
+                # Small job: no recycling needed
+                tasks_per_child = None
+                logger.info("Small job detected - worker recycling disabled")
+            else:
+                # Larger jobs: recycle 2-3 times per worker lifetime
+                # But not too frequently (min 50) or too rarely (max 200)
+                tasks_per_child = max(50, min(200, batches_per_worker // 3))
+                logger.info(f"Worker recycling: every {tasks_per_child} batches")
                 logger.info(
-                    f"Submitted {total_batches} batches for processing with {num_processes} workers"
+                    f"Each worker will process ~{batches_per_worker} batches total, recycling ~{batches_per_worker // tasks_per_child} times"
                 )
 
-                # Collect results as they complete
-                for future in as_completed(future_to_batch):
-                    batch_id = future_to_batch[future]
-                    batch_complete_time = time()
+            # Platform-specific handling for true memory sharing
+            if start_method == "fork":
+                # Linux: Load indexes in main process BEFORE forking
+                logger.info("Linux detected: Loading indexes in main process for memory sharing...")
+                # Local imports
+                from marc_pd_tool.infrastructure.cache_manager import CacheManager
+                from marc_pd_tool.processing.matching_engine import DataMatcher
 
+                # Load indexes once in main process
+                cache_manager = CacheManager(self.cache_dir)
+                cached_indexes = cache_manager.get_cached_indexes(
+                    self.copyright_dir,
+                    self.renewal_dir,
+                    config_hash,
+                    min_year,
+                    max_year,
+                    brute_force_missing_year,
+                )
+                if cached_indexes is None:
+                    raise RuntimeError("Failed to load indexes in main process")
+
+                registration_index, renewal_index = cached_indexes
+                logger.info(
+                    f"Main process loaded {registration_index.size():,} registration, "
+                    f"{renewal_index.size() if renewal_index else 0:,} renewal entries"
+                )
+
+                # Log memory usage after loading
+                # Third party imports
+                import psutil
+
+                process = psutil.Process()
+                mem_mb = process.memory_info().rss / 1024 / 1024
+                logger.info(f"Main process memory after loading indexes: {mem_mb:.1f}MB")
+
+                # Load generic detector
+                generic_detector = cache_manager.get_cached_generic_detector(
+                    self.copyright_dir, self.renewal_dir, detector_config
+                )
+
+                # Store in global for fork to inherit
+                # Local imports
+                import marc_pd_tool.processing.matching_engine as me
+
+                me._shared_data = {
+                    "registration_index": registration_index,
+                    "renewal_index": renewal_index,
+                    "generic_detector": generic_detector,
+                    "matching_engine": DataMatcher(),
+                }
+
+                # Use minimal initializer that just sets up worker data from shared
+                def init_worker_fork():
+                    """Initialize worker on Linux - use pre-loaded shared data"""
+                    # Standard library imports
+                    from os import getpid
+
+                    me._worker_data = me._shared_data
+                    logger.info(f"Worker {getpid()} using shared memory indexes")
+
+                pool_args = {
+                    "processes": num_processes,
+                    "initializer": init_worker_fork,
+                    "maxtasksperchild": tasks_per_child,
+                }
+            else:
+                # macOS/Windows: Each worker loads independently
+                logger.info("Spawn mode detected: Workers will load indexes independently")
+                init_args = (
+                    self.cache_dir,
+                    self.copyright_dir,
+                    self.renewal_dir,
+                    config_hash,
+                    detector_config,
+                    min_year,
+                    max_year,
+                    brute_force_missing_year,
+                )
+
+                pool_args = {
+                    "processes": num_processes,
+                    "initializer": init_worker,
+                    "initargs": init_args,
+                    "maxtasksperchild": tasks_per_child,
+                }
+
+            # Create pool with platform-specific arguments
+            with Pool(**pool_args) as pool:
+                logger.info(f"Processing {total_batches} batches with {num_processes} workers")
+
+                # Process batches as they complete (unordered for efficiency)
+                batch_submit_time = time()  # Track when we start submitting batches
+
+                for batch_id_result, result_file_path, batch_stats in pool.imap_unordered(
+                    process_batch, batch_infos, chunksize=1
+                ):
                     try:
-                        batch_id_result, processed_batch, batch_stats = future.result()
-                        all_processed_publications.extend(processed_batch)
+                        batch_complete_time = time()
+                        batch_id = batch_id_result
+
+                        # Load only statistics file - not the full publications
+                        try:
+                            # Construct stats file path from result file path
+                            stats_file_path = result_file_path.replace("result_", "stats_")
+
+                            # Load just the statistics (small data)
+                            with open(stats_file_path, "rb") as f:
+                                detailed_stats = pickle.load(f)
+
+                            # Update statistics directly
+                            for key, value in detailed_stats.items():
+                                if key in self.results.statistics:
+                                    self.results.statistics[key] += value
+                                else:
+                                    # For copyright status counts
+                                    self.results.statistics[key] = (
+                                        self.results.statistics.get(key, 0) + value
+                                    )
+
+                            # Track the result file path for later loading
+                            self.results.add_result_file(result_file_path)
+
+                            # Delete the stats file - we don't need it anymore
+                            os.unlink(stats_file_path)
+
+                            logger.debug(
+                                f"Tracked result file: {result_file_path} ({detailed_stats['total_records']} publications)"
+                            )
+
+                        except Exception as e:
+                            logger.error(
+                                f"Failed to process statistics from {result_file_path}: {e}"
+                            )
+                            # Continue processing other batches
+
+                        # Track stats
                         all_stats.append(batch_stats)
                         completed_batches += 1
 
-                        # Calculate batch duration
-                        batch_duration = batch_complete_time - batch_start_times[batch_id]
+                        # Use actual processing time from worker
+                        batch_duration = batch_stats[
+                            "processing_time"
+                        ]  # Use actual processing time
                         batch_duration_str = format_time_duration(batch_duration)
 
                         # Calculate overall progress and ETA
@@ -615,36 +876,90 @@ class MarcCopyrightAnalyzer:
 
                         # Log progress with all requested info
                         logger.info(
-                            f"Completed batch {batch_id}/{total_batches}: "
-                            f"{reg_matches} new registration, {ren_matches} new renewal matches | "
-                            f"Total: {total_reg_matches} reg, {total_ren_matches} ren | "
-                            f"Batch time: {batch_duration_str} | "
-                            f"Progress: {completed_batches}/{total_batches} "
+                            f"    Completed batch {batch_id}/{total_batches}: "
+                            f"{reg_matches} reg, {ren_matches} ren | "
+                            f"Set total: {total_reg_matches} registrations, {total_ren_matches} renewals"
+                        )
+                        logger.info(
+                            f"    Batch time: {batch_duration_str} | "
+                            f"Progress: {completed_batches}/{total_batches} | "
                             f"({completed_batches/total_batches*100:.1f}%) | "
                             f"ETA: {eta_str}"
                         )
 
+                        # More frequent memory check for debugging
+                        if completed_batches % 5 == 0:
+                            # Standard library imports
+                            import gc
+
+                            # Third party imports
+                            import psutil
+
+                            process = psutil.Process()
+                            mem_info = process.memory_info()
+                            mem_mb = mem_info.rss / 1024 / 1024
+
+                            # Get garbage collection stats
+                            gc_stats = gc.get_stats()
+                            gc0_collections = gc_stats[0]["collections"] if gc_stats else 0
+
+                            logger.debug(
+                                f"Memory after {completed_batches} batches: RSS={mem_mb:.1f}MB, "
+                                f"GC Gen0 collections={gc0_collections}, "
+                                f"Result files={len(self.results.result_file_paths)}, "
+                                f"Stats entries={len(all_stats)}"
+                            )
+
                     except Exception as e:
                         logger.error(f"Error processing batch {batch_id}: {e}")
-                        raise
+                        logger.error(f"Error type: {type(e).__name__}")
+
+                        # For timeout or other errors, create empty results for this batch
+                        # This allows processing to continue with other batches
+                        if "timeout" in str(e).lower() or type(e).__name__ == "TimeoutError":
+                            logger.warning(
+                                f"Batch {batch_id} timed out after 15 minutes - skipping"
+                            )
+                            # Create minimal stats for failed batch
+                            failed_stats = {
+                                "batch_id": batch_id,
+                                "marc_count": 0,
+                                "registration_matches_found": 0,
+                                "renewal_matches_found": 0,
+                                "total_comparisons": 0,
+                                "us_records": 0,
+                                "non_us_records": 0,
+                                "unknown_country_records": 0,
+                            }
+                            all_stats.append(failed_stats)
+                            completed_batches += 1
+                            continue
+                        else:
+                            # For other errors, still try to continue
+                            logger.error("Attempting to continue with remaining batches...")
+                            continue
 
         except Exception as e:
             logger.error(f"Fatal error during parallel processing: {e}")
             raise
-
-        # Update results with all processed publications
-        for pub in all_processed_publications:
-            self.results.add_publication(pub)
+        finally:
+            # Ensure batch directory is cleaned up even on error
+            cleanup_batch_dir()
+            # Unregister the atexit handler since we've already cleaned up
+            atexit.unregister(cleanup_batch_dir)
 
         # Log final performance stats
         total_time = time() - start_time
-        total_records = len(all_processed_publications)
+        total_records = self.results.statistics["total_records"]
         records_per_minute = total_records / (total_time / 60) if total_time > 0 else 0
 
         logger.info(
             f"Parallel processing complete: {total_records} records in "
             f"{format_time_duration(total_time)} ({records_per_minute:.0f} records/minute)"
         )
+
+        # Store result directory path for later cleanup
+        self.results.result_temp_dir = result_temp_dir
 
         return self.results.publications
 
