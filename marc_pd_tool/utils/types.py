@@ -259,3 +259,4 @@ class BatchStats(TypedDict):
     us_records: int
     non_us_records: int
     unknown_country_records: int
+    processing_time: float  # Actual processing time in seconds

@@ -694,7 +694,6 @@ class MarcCopyrightAnalyzer:
         completed_batches = 0
         total_reg_matches = 0
         total_ren_matches = 0
-        batch_start_times = {}  # Track when each batch started
 
         # Log multiprocessing configuration
         start_method = get_start_method()
@@ -807,26 +806,19 @@ class MarcCopyrightAnalyzer:
 
             # Create pool with platform-specific arguments
             with Pool(**pool_args) as pool:
-                # Submit all batches
-                async_results = []
-                for batch_info in batch_infos:
-                    batch_id = batch_info[0]
-                    batch_start_times[batch_id] = time()
-                    result = pool.apply_async(process_batch, (batch_info,))
-                    async_results.append((batch_id, result))
-
                 logger.info(
-                    f"Submitted {total_batches} batches for processing with {num_processes} workers"
+                    f"Processing {total_batches} batches with {num_processes} workers"
                 )
 
-                # Collect results as they complete
-                for batch_id, async_result in async_results:
+                # Process batches as they complete (unordered for efficiency)
+                batch_submit_time = time()  # Track when we start submitting batches
+                
+                for batch_id_result, result_file_path, batch_stats in pool.imap_unordered(
+                    process_batch, batch_infos, chunksize=1
+                ):
                     try:
-                        # Get result with timeout (15 minutes per batch)
-                        batch_id_result, result_file_path, batch_stats = async_result.get(
-                            timeout=900
-                        )
                         batch_complete_time = time()
+                        batch_id = batch_id_result
 
                         # Load only statistics file - not the full publications
                         try:
@@ -867,8 +859,8 @@ class MarcCopyrightAnalyzer:
                         all_stats.append(batch_stats)
                         completed_batches += 1
 
-                        # Calculate batch duration
-                        batch_duration = batch_complete_time - batch_start_times[batch_id]
+                        # Use actual processing time from worker
+                        batch_duration = batch_stats["processing_time"]  # Use actual processing time
                         batch_duration_str = format_time_duration(batch_duration)
 
                         # Calculate overall progress and ETA

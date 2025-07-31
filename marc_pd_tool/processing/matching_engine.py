@@ -673,9 +673,13 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         "us_records": 0,
         "non_us_records": 0,
         "unknown_country_records": 0,
+        "processing_time": 0.0,  # Will be updated with actual processing time
     }
 
     try:
+        # Track actual processing time
+        batch_start_time = time()
+        
         # Log batch start
         process_logger.info(
             f"Batch {batch_id}/{total_batches}: Process {getpid()} starting with {len(marc_batch)} MARC records"
@@ -883,9 +887,13 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         # Update stats to reflect actual processed count
         stats["marc_count"] = len(processed_publications)
 
-        process_logger.info(
+        # Calculate actual processing time
+        batch_processing_time = time() - batch_start_time
+        
+        process_logger.debug(
             f"Batch {batch_id}/{total_batches} complete: {stats['registration_matches_found']} registration matches, "
-            f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records"
+            f"{stats['renewal_matches_found']} renewal matches from {stats['marc_count']} records "
+            f"(processing time: {batch_processing_time:.1f}s)"
         )
         process_logger.debug(
             f"Batch {batch_id}/{total_batches} country breakdown: {stats['us_records']} US, "
@@ -943,6 +951,9 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                 f"Batch {batch_id}: Saved {len(processed_publications)} publications and statistics"
             )
 
+            # Update stats with actual processing time
+            stats["processing_time"] = batch_processing_time
+            
             # Return just the file paths and basic stats (small data)
             return batch_id, result_file_path, stats
 
