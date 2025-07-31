@@ -626,6 +626,19 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         result_temp_dir,  # Directory to save result pickle files
     ) = batch_info
     
+    # Set up logging for this process first - needed for multiprocessing
+    root_logger = getLogger()
+    if not root_logger.handlers:
+        # Configure logging in worker process if not already configured
+        console_handler = StreamHandler()
+        console_handler.setLevel(INFO)
+        formatter = Formatter("%(asctime)s - %(levelname)s - %(message)s")
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+        root_logger.setLevel(INFO)
+
+    process_logger = getLogger(f"batch_{batch_id}")
+
     # Load the batch from pickle file
     import pickle
     import os
@@ -640,19 +653,6 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     except Exception as e:
         process_logger.error(f"Failed to load batch from {batch_path}: {e}")
         raise
-
-    # Set up logging for this process - needed for multiprocessing
-    root_logger = getLogger()
-    if not root_logger.handlers:
-        # Configure logging in worker process if not already configured
-        console_handler = StreamHandler()
-        console_handler.setLevel(INFO)
-        formatter = Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
-        root_logger.setLevel(INFO)
-
-    process_logger = getLogger(f"batch_{batch_id}")
 
     # Configure the batch logger to use the same handler as root logger
     if not process_logger.handlers and root_logger.handlers:
