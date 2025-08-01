@@ -1,6 +1,6 @@
 # marc_pd_tool/exporters/xlsx_exporter.py
 
-"""XLSX export functionality for publication match results"""
+"""Standard XLSX export functionality that reads from JSON data"""
 
 # Standard library imports
 from datetime import datetime
@@ -8,159 +8,66 @@ from datetime import datetime
 # Third party imports
 from openpyxl import Workbook
 from openpyxl.styles import Alignment
+from openpyxl.styles import Border
 from openpyxl.styles import Font
 from openpyxl.styles import PatternFill
+from openpyxl.styles import Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
+from marc_pd_tool.utils.types import JSONDict
 
 
-def _calculate_confidence(pub: Publication) -> str:
-    """Calculate confidence level based on match scores and type
+class XLSXExporter(BaseJSONExporter):
+    """Export standard XLSX files from JSON data
 
-    Returns:
-        HIGH, MEDIUM, LOW, or WARNING
+    Creates Excel files with separate tabs for each copyright status,
+    showing records in a tabular format with match details.
     """
-    # If we have an LCCN match, it's always HIGH confidence
-    if pub.registration_match and pub.registration_match.match_type == MatchType.LCCN:
-        return "HIGH"
-    if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
-        return "HIGH"
-
-    # Calculate best combined score
-    best_score = 0.0
-    if pub.registration_match:
-        best_score = max(best_score, pub.registration_match.similarity_score)
-    if pub.renewal_match:
-        best_score = max(best_score, pub.renewal_match.similarity_score)
-
-    # Apply confidence thresholds
-    if best_score >= 85:
-        return "HIGH"
-    elif best_score >= 60:
-        return "MEDIUM"
-    elif best_score > 0:
-        return "LOW"
-    else:
-        return "WARNING"
-
-
-def _format_match_summary(pub: Publication) -> str:
-    """Format a concise match summary
-
-    Returns:
-        String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
-    """
-    parts = []
-
-    if pub.registration_match:
-        if pub.registration_match.match_type == MatchType.LCCN:
-            parts.append("Reg: LCCN")
-        else:
-            parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
-    else:
-        parts.append("Reg: None")
-
-    if pub.renewal_match:
-        if pub.renewal_match.match_type == MatchType.LCCN:
-            parts.append("Ren: LCCN")
-        else:
-            parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
-    else:
-        parts.append("Ren: None")
-
-    return ", ".join(parts)
-
-
-def _get_warnings(pub: Publication) -> str:
-    """Get warning indicators for the record
-
-    Returns:
-        Comma-separated warnings or empty string
-    """
-    warnings = []
-
-    if pub.generic_title_detected:
-        warnings.append("Generic title")
-
-    if not pub.year:
-        warnings.append("No year")
-
-    if pub.country_classification.value == "Unknown":
-        warnings.append("Unknown country")
-
-    return ", ".join(warnings)
-
-
-class XLSXExporter:
-    """Exports publication match results to Excel format"""
-
-    __slots__ = (
-        "publications",
-        "output_path",
-        "parameters",
-        "score_everything_mode",
-        "column_widths",
-    )
-
-    # Column width definitions
-    COLUMN_WIDTHS = {
-        "ID": 15,
-        "Title": 50,
-        "Author": 30,
-        "Year": 8,
-        "Publisher": 30,
-        "Country": 12,
-        "Status": 20,
-        "Match Summary": 25,
-        "Confidence": 12,
-        "Warning": 20,
-        "Registration Source ID": 20,
-        "Renewal Entry ID": 20,
-    }
 
     # Header styling
     HEADER_FONT = Font(bold=True, color="FFFFFF")
     HEADER_FILL = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center")
+    HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    # Data styling
+    DATA_ALIGNMENT = Alignment(vertical="top", wrap_text=True)
+    BORDER = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    # Score coloring
+    HIGH_SCORE_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    MEDIUM_SCORE_FILL = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+    LOW_SCORE_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
+    # Status colors
+    STATUS_COLORS = {
+        "PD_DATE_VERIFY": "D4E6F1",
+        "PD_NO_RENEWAL": "D5F4E6",
+        "IN_COPYRIGHT": "FADBD8",
+        "RESEARCH_US_STATUS": "FCF3CF",
+        "RESEARCH_US_ONLY_PD": "E8DAEF",
+        "COUNTRY_UNKNOWN": "E5E7E9",
+    }
 
     # Tab name mapping
     STATUS_TAB_NAMES = {
-        CopyrightStatus.PD_DATE_VERIFY: "PD Date Verify",
-        CopyrightStatus.PD_NO_RENEWAL: "PD No Renewal",
-        CopyrightStatus.IN_COPYRIGHT: "In Copyright",
-        CopyrightStatus.RESEARCH_US_STATUS: "Research US Status",
-        CopyrightStatus.RESEARCH_US_ONLY_PD: "Research US Only PD",
-        CopyrightStatus.COUNTRY_UNKNOWN: "Country Unknown",
+        "PD_DATE_VERIFY": "PD Date Verify",
+        "PD_NO_RENEWAL": "PD No Renewal",
+        "IN_COPYRIGHT": "In Copyright",
+        "RESEARCH_US_STATUS": "Research US Status",
+        "RESEARCH_US_ONLY_PD": "Research US Only PD",
+        "COUNTRY_UNKNOWN": "Country Unknown",
     }
 
-    def __init__(
-        self,
-        publications: list[Publication],
-        output_path: str,
-        parameters: dict[str, str | None] | None = None,
-        score_everything_mode: bool = False,
-    ):
-        """Initialize the XLSX exporter
-
-        Args:
-            publications: List of publications to export
-            output_path: Path for the output XLSX file
-            parameters: Processing parameters used (for summary sheet)
-            score_everything_mode: Whether score-everything mode was used
-        """
-        self.publications = publications
-        self.output_path = output_path
-        self.parameters = parameters or {}
-        self.score_everything_mode = score_everything_mode
-        self.column_widths = self.COLUMN_WIDTHS.copy()
-
     def export(self) -> None:
-        """Export publications to XLSX file"""
+        """Export records to XLSX file"""
         wb = Workbook()
 
         # Remove default sheet
@@ -169,245 +76,288 @@ class XLSXExporter:
         # Create summary sheet
         self._create_summary_sheet(wb)
 
-        # Group publications by status
-        by_status = self._group_by_status()
+        if self.single_file:
+            # All records in one sheet
+            records = self.get_records()
+            sorted_records = self.sort_by_quality(records)
+            self._create_data_sheet(wb, "All Records", sorted_records)
+        else:
+            # Group by status and create sheets
+            by_status = self.group_by_status()
 
-        # Create sheet for each status
-        for status in CopyrightStatus:
-            if status in by_status and by_status[status]:
-                sheet_name = self.STATUS_TAB_NAMES.get(status, status.value)
-                self._create_status_sheet(wb, sheet_name, by_status[status])
+            # Sort records within each status group
+            for status in by_status:
+                by_status[status] = self.sort_by_quality(by_status[status])
 
-        # Save workbook
+            # Create a sheet for each status
+            status_order = [
+                "PD_NO_RENEWAL",
+                "PD_DATE_VERIFY",
+                "IN_COPYRIGHT",
+                "RESEARCH_US_STATUS",
+                "RESEARCH_US_ONLY_PD",
+                "COUNTRY_UNKNOWN",
+            ]
+
+            for status in status_order:
+                if status in by_status and by_status[status]:
+                    sheet_name = self.STATUS_TAB_NAMES.get(status, status)
+                    self._create_data_sheet(wb, sheet_name, by_status[status])
+
+        # Save the workbook
         wb.save(self.output_path)
-
-    def _group_by_status(self) -> dict[CopyrightStatus, list[Publication]]:
-        """Group publications by copyright status"""
-        groups: dict[CopyrightStatus, list[Publication]] = {}
-        for pub in self.publications:
-            status = pub.copyright_status
-            if status not in groups:
-                groups[status] = []
-            groups[status].append(pub)
-        return groups
 
     def _create_summary_sheet(self, wb: Workbook) -> None:
         """Create summary sheet with statistics"""
         ws = wb.create_sheet("Summary")
 
         # Title
-        ws["A1"] = "MARC PD Tool Results Summary"
+        ws["A1"] = "MARC PD Tool Analysis Results"
         ws["A1"].font = Font(bold=True, size=16)
         ws.merge_cells("A1:B1")
 
         # Processing info
+        metadata = self.get_metadata()
         ws["A3"] = "Processing Date:"
-        ws["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws["B3"] = metadata.get("processing_date", "Unknown")
 
         ws["A4"] = "Total Records:"
-        ws["B4"] = len(self.publications)
+        ws["B4"] = metadata.get("total_records", 0)
 
-        # Match statistics
-        matches_found = sum(
-            1 for pub in self.publications if pub.registration_match or pub.renewal_match
-        )
-        ws["A5"] = "Matches Found:"
-        ws["B5"] = matches_found
+        ws["A5"] = "Tool Version:"
+        ws["B5"] = metadata.get("tool_version", "Unknown")
 
-        # Status breakdown
-        ws["A7"] = "By Copyright Status:"
+        # Status counts
+        ws["A7"] = "Status Breakdown:"
         ws["A7"].font = Font(bold=True)
 
-        by_status = self._group_by_status()
         row = 8
-        for status in CopyrightStatus:
-            if status in by_status:
-                ws[f"A{row}"] = self.STATUS_TAB_NAMES.get(status, status.value) + ":"
-                ws[f"B{row}"] = len(by_status[status])
-                row += 1
-
-        # Parameters used
-        row += 1
-        ws[f"A{row}"] = "Parameters Used:"
-        ws[f"A{row}"].font = Font(bold=True)
-        row += 1
-
-        param_mapping = {
-            "title_threshold": "Title Threshold",
-            "author_threshold": "Author Threshold",
-            "year_tolerance": "Year Tolerance",
-            "min_year": "Min Year",
-            "max_year": "Max Year",
-            "us_only": "US Only",
-            "brute_force_missing_year": "Brute Force Missing Year",
-            "score_everything_mode": "Score Everything Mode",
-        }
-
-        for key, label in param_mapping.items():
-            if key in self.parameters:
-                ws[f"A{row}"] = f"{label}:"
-                ws[f"B{row}"] = str(self.parameters[key])
-                row += 1
-
-        # Status Definitions
-        row += 2
-        ws[f"A{row}"] = "Copyright Status Definitions:"
-        ws[f"A{row}"].font = Font(bold=True, size=12)
-        row += 1
-
-        # Create status definition table
-        status_definitions = [
-            ("Status Code", "Meaning", "Explanation"),
-            (
-                "PD_NO_RENEWAL",
-                "Public Domain - Not Renewed",
-                "US work 1930-1963 that was registered but not renewed",
-            ),
-            (
-                "PD_DATE_VERIFY",
-                "Likely Public Domain - Verify Date",
-                "May be public domain based on publication date",
-            ),
-            (
-                "IN_COPYRIGHT",
-                "Protected by Copyright",
-                "Found renewal or other evidence of copyright",
-            ),
-            (
-                "RESEARCH_US_STATUS",
-                "Foreign Work - Has US Registration",
-                "Non-US work with US copyright activity",
-            ),
-            (
-                "RESEARCH_US_ONLY_PD",
-                "Foreign Work - No US Registration",
-                "Non-US work, likely PD in US only",
-            ),
-            (
-                "COUNTRY_UNKNOWN",
-                "Unknown Country - Manual Review",
-                "Cannot determine country of publication",
-            ),
-        ]
-
-        # Write header row with formatting
-        for col, header in enumerate(status_definitions[0], 1):
-            cell = ws.cell(row=row, column=col)
-            cell.value = header
-            cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
-
-        # Write definition rows
-        for status_row in status_definitions[1:]:
-            row += 1
-            for col, value in enumerate(status_row, 1):
-                ws.cell(row=row, column=col, value=value)
-
-        # Confidence Level Explanations
-        row += 2
-        ws[f"A{row}"] = "Confidence Level Explanations:"
-        ws[f"A{row}"].font = Font(bold=True, size=12)
-        row += 1
-
-        confidence_definitions = [
-            ("Level", "Criteria"),
-            ("HIGH", "LCCN match OR combined score ≥85%"),
-            ("MEDIUM", "Combined score 60-84%"),
-            ("LOW", "Combined score 1-59%"),
-            ("WARNING", "No matches found or special conditions (generic title, no year)"),
-        ]
-
-        for conf_row in confidence_definitions:
-            ws[f"A{row}"] = conf_row[0] + ":"
-            ws[f"B{row}"] = conf_row[1]
-            if row == row - len(confidence_definitions) + 1:  # Header row
-                ws[f"A{row}"].font = Font(bold=True)
+        status_counts = metadata.get("status_counts", {})
+        for status, count in status_counts.items():
+            display_name = self.STATUS_TAB_NAMES.get(status, status)
+            ws[f"A{row}"] = display_name
+            ws[f"B{row}"] = count
             row += 1
 
-        # Adjust column widths
+        # Auto-size columns
         ws.column_dimensions["A"].width = 25
-        ws.column_dimensions["B"].width = 50
-        ws.column_dimensions["C"].width = 60
+        ws.column_dimensions["B"].width = 20
 
-    def _create_status_sheet(
-        self, wb: Workbook, sheet_name: str, publications: list[Publication]
-    ) -> None:
-        """Create a sheet for publications with a specific status"""
+    def _create_data_sheet(self, wb: Workbook, sheet_name: str, records: list[JSONDict]) -> None:
+        """Create a data sheet with records"""
         ws = wb.create_sheet(sheet_name)
 
-        # Headers
-        headers = [
-            "ID",
-            "Title",
-            "Author",
-            "Year",
-            "Publisher",
-            "Country",
-            "Status",
-            "Match Summary",
-            "Confidence",
-            "Warning",
-            "Registration Source ID",
-            "Renewal Entry ID",
+        # Define columns
+        columns = [
+            ("MARC_ID", 15),
+            ("MARC_Title", 40),
+            ("MARC_Author", 25),
+            ("MARC_Publisher", 25),
+            ("MARC_Year", 10),
+            ("MARC_Country", 12),
+            ("Status_Rule", 30),
+            ("Registration_ID", 15),
+            ("Registration_Score", 15),
+            ("Registration_Title_Match", 20),
+            ("Registration_Author_Match", 20),
+            ("Registration_Publisher_Match", 20),
+            ("Registration_Year_Diff", 15),
+            ("Renewal_ID", 15),
+            ("Renewal_Score", 15),
+            ("Renewal_Title_Match", 20),
+            ("Renewal_Author_Match", 20),
+            ("Renewal_Publisher_Match", 20),
+            ("Renewal_Year_Diff", 15),
+            ("Match_Type", 15),
+            ("Data_Issues", 30),
+            ("LCCN", 15),
         ]
 
         # Write headers
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col)
-            cell.value = header
+        for col_num, (header, width) in enumerate(columns, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
             cell.font = self.HEADER_FONT
             cell.fill = self.HEADER_FILL
             cell.alignment = self.HEADER_ALIGNMENT
+            cell.border = self.BORDER
 
-        # Write data
-        for row_num, pub in enumerate(publications, 2):
-            self._write_publication_row(ws, row_num, pub)
+            # Set column width
+            col_letter = get_column_letter(col_num)
+            ws.column_dimensions[col_letter].width = width
 
-        # Adjust column widths
-        for col, header in enumerate(headers, 1):
-            width = self.column_widths.get(header, 15)
-            ws.column_dimensions[get_column_letter(col)].width = width
+        # Write data rows
+        for row_num, record in enumerate(records, 2):
+            self._write_data_row(ws, row_num, record)
 
-        # Freeze header row
+        # Freeze the header row
         ws.freeze_panes = "A2"
 
-        # Add auto filter
-        ws.auto_filter.ref = ws.dimensions
+    def _write_data_row(self, ws: Worksheet, row_num: int, record: JSONDict) -> None:
+        """Write a single data row"""
+        marc = record.get("marc", {})
+        matches = record.get("matches", {})
+        analysis = record.get("analysis", {})
 
-    def _write_publication_row(self, ws: Worksheet, row_num: int, pub: Publication) -> None:
-        """Write a single publication row with proper data types"""
-        # Use 245c author if available, otherwise fall back to 1xx
-        author = pub.original_author or pub.original_main_author or ""
+        # Extract basic MARC data
+        marc_id = marc.get("id", "")
+        original = marc.get("original", {})
+        metadata = marc.get("metadata", {})
 
-        # Get source IDs for verification
-        reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
-        ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
+        # Extract match data
+        reg_match = matches.get("registration", {})
+        ren_match = matches.get("renewal", {})
 
-        # Write data with appropriate types
-        data = [
-            pub.source_id,  # Text
-            pub.original_title,  # Text
-            author,  # Text
-            pub.year,  # Integer (might be None)
-            pub.original_publisher or "",  # Text
-            pub.country_classification.value,  # Text
-            pub.copyright_status.value,  # Text
-            _format_match_summary(pub),  # Text
-            _calculate_confidence(pub),  # Text
-            _get_warnings(pub),  # Text
-            reg_source_id,  # Text
-            ren_entry_id,  # Text
+        # Determine match type
+        match_types = []
+        if reg_match.get("found") and reg_match.get("match_type") == "lccn":
+            match_types.append("lccn")
+        if ren_match.get("found") and ren_match.get("match_type") == "lccn":
+            match_types.append("lccn")
+        if not match_types:
+            if reg_match.get("found") or ren_match.get("found"):
+                match_types.append("similarity")
+
+        match_type = "lccn" if "lccn" in match_types else ("similarity" if match_types else "none")
+
+        # Format data issues
+        data_issues = []
+        generic_info = analysis.get("generic_title", {})
+        if generic_info.get("detected"):
+            data_issues.append("generic_title")
+
+        data_completeness = analysis.get("data_completeness", [])
+        if isinstance(data_completeness, list):
+            data_issues.extend(data_completeness)
+
+        # Build row data
+        row_data = [
+            marc_id,
+            original.get("title", ""),
+            original.get("author_245c") or original.get("author_1xx", ""),
+            original.get("publisher", ""),
+            original.get("year", ""),
+            metadata.get("country_code", ""),
+            analysis.get("status_rule", ""),
+            reg_match.get("id", "") if reg_match.get("found") else "",
+            self._format_score(reg_match),
+            self._format_match_ratio(reg_match, "title"),
+            self._format_author_match(reg_match),
+            (
+                "Y"
+                if reg_match.get("scores", {}).get("publisher", 0) > 0
+                else "N" if reg_match.get("found") else ""
+            ),
+            self._format_year_diff(reg_match, original.get("year")),
+            ren_match.get("id", "") if ren_match.get("found") else "",
+            self._format_score(ren_match),
+            self._format_match_ratio(ren_match, "title"),
+            self._format_author_match(ren_match),
+            (
+                "Y"
+                if ren_match.get("scores", {}).get("publisher", 0) > 0
+                else "N" if ren_match.get("found") else ""
+            ),
+            self._format_year_diff(ren_match, original.get("year")),
+            match_type,
+            ",".join(data_issues) if data_issues else "",
+            metadata.get("lccn", ""),
         ]
 
-        for col, value in enumerate(data, 1):
-            cell = ws.cell(row=row_num, column=col)
+        # Write data
+        for col_num, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_num, column=col_num, value=value)
+            cell.alignment = self.DATA_ALIGNMENT
+            cell.border = self.BORDER
 
-            # Set value with proper type
-            if isinstance(value, bool):
-                cell.value = value
-            elif isinstance(value, (int, float)):
-                cell.value = value
-                if isinstance(value, float):
-                    cell.number_format = "0.00"
+            # Apply score coloring
+            if col_num in [9, 15] and value and value != "LCCN":  # Score columns
+                try:
+                    score_val = float(str(value).rstrip("%"))
+                    if score_val >= 90:
+                        cell.fill = self.HIGH_SCORE_FILL
+                    elif score_val >= 70:
+                        cell.fill = self.MEDIUM_SCORE_FILL
+                    else:
+                        cell.fill = self.LOW_SCORE_FILL
+                except ValueError:
+                    pass
+
+    def _format_score(self, match_data: JSONDict) -> str:
+        """Format match score"""
+        if not match_data.get("found"):
+            return ""
+
+        if match_data.get("match_type") == "lccn":
+            return "LCCN"
+
+        scores = match_data.get("scores", {})
+        overall = scores.get("overall", 0)
+        return f"{overall:.0f}%"
+
+    def _format_match_ratio(self, match_data: JSONDict, field: str) -> str:
+        """Format match ratio like '8/10'"""
+        if not match_data.get("found"):
+            return ""
+
+        if match_data.get("match_type") == "lccn":
+            return "exact"
+
+        indicators = match_data.get("match_indicators", {})
+        field_data = indicators.get(field, {})
+
+        if isinstance(field_data, dict):
+            matched = field_data.get("words_matched", 0)
+            total = field_data.get("words_total", 0)
+            if total > 0:
+                return f"{matched}/{total}"
+
+        return ""
+
+    def _format_author_match(self, match_data: JSONDict) -> str:
+        """Format author match type"""
+        if not match_data.get("found"):
+            return ""
+
+        if match_data.get("match_type") == "lccn":
+            return "exact"
+
+        indicators = match_data.get("match_indicators", {})
+        author_data = indicators.get("author", {})
+
+        if isinstance(author_data, dict):
+            parts = []
+            if author_data.get("surname_match"):
+                parts.append("surname")
+            if author_data.get("given_match"):
+                parts.append("given")
+
+            if parts:
+                return "/".join(parts)
+            elif match_data.get("scores", {}).get("author", 0) > 0:
+                return "partial"
             else:
-                cell.value = str(value) if value is not None else ""
+                return "none"
+
+        return ""
+
+    def _format_year_diff(self, match_data: JSONDict, marc_year: str | None) -> str:
+        """Format year difference"""
+        if not match_data.get("found") or not marc_year:
+            return ""
+
+        original = match_data.get("original", {})
+        match_year = original.get("date") or original.get("year")
+
+        if not match_year:
+            return ""
+
+        try:
+            diff = int(match_year) - int(marc_year)
+            if diff == 0:
+                return "0"
+            elif diff > 0:
+                return f"+{diff}"
+            else:
+                return str(diff)
+        except (ValueError, TypeError):
+            return ""

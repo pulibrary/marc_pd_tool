@@ -139,10 +139,11 @@ def create_argument_parser() -> ArgumentParser:
         help="Output file (default auto-generates descriptive names based on filters)",
     )
     parser.add_argument(
-        "--output-format",
-        choices=["csv", "xlsx", "xlsx-stacked", "json"],
-        default="csv",
-        help="Output format: csv, xlsx, xlsx-stacked (detailed comparison), or json",
+        "--output-formats",
+        nargs="+",
+        choices=["csv", "xlsx", "xlsx-stacked", "json", "html"],
+        default=["json", "csv"],
+        help="Output formats to generate (space-separated). JSON is always generated first. Default: json csv",
     )
     parser.add_argument(
         "--single-file",
@@ -328,9 +329,8 @@ def generate_output_filename(args: Namespace) -> str:
             # Only remove if the extension part is reasonable (< 5 chars)
             if len(parts) > 1 and len(parts[1]) < 5:
                 base_name = parts[0]
-        # Add the correct extension based on output format
-        ext = {"csv": ".csv", "xlsx": ".xlsx", "json": ".json"}.get(args.output_format, ".csv")
-        return base_name + ext
+        # Remove any extension from base name
+        return base_name
 
     # Build filename components
     components = [
@@ -351,10 +351,8 @@ def generate_output_filename(args: Namespace) -> str:
     if args.score_everything_mode:
         components.append("score-everything")
 
-    # Get file extension
-    ext = {"csv": ".csv", "xlsx": ".xlsx", "json": ".json"}.get(args.output_format, ".csv")
-
-    return "_".join(components) + ext
+    # Return base name without extension (will be added by exporters)
+    return "_".join(components)
 
 
 def log_run_summary(
@@ -492,7 +490,10 @@ def main() -> None:
             analyzer.analyze_ground_truth_scores(ground_truth_pairs)
 
             # Export results
-            analyzer.export_ground_truth_analysis(output_filename, output_format=args.output_format)
+            # For ground truth, use the first format specified
+            analyzer.export_ground_truth_analysis(
+                output_filename, output_format=args.output_formats[0]
+            )
 
             # Update run info for ground truth mode
             run_info["marc_count"] = str(gt_stats.total_marc_records)
@@ -519,7 +520,7 @@ def main() -> None:
             "early_exit_author": args.early_exit_author,
             "score_everything_mode": args.score_everything_mode,
             "brute_force_missing_year": args.brute_force_missing_year,
-            "format": args.output_format,
+            "formats": args.output_formats,
             "single_file": args.single_file,
             "batch_size": args.batch_size,
             "num_processes": args.max_workers,

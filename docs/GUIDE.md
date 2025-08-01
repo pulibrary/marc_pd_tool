@@ -111,25 +111,62 @@ Input Files → Loading → Indexing → Matching → Analysis → Output Files
 - MARC record lacks valid country code
 - Manual investigation needed
 
-### Key Output Columns
+### Understanding Output
 
-**Similarity Scores** (0-100%)
+The simplified output format focuses on what matters:
 
-- Higher scores indicate better matches
-- Combined score weights multiple fields
-- Scores below thresholds are rejected
+**Match Summary Column**
 
-**Match Type**
+Shows match results in a clear format:
 
-- "lccn" - Exact LCCN match (highest confidence)
-- "similarity" - Text-based match
-- "brute_force_without_year" - Match found without year data
+- `Reg: 95%, Ren: 82%` - Similarity scores for registration and renewal matches
+- `Reg: LCCN, Ren: None` - LCCN match for registration, no renewal found
+- `Reg: None, Ren: None` - No matches found
 
-**Generic Title Detection**
+**Status Column**
 
-- Flags common titles like "Collected Works"
-- Reduces false matches on generic titles
-- Shows detection reason
+Copyright status codes:
+
+- `PD_NO_RENEWAL` - Public domain, not renewed (1930-1963 US works)
+- `PD_DATE_VERIFY` - Likely public domain based on date
+- `IN_COPYRIGHT` - Still protected by copyright
+- `RESEARCH_US_STATUS` - Foreign work with US registration
+- `RESEARCH_US_ONLY_PD` - Foreign work, likely PD in US only
+- `COUNTRY_UNKNOWN` - Cannot determine country of publication
+
+**Warning Column**
+
+Data quality flags:
+
+- `Generic title` - Common title like "Collected Works"
+- `No year` - Missing publication year
+- `Unknown country` - Cannot determine publication country
+
+**Source ID Columns**
+
+- **Registration Source ID** - Identifier from copyright registration data
+- **Renewal Entry ID** - UUID from renewal database
+
+### Choosing an Output Format
+
+**CSV (Default)**
+
+- Best for: Quick analysis, importing to other tools
+- Use when: You need simple, tabular data
+- Creates: Separate files by copyright status (or single file with `--single-file`)
+
+**XLSX**
+
+- Best for: Manual review with better formatting
+- Use when: You want all results in one file with multiple tabs
+- Creates: Single Excel file with tabs for each copyright status
+
+**JSON**
+
+- Best for: Custom tools, programmatic processing
+- Use when: You need complete data for further analysis
+- Includes: All fields, normalized versions, comprehensive metadata
+- Creates: Single JSON file (or one per status without `--single-file`)
 
 ## Common Workflows
 

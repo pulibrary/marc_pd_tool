@@ -115,7 +115,7 @@ pdm run python -m marc_pd_tool \
 
 - `--us-only` - Process only US publications (50-70% faster)
 - `--min-year`, `--max-year` - Filter by publication year
-- `--output-format` - Choose `csv` or `xlsx` output
+- `--output-formats` - Choose output formats: `csv`, `xlsx`, `xlsx-stacked`, `json`, `html` (space-separated, default: json csv)
 - `--debug` - Enable verbose logging
 
 For complete command line reference, see [`docs/REFERENCE.md`](docs/REFERENCE.md).
@@ -136,7 +136,7 @@ Key optimizations:
 
 ## Output
 
-The tool supports two output formats:
+The tool supports multiple output formats that can be generated in a single run. JSON is always generated first as the master format, then other formats are derived from it.
 
 ### CSV Output (Default)
 
@@ -149,40 +149,98 @@ The tool generates CSV files with copyright analysis results for each MARC recor
 - `matches_research_us_only_pd.csv` - US public domain status unclear
 - `matches_country_unknown.csv` - Country classification unknown
 
-Each CSV includes:
+Each CSV includes these columns:
 
-- Original bibliographic data (title, author, year, publisher, place, edition, language)
-- LCCN (both original and normalized forms)
-- Country classification (US/Non-US/Unknown)
-- Copyright status determination
-- Generic title detection information and scoring adjustments
-- Match details and confidence scores for the best match found
-- Source data from matched registration and renewal records
-- Match type indicator ("lccn" for LCCN matches, "similarity" for text-based matches)
+- **ID** - MARC record identifier
+- **Title** - Original title from MARC record
+- **Author** - Author from MARC record (245c or 1xx)
+- **Year** - Publication year
+- **Publisher** - Publisher name
+- **Country** - Country classification (US/Non-US/Unknown)
+- **Status** - Copyright status determination
+- **Match Summary** - Shows match scores (e.g., "Reg: 95%, Ren: None" or "Reg: LCCN")
+- **Warning** - Flags for data issues (generic title, no year, etc.)
+- **Registration Source ID** - ID of matched registration record
+- **Renewal Entry ID** - ID of matched renewal record
 
-### XLSX Output (Optional)
+### XLSX Output
 
-For a more organized output, use Excel format:
+For more advanced analysis, use Excel format:
 
 ```bash
-# First install the optional dependency
-pdm add -dG xlsx openpyxl
-
-# Then use --output-format xlsx
 pdm run python -m marc_pd_tool \
     --marcxml data.xml \
     --copyright-dir nypl-reg/xml/ \
     --renewal-dir nypl-ren/data/ \
-    --output-format xlsx
+    --output-formats xlsx
 ```
 
 The XLSX format provides:
 
 - **Single file output** with multiple tabs organized by copyright status
 - **Summary tab** with processing statistics and parameters used
-- **Proper data types** - numbers, percentages, and booleans (not just text)
-- **Professional formatting** - colored headers, appropriate column widths
-- **Better readability** - no need to open multiple CSV files
+- **Same simplified columns** as CSV format
+- **Professional formatting** - colored headers, auto-filters, frozen headers
+- **Better for manual review** than multiple CSV files
+
+### JSON Output
+
+For programmatic processing or creating custom reports:
+
+```bash
+pdm run python -m marc_pd_tool \
+    --marcxml data.xml \
+    --copyright-dir nypl-reg/xml/ \
+    --renewal-dir nypl-ren/data/ \
+    --output-formats json
+```
+
+The JSON format provides:
+
+- **Complete data structure** - all fields and scores
+- **Normalized text versions** - see exactly what was matched
+- **Comprehensive metadata** - processing date, version, statistics
+- **Machine-readable** - easily parsed for custom analysis
+- **Gzip compression** supported with `.json.gz` extension
+
+### Multiple Formats in One Run
+
+Generate multiple output formats simultaneously:
+
+```bash
+pdm run python -m marc_pd_tool \
+    --marcxml data.xml \
+    --copyright-dir nypl-reg/xml/ \
+    --renewal-dir nypl-ren/data/ \
+    --output-formats json csv xlsx html
+```
+
+This will generate:
+
+- `matches.json` - Master data file with all information
+- `matches_*.csv` - CSV files by copyright status
+- `matches.xlsx` - Tabbed Excel file
+- `matches_html/` - Static HTML pages with visual comparison
+
+### HTML Output
+
+For visual inspection without Excel:
+
+```bash
+pdm run python -m marc_pd_tool \
+    --marcxml data.xml \
+    --copyright-dir nypl-reg/xml/ \
+    --renewal-dir nypl-ren/data/ \
+    --output-formats html
+```
+
+The HTML format provides:
+
+- **Static paginated pages** - 50 records per page
+- **Stacked comparison tables** - Original vs normalized text
+- **Visual score indicators** - Color-coded match quality
+- **No JavaScript required** - Works in any browser
+- **Easy navigation** - Index page with status summaries
 
 For understanding results and match types, see [`docs/GUIDE.md`](docs/GUIDE.md).
 

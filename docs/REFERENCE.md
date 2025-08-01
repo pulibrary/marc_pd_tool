@@ -16,9 +16,9 @@ pdm run python -m marc_pd_tool [OPTIONS]
 
 ### Output Options
 
-- `--output-filename PATH` - Output filename (default: auto-generated based on filters)
-- `--output-format {csv,xlsx,json}` - Output format (default: csv)
-- `--single-file` - Export all results to single file
+- `--output-filename PATH` - Output base filename without extension (default: auto-generated based on filters)
+- `--output-formats FORMAT [FORMAT ...]` - Output formats to generate (choices: csv, xlsx, xlsx-stacked, json, html; default: json csv)
+- `--single-file` - Export all results to single file instead of separating by status
 
 **Automatic Filename Generation:**
 When using the default output, filenames are automatically generated based on applied filters:
@@ -194,7 +194,7 @@ pdm run python -m marc_pd_tool \
     --marcxml data.xml \
     --copyright-dir nypl-reg/xml/ \
     --renewal-dir nypl-ren/data/ \
-    --output-format xlsx
+    --output-formats xlsx
 ```
 
 The XLSX format provides:

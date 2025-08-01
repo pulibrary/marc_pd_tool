@@ -465,6 +465,10 @@ class DataMatcher(ConfigurableMixin):
                 "source_id": copyright_pub.source_id or "",
                 "pub_date": copyright_pub.pub_date or "",
                 "full_text": getattr(copyright_pub, "full_text", ""),
+                # Normalized versions for comparison
+                "normalized_title": copyright_pub.title,
+                "normalized_author": copyright_pub.author,
+                "normalized_publisher": copyright_pub.publisher,
             },
             "similarity_scores": {
                 "title": title_score,
@@ -773,6 +777,10 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                             else MatchType.SIMILARITY
                         )
                     ),
+                    # Add normalized versions
+                    normalized_title=reg_match["copyright_record"]["normalized_title"],
+                    normalized_author=reg_match["copyright_record"]["normalized_author"],
+                    normalized_publisher=reg_match["copyright_record"]["normalized_publisher"],
                 )
                 marc_pub.set_registration_match(match_result)
 
@@ -852,6 +860,10 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                             else MatchType.SIMILARITY
                         )
                     ),
+                    # Add normalized versions
+                    normalized_title=ren_match["copyright_record"]["normalized_title"],
+                    normalized_author=ren_match["copyright_record"]["normalized_author"],
+                    normalized_publisher=ren_match["copyright_record"]["normalized_publisher"],
                 )
                 marc_pub.set_renewal_match(match_result)
 
@@ -880,6 +892,12 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
 
             # Determine copyright status based on matches and country
             marc_pub.determine_copyright_status()
+
+            # Calculate sort score for quality-based ordering
+            marc_pub.calculate_sort_score()
+
+            # Check data completeness
+            marc_pub.check_data_completeness()
 
             # Add to processed publications list
             processed_publications.append(marc_pub)

@@ -142,20 +142,21 @@ class TestJSONExporter:
             # Check metadata
             assert "metadata" in data
             assert data["metadata"]["total_records"] == 3
-            assert "export_date" in data["metadata"]
+            assert "processing_date" in data["metadata"]
             assert "status_counts" in data["metadata"]
 
-            # Check publications
-            assert "publications" in data
-            assert len(data["publications"]) == 3
+            # Check records
+            assert "records" in data
+            assert len(data["records"]) == 3
 
             # Check first publication structure
-            pub1 = data["publications"][0]
-            assert pub1["marc_record"]["id"] == "123"
-            assert pub1["marc_record"]["title"] == "Test Book One"
-            assert pub1["analysis"]["copyright_status"] == "PD_NO_RENEWAL"
-            assert "registration_match" in pub1
-            assert pub1["registration_match"]["source_id"] == "REG123"
+            pub1 = data["records"][0]
+            assert pub1["marc"]["id"] == "123"
+            assert pub1["marc"]["original"]["title"] == "Test Book One"
+            assert pub1["analysis"]["status"] == "PD_NO_RENEWAL"
+            assert "matches" in pub1
+            assert pub1["matches"]["registration"]["found"] is True
+            assert pub1["matches"]["registration"]["id"] == "REG123"
 
         finally:
             if exists(output_path):
@@ -187,7 +188,7 @@ class TestJSONExporter:
                 pd_data = json.load(f)
             assert pd_data["metadata"]["total_records"] == 1
             assert pd_data["metadata"]["copyright_status"] == "PD_NO_RENEWAL"
-            assert len(pd_data["publications"]) == 1
+            assert len(pd_data["records"]) == 1
 
             # Clean up
             remove(pd_file)
@@ -238,8 +239,8 @@ class TestJSONExporter:
             with open(output_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            assert data["publications"][0]["marc_record"]["title"] == "Test Book with Café"
-            assert data["publications"][0]["marc_record"]["author_245c"] == "Müller, José"
+            assert data["records"][0]["marc"]["original"]["title"] == "Test Book with Café"
+            assert data["records"][0]["marc"]["original"]["author_245c"] == "Müller, José"
 
         finally:
             if exists(output_path):

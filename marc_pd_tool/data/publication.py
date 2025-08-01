@@ -35,6 +35,11 @@ class MatchResult:
         MatchType.SIMILARITY
     )  # Type of match (LCCN, SIMILARITY, or BRUTE_FORCE_WITHOUT_YEAR)
 
+    # Normalized versions for comparison visibility
+    normalized_title: str = ""  # Normalized version of matched title
+    normalized_author: str = ""  # Normalized version of matched author
+    normalized_publisher: str = ""  # Normalized version of matched publisher
+
 
 class Publication:
     __slots__ = (
@@ -62,6 +67,9 @@ class Publication:
         "registration_generic_title",
         "renewal_generic_title",
         "copyright_status",
+        "status_rule",
+        "sort_score",
+        "data_completeness",
         "_cached_title",
         "_cached_author",
         "_cached_main_author",
@@ -135,6 +143,9 @@ class Publication:
 
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
+        self.status_rule: str = ""  # Rule code explaining copyright status
+        self.sort_score: float = 0.0  # Score for sorting by match quality
+        self.data_completeness: list[str] = []  # Data quality issues
 
         # Initialize cached normalized text fields (computed lazily)
         self._cached_title: str | None = None
@@ -235,35 +246,103 @@ class Publication:
             case (CountryClassification.US, year, True, False) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 with registration but no renewal are PD
                 self.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+                self.status_rule = "us_1930_1963_no_renewal"
             case (CountryClassification.US, year, _, True) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 that were renewed are likely still copyrighted
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                self.status_rule = "us_1930_1963_renewed"
             case (CountryClassification.US, year, False, False) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 with no registration/renewal need verification
                 self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+                self.status_rule = "us_1930_1963_no_reg_data"
 
             # General US records for other years
             case (CountryClassification.US, _, True, False):
                 self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+                self.status_rule = "us_registered_no_renewal"
             case (CountryClassification.US, _, False, True):
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                self.status_rule = "us_renewal_found"
             case (CountryClassification.US, _, False, False):
                 self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+                self.status_rule = "us_no_reg_data"
             case (CountryClassification.US, _, True, True):
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                self.status_rule = "us_registered_and_renewed"
 
             # Non-US records
             case (CountryClassification.NON_US, _, _, _) if has_reg or has_ren:
                 self.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+                self.status_rule = "foreign_us_activity"
             case (CountryClassification.NON_US, _, _, _):
                 self.copyright_status = CopyrightStatus.RESEARCH_US_ONLY_PD
+                self.status_rule = "foreign_no_us_activity"
 
             # Unknown country
             case _:
                 # Unknown country - still track matches but can't determine status
                 self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
+                self.status_rule = "unknown_country"
+
+        # Check for special cases based on year
+        if self.year and self.year < 1928:
+            self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
+            self.status_rule = "us_pre_1928"
+        elif not self.year:
+            self.status_rule = (
+                f"{self.status_rule}_missing_year" if self.status_rule else "missing_year"
+            )
 
         return self.copyright_status
+
+    def calculate_sort_score(self) -> float:
+        """Calculate sort score for quality-based ordering
+
+        Higher scores = better matches:
+        - LCCN matches = 1000 points
+        - Both reg + renewal = average of scores
+        - Registration only = reg score
+        - Renewal only = ren score * 0.9
+        - No matches = 0
+        """
+        # LCCN matches get highest priority
+        if self.registration_match and self.registration_match.match_type == MatchType.LCCN:
+            self.sort_score = 1000.0
+        elif self.renewal_match and self.renewal_match.match_type == MatchType.LCCN:
+            self.sort_score = 1000.0
+        # Both registration and renewal
+        elif self.registration_match and self.renewal_match:
+            self.sort_score = (
+                self.registration_match.similarity_score + self.renewal_match.similarity_score
+            ) / 2.0
+        # Registration only
+        elif self.registration_match:
+            self.sort_score = self.registration_match.similarity_score
+        # Renewal only (slightly lower weight)
+        elif self.renewal_match:
+            self.sort_score = self.renewal_match.similarity_score * 0.9
+        # No matches
+        else:
+            self.sort_score = 0.0
+
+        return self.sort_score
+
+    def check_data_completeness(self) -> list[str]:
+        """Check for data quality issues and populate data_completeness list"""
+        self.data_completeness = []
+
+        if not self.year:
+            self.data_completeness.append("missing_year")
+        if not self.original_publisher:
+            self.data_completeness.append("missing_publisher")
+        if not self.original_author and not self.original_main_author:
+            self.data_completeness.append("missing_author")
+        if self.generic_title_detected:
+            self.data_completeness.append("generic_title")
+        if not self.country_code or self.country_classification == CountryClassification.UNKNOWN:
+            self.data_completeness.append("unknown_country")
+
+        return self.data_completeness
 
     def __getstate__(self) -> JSONDict:
         """Support for pickle serialization with __slots__"""

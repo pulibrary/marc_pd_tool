@@ -12,7 +12,44 @@ from tempfile import NamedTemporaryFile
 from marc_pd_tool.data.publication import CopyrightStatus
 from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.csv_exporter import save_matches_csv
+from marc_pd_tool.exporters.csv_exporter import CSVExporter
+from marc_pd_tool.exporters.json_exporter import save_matches_json
+
+
+def export_to_csv(publications, csv_file, single_file=True):
+    """Helper to export publications to CSV via JSON"""
+    # Standard library imports
+    import os
+    import tempfile
+
+    if single_file:
+        # For single file, standard approach
+        temp_fd, temp_json = tempfile.mkstemp(suffix=".json")
+        os.close(temp_fd)
+
+        try:
+            save_matches_json(publications, temp_json, single_file=True)
+            exporter = CSVExporter(temp_json, csv_file, single_file=True)
+            exporter.export()
+        finally:
+            if os.path.exists(temp_json):
+                os.unlink(temp_json)
+    else:
+        # For multiple files, the new CSVExporter expects a single JSON
+        # and creates multiple CSV files from it
+        temp_fd, temp_json = tempfile.mkstemp(suffix=".json")
+        os.close(temp_fd)
+
+        try:
+            # Create single JSON with all publications
+            save_matches_json(publications, temp_json, single_file=True)
+            # CSVExporter will split by status when single_file=False
+            exporter = CSVExporter(temp_json, csv_file, single_file=False)
+            exporter.export()
+        finally:
+            if os.path.exists(temp_json):
+                os.unlink(temp_json)
+
 
 # pytest imported automatically by test runner
 
@@ -57,7 +94,7 @@ class TestCSVMultipleFiles:
 
         try:
             # Use default behavior (multiple files)
-            save_matches_csv(publications, temp_file, single_file=False)
+            export_to_csv(publications, temp_file, single_file=False)
 
             # Check that separate files were created
             base_name, ext = splitext(temp_file)
@@ -107,39 +144,46 @@ class TestCSVMultipleFiles:
             source_id="test_001",
             country_classification=CountryClassification.US,
         )
+        # Determine copyright status
+        pub.determine_copyright_status()
 
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 headers = f.readline().strip().split(",")
 
-            # Check that related fields are grouped together
-            title_indices = [
-                headers.index("MARC Title"),
-                headers.index("Registration Title"),
-                headers.index("Renewal Title"),
-                headers.index("Registration Title Score"),
-                headers.index("Renewal Title Score"),
+            # Check that expected simplified headers exist
+            expected_headers = [
+                "ID",
+                "Title",
+                "Author",
+                "Year",
+                "Publisher",
+                "Country",
+                "Status",
+                "Match Summary",
+                "Warning",
+                "Registration Source ID",
+                "Renewal Entry ID",
             ]
 
-            author_indices = [
-                headers.index("MARC Author (245c)"),
-                headers.index("Registration Author"),
-                headers.index("Renewal Author"),
-                headers.index("Registration Author Score"),
-                headers.index("Renewal Author Score"),
-            ]
+            for header in expected_headers:
+                assert header in headers, f"Missing header: {header}"
 
-            # Title fields should be grouped together and appear before author fields
-            assert title_indices == sorted(title_indices), "Title fields should be consecutive"
-            assert author_indices == sorted(author_indices), "Author fields should be consecutive"
-            assert max(title_indices) < min(
-                author_indices
-            ), "Title fields should come before author fields"
+            # Check basic ordering - MARC fields come before match fields
+            marc_fields = ["ID", "Title", "Author", "Year", "Publisher"]
+            match_fields = ["Registration Source ID", "Renewal Entry ID"]
+
+            marc_indices = [headers.index(field) for field in marc_fields]
+            match_indices = [headers.index(field) for field in match_fields]
+
+            assert max(marc_indices) < min(
+                match_indices
+            ), "MARC fields should come before match fields"
 
         finally:
             unlink(temp_file)
@@ -171,7 +215,7 @@ class TestCSVMultipleFiles:
 
         try:
             # Use legacy behavior (single file)
-            save_matches_csv(publications, temp_file, single_file=True)
+            export_to_csv(publications, temp_file, single_file=True)
 
             # Check that only the original file exists
             assert exists(temp_file), f"Single file should exist: {temp_file}"

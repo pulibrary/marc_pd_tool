@@ -328,6 +328,10 @@ class TestSkipNoYearRecords:
                         "full_text": (
                             f"{candidates[0].original_title} by {candidates[0].original_author}"  # For renewal matching
                         ),
+                        # Add normalized versions
+                        "normalized_title": candidates[0].title,
+                        "normalized_author": candidates[0].author,
+                        "normalized_publisher": candidates[0].publisher,
                     },
                     "similarity_scores": {
                         "title": 100.0,

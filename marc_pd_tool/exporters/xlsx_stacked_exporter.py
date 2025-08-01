@@ -1,6 +1,6 @@
-# marc_pd_tool/exporters/xlsx_stacked_exporter.py
+# marc_pd_tool/exporters/xlsx_stacked_json_exporter.py
 
-"""Stacked XLSX export functionality for detailed match analysis"""
+"""Stacked XLSX export functionality that reads from JSON data"""
 
 # Standard library imports
 from datetime import datetime
@@ -16,22 +16,23 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
+from marc_pd_tool.utils.types import JSONDict
 
 
-class StackedXLSXExporter:
-    """Exports publication match results in stacked format for detailed comparison"""
+class StackedXLSXExporter(BaseJSONExporter):
+    """Export stacked comparison XLSX from JSON data
 
-    __slots__ = ("publications", "output_path", "parameters")
+    Creates Excel files with vertical stacked format showing
+    original vs normalized text for detailed comparison.
+    """
 
     # Header styling
     HEADER_FONT = Font(bold=True, color="FFFFFF")
     HEADER_FILL = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center")
+    HEADER_ALIGNMENT = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    # Sub-header styling
+    # Subheader styling
     SUBHEADER_FONT = Font(bold=True)
     SUBHEADER_FILL = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
 
@@ -48,35 +49,28 @@ class StackedXLSXExporter:
         bottom=Side(style="thin"),
     )
 
-    # Tab name mapping
-    STATUS_TAB_NAMES = {
-        CopyrightStatus.PD_DATE_VERIFY: "PD Date Verify",
-        CopyrightStatus.PD_NO_RENEWAL: "PD No Renewal",
-        CopyrightStatus.IN_COPYRIGHT: "In Copyright",
-        CopyrightStatus.RESEARCH_US_STATUS: "Research US Status",
-        CopyrightStatus.RESEARCH_US_ONLY_PD: "Research US Only PD",
-        CopyrightStatus.COUNTRY_UNKNOWN: "Country Unknown",
+    # Status colors
+    STATUS_COLORS = {
+        "PD_DATE_VERIFY": "D4E6F1",
+        "PD_NO_RENEWAL": "D5F4E6",
+        "IN_COPYRIGHT": "FADBD8",
+        "RESEARCH_US_STATUS": "FCF3CF",
+        "RESEARCH_US_ONLY_PD": "E8DAEF",
+        "COUNTRY_UNKNOWN": "E5E7E9",
     }
 
-    def __init__(
-        self,
-        publications: list[Publication],
-        output_path: str,
-        parameters: dict[str, str | None] | None = None,
-    ):
-        """Initialize the stacked XLSX exporter
-
-        Args:
-            publications: List of publications to export
-            output_path: Path for the output XLSX file
-            parameters: Processing parameters used (for summary sheet)
-        """
-        self.publications = publications
-        self.output_path = output_path
-        self.parameters = parameters or {}
+    # Tab name mapping
+    STATUS_TAB_NAMES = {
+        "PD_DATE_VERIFY": "PD Date Verify",
+        "PD_NO_RENEWAL": "PD No Renewal",
+        "IN_COPYRIGHT": "In Copyright",
+        "RESEARCH_US_STATUS": "Research US Status",
+        "RESEARCH_US_ONLY_PD": "Research US Only PD",
+        "COUNTRY_UNKNOWN": "Country Unknown",
+    }
 
     def export(self) -> None:
-        """Export publications to stacked XLSX file"""
+        """Export records to stacked XLSX file"""
         wb = Workbook()
 
         # Remove default sheet
@@ -85,29 +79,39 @@ class StackedXLSXExporter:
         # Create summary sheet
         self._create_summary_sheet(wb)
 
-        # Group publications by status
-        by_status = self._group_by_status()
+        if self.single_file:
+            # All records in one sheet
+            records = self.get_records()
+            sorted_records = self.sort_by_quality(records)
+            self._create_stacked_sheet(wb, "All Records", sorted_records)
+        else:
+            # Group by status and create sheets
+            by_status = self.group_by_status()
 
-        # Create a sheet for each status
-        for status in CopyrightStatus:
-            if status in by_status:
-                sheet_name = self.STATUS_TAB_NAMES.get(status, status.value)
-                self._create_status_sheet(wb, sheet_name, by_status[status])
+            # Sort records within each status group
+            for status in by_status:
+                by_status[status] = self.sort_by_quality(by_status[status])
+
+            # Create a sheet for each status
+            status_order = [
+                "PD_NO_RENEWAL",
+                "PD_DATE_VERIFY",
+                "IN_COPYRIGHT",
+                "RESEARCH_US_STATUS",
+                "RESEARCH_US_ONLY_PD",
+                "COUNTRY_UNKNOWN",
+            ]
+
+            for status in status_order:
+                if status in by_status and by_status[status]:
+                    sheet_name = self.STATUS_TAB_NAMES.get(status, status)
+                    self._create_stacked_sheet(wb, sheet_name, by_status[status])
 
         # Save the workbook
         wb.save(self.output_path)
 
-    def _group_by_status(self) -> dict[CopyrightStatus, list[Publication]]:
-        """Group publications by copyright status"""
-        groups: dict[CopyrightStatus, list[Publication]] = {}
-        for pub in self.publications:
-            if pub.copyright_status not in groups:
-                groups[pub.copyright_status] = []
-            groups[pub.copyright_status].append(pub)
-        return groups
-
     def _create_summary_sheet(self, wb: Workbook) -> None:
-        """Create summary sheet with statistics and definitions"""
+        """Create summary sheet with statistics"""
         ws = wb.create_sheet("Summary")
 
         # Title
@@ -116,100 +120,40 @@ class StackedXLSXExporter:
         ws.merge_cells("A1:B1")
 
         # Processing info
+        metadata = self.get_metadata()
         ws["A3"] = "Processing Date:"
-        ws["B3"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ws["B3"] = metadata.get("processing_date", "Unknown")
 
         ws["A4"] = "Total Records:"
-        ws["B4"] = len(self.publications)
+        ws["B4"] = metadata.get("total_records", 0)
 
-        # Format description
-        ws["A6"] = "Format Description:"
-        ws["A6"].font = Font(bold=True)
-        ws["A7"] = "This stacked format shows original and normalized text side-by-side"
-        ws["A8"] = "for easy comparison. Scores appear next to the matched data."
-        ws.merge_cells("A7:D7")
-        ws.merge_cells("A8:D8")
+        ws["A5"] = "Tool Version:"
+        ws["B5"] = metadata.get("tool_version", "Unknown")
 
-        # Status breakdown
-        ws["A10"] = "By Copyright Status:"
-        ws["A10"].font = Font(bold=True)
+        # Status counts
+        ws["A7"] = "Status Breakdown:"
+        ws["A7"].font = Font(bold=True)
 
-        by_status = self._group_by_status()
-        row = 11
-        for status in CopyrightStatus:
-            if status in by_status:
-                ws[f"A{row}"] = self.STATUS_TAB_NAMES.get(status, status.value) + ":"
-                ws[f"B{row}"] = len(by_status[status])
-                row += 1
+        row = 8
+        status_counts = metadata.get("status_counts", {})
+        for status, count in status_counts.items():
+            display_name = self.STATUS_TAB_NAMES.get(status, status)
+            ws[f"A{row}"] = display_name
+            ws[f"B{row}"] = count
+            row += 1
 
-        # Adjust column widths
+        # Auto-size columns
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 20
 
-    def _create_status_sheet(
-        self, wb: Workbook, sheet_name: str, publications: list[Publication]
-    ) -> None:
-        """Create a sheet for publications with a specific status"""
+    def _create_stacked_sheet(self, wb: Workbook, sheet_name: str, records: list[JSONDict]) -> None:
+        """Create a sheet with stacked comparison format"""
         ws = wb.create_sheet(sheet_name)
 
-        # Start row for first record
-        current_row = 1
-
-        # Process each publication
-        for i, pub in enumerate(publications):
-            current_row = self._write_stacked_record(ws, current_row, pub, i + 1)
-            current_row += 2  # Add blank rows between records
-
-        # Set column widths
-        ws.column_dimensions["A"].width = 12
-        ws.column_dimensions["B"].width = 12
-        ws.column_dimensions["C"].width = 50
-        ws.column_dimensions["D"].width = 8
-        ws.column_dimensions["E"].width = 30
-        ws.column_dimensions["F"].width = 8
-        ws.column_dimensions["G"].width = 30
-        ws.column_dimensions["H"].width = 8
-        ws.column_dimensions["I"].width = 6
-
-    def _write_stacked_record(
-        self, ws: Worksheet, start_row: int, pub: Publication, record_num: int
-    ) -> int:
-        """Write a single record in stacked format
-
-        Returns:
-            The next available row number
-        """
-        row = start_row
-
-        # Record header
-        ws.cell(row=row, column=1, value=f"Record {record_num}")
-        ws.cell(row=row, column=1).font = Font(bold=True, size=12)
-        ws.merge_cells(f"A{row}:I{row}")
-
-        # Record summary
-        row += 1
-        ws.cell(row=row, column=1, value="ID:")
-        ws.cell(row=row, column=2, value=pub.source_id)
-        ws.cell(row=row, column=3, value="Status:")
-        ws.cell(row=row, column=4, value=pub.copyright_status.value)
-        ws.cell(row=row, column=5, value="Country:")
-        ws.cell(row=row, column=6, value=pub.country_classification.value)
-
-        # Overall match summary
-        row += 1
-        overall_confidence = self._calculate_overall_confidence(pub)
-        ws.cell(row=row, column=1, value="Overall:")
-        ws.cell(row=row, column=2, value=overall_confidence)
-        self._apply_confidence_formatting(ws.cell(row=row, column=2), overall_confidence)
-
-        if pub.generic_title_detected:
-            ws.cell(row=row, column=3, value="⚠️ Generic title detected")
-            ws.cell(row=row, column=3).font = Font(color="FF6600")
-
-        # Comparison table headers
-        row += 2
+        # Headers
         headers = [
             "Source",
+            "ID",
             "Version",
             "Title",
             "Score",
@@ -219,203 +163,220 @@ class StackedXLSXExporter:
             "Score",
             "Year",
         ]
+
         for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=row, column=col, value=header)
+            cell = ws.cell(row=1, column=col, value=header)
             cell.font = self.HEADER_FONT
             cell.fill = self.HEADER_FILL
             cell.alignment = self.HEADER_ALIGNMENT
             cell.border = self.THIN_BORDER
 
-        # MARC Original
-        row += 1
-        self._write_data_row(
-            ws,
-            row,
-            "MARC",
-            "Original",
-            pub.original_title,
-            None,
-            self._get_display_author(pub),
-            None,
-            pub.original_publisher,
-            None,
-            pub.year,
-        )
+        # Process records
+        current_row = 2
 
-        # MARC Normalized
-        row += 1
-        self._write_data_row(
-            ws,
-            row,
-            "MARC",
-            "Normalized",
-            pub.title,
-            None,
-            pub.author,
-            None,
-            pub.publisher,
-            None,
-            None,
-        )
+        for record_idx, record in enumerate(records, 1):
+            # Add record header
+            current_row = self._add_record_header(ws, current_row, record_idx, record)
 
-        # Registration data
-        row += 1
-        if pub.registration_match:
-            match = pub.registration_match
-            self._write_data_row(
-                ws,
-                row,
-                "Registration",
-                "Original",
-                match.matched_title,
-                match.title_score,
-                match.matched_author,
-                match.author_score,
-                match.matched_publisher,
-                match.publisher_score,
-                match.matched_date,
+            # Add MARC rows
+            current_row = self._add_marc_rows(ws, current_row, record)
+
+            # Add registration match
+            current_row = self._add_match_row(
+                ws, current_row, record, "registration", "Registration"
             )
 
-            # Add LCCN indicator if applicable
-            if match.match_type == MatchType.LCCN:
-                ws.cell(row=row, column=10, value="LCCN Match")
-                ws.cell(row=row, column=10).font = Font(bold=True, color="006600")
-        else:
-            self._write_no_match_row(ws, row, "Registration")
+            # Add renewal match
+            current_row = self._add_match_row(ws, current_row, record, "renewal", "Renewal")
 
-        # Registration normalized (skipped for brevity - would be same as original in current implementation)
+            # Add spacing
+            current_row += 1
 
-        # Renewal data
-        row += 1
-        if pub.renewal_match:
-            match = pub.renewal_match
-            self._write_data_row(
-                ws,
-                row,
-                "Renewal",
-                "Original",
-                match.matched_title,
-                match.title_score,
-                match.matched_author,
-                match.author_score,
-                match.matched_publisher,
-                match.publisher_score,
-                match.matched_date,
-            )
+        # Auto-size columns
+        self._autosize_columns(ws)
 
-            # Add LCCN indicator if applicable
-            if match.match_type == MatchType.LCCN:
-                ws.cell(row=row, column=10, value="LCCN Match")
-                ws.cell(row=row, column=10).font = Font(bold=True, color="006600")
-        else:
-            self._write_no_match_row(ws, row, "Renewal")
+    def _add_record_header(self, ws: Worksheet, row: int, record_num: int, record: JSONDict) -> int:
+        """Add record header row"""
+        marc = record.get("marc", {})
+        analysis = record.get("analysis", {})
+
+        marc_id = marc.get("id", "Unknown")
+        status = analysis.get("status", "UNKNOWN")
+        metadata = marc.get("metadata", {})
+        country = metadata.get("country_code", "")
+
+        # Format header text
+        header_text = f"Record {record_num} - ID: {marc_id} - Status: {status}"
+        if country:
+            header_text += f" - Country: {country}"
+
+        # Merge cells for header
+        ws.merge_cells(f"A{row}:J{row}")
+        cell = ws[f"A{row}"]
+        cell.value = header_text
+        cell.font = self.SUBHEADER_FONT
+        cell.fill = self.SUBHEADER_FILL
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+
+        # Add warnings if any
+        warnings = self._get_warnings(analysis)
+        if warnings:
+            row += 1
+            ws.merge_cells(f"A{row}:J{row}")
+            cell = ws[f"A{row}"]
+            cell.value = f"⚠️ {warnings}"
+            cell.font = Font(italic=True, color="FF6600")
 
         return row + 1
 
-    def _write_data_row(
-        self,
-        ws: Worksheet,
-        row: int,
-        source: str,
-        version: str,
-        title: str | None,
-        title_score: float | None,
-        author: str | None,
-        author_score: float | None,
-        publisher: str | None,
-        publisher_score: float | None,
-        year: str | int | None,
-    ) -> None:
-        """Write a single data row with formatting"""
-        # Source and version
-        ws.cell(row=row, column=1, value=source).border = self.THIN_BORDER
-        ws.cell(row=row, column=2, value=version).border = self.THIN_BORDER
+    def _add_marc_rows(self, ws: Worksheet, row: int, record: JSONDict) -> int:
+        """Add MARC original and normalized rows"""
+        marc = record.get("marc", {})
+        original = marc.get("original", {})
+        normalized = marc.get("normalized", {})
 
-        # Title
-        ws.cell(row=row, column=3, value=title or "").border = self.THIN_BORDER
-        if title_score is not None:
-            cell = ws.cell(row=row, column=4, value=f"{title_score:.1f}%")
+        # Original row
+        values = [
+            "MARC",
+            marc.get("id", ""),
+            "Original",
+            original.get("title", ""),
+            "-",
+            original.get("author_245c") or original.get("author_1xx", ""),
+            "-",
+            original.get("publisher", ""),
+            "-",
+            original.get("year", ""),
+        ]
+
+        for col, value in enumerate(values, 1):
+            cell = ws.cell(row=row, column=col, value=value)
             cell.border = self.THIN_BORDER
-            self._apply_score_formatting(cell, title_score)
-        else:
-            ws.cell(row=row, column=4, value="").border = self.THIN_BORDER
 
-        # Author
-        ws.cell(row=row, column=5, value=author or "").border = self.THIN_BORDER
-        if author_score is not None:
-            cell = ws.cell(row=row, column=6, value=f"{author_score:.1f}%")
+        row += 1
+
+        # Normalized row
+        values = [
+            "MARC",
+            marc.get("id", ""),
+            "Normalized",
+            normalized.get("title", ""),
+            "-",
+            normalized.get("author", ""),
+            "-",
+            normalized.get("publisher", ""),
+            "-",
+            "-",
+        ]
+
+        for col, value in enumerate(values, 1):
+            cell = ws.cell(row=row, column=col, value=value)
             cell.border = self.THIN_BORDER
-            self._apply_score_formatting(cell, author_score)
-        else:
-            ws.cell(row=row, column=6, value="").border = self.THIN_BORDER
+            if col in [4, 6, 8]:  # Title, Author, Publisher columns
+                cell.font = Font(name="Consolas", size=10)
 
-        # Publisher
-        ws.cell(row=row, column=7, value=publisher or "").border = self.THIN_BORDER
-        if publisher_score is not None:
-            cell = ws.cell(row=row, column=8, value=f"{publisher_score:.1f}%")
+        return row + 1
+
+    def _add_match_row(
+        self, ws: Worksheet, row: int, record: JSONDict, match_type: str, source_name: str
+    ) -> int:
+        """Add a match row (registration or renewal)"""
+        matches = record.get("matches", {})
+        match_data = matches.get(match_type, {})
+
+        if not match_data.get("found"):
+            # No match row
+            values = [source_name, "-", "No match", "-", "-", "-", "-", "-", "-", "-"]
+            for col, value in enumerate(values, 1):
+                cell = ws.cell(row=row, column=col, value=value)
+                cell.border = self.THIN_BORDER
+                cell.font = Font(color="999999")
+            return row + 1
+
+        # Match found
+        original = match_data.get("original", {})
+        scores = match_data.get("scores", {})
+        match_method = match_data.get("match_type", "similarity")
+
+        # Format scores
+        def format_score(score_value: float | None, is_lccn: bool = False) -> str:
+            if is_lccn:
+                return "LCCN"
+            if score_value is None:
+                return "-"
+            return f"{score_value:.0f}%"
+
+        is_lccn = match_method == "lccn"
+
+        values = [
+            source_name,
+            match_data.get("id", ""),
+            "Original",
+            original.get("title", ""),
+            format_score(scores.get("title"), is_lccn),
+            original.get("author", ""),
+            format_score(scores.get("author"), is_lccn),
+            original.get("publisher", ""),
+            format_score(scores.get("publisher"), is_lccn),
+            original.get("date", ""),
+        ]
+
+        for col, value in enumerate(values, 1):
+            cell = ws.cell(row=row, column=col, value=value)
             cell.border = self.THIN_BORDER
-            self._apply_score_formatting(cell, publisher_score)
-        else:
-            ws.cell(row=row, column=8, value="").border = self.THIN_BORDER
 
-        # Year
-        ws.cell(row=row, column=9, value=str(year) if year else "").border = self.THIN_BORDER
+            # Apply score coloring
+            if col in [5, 7, 9] and not is_lccn and value != "-":
+                try:
+                    score = float(value.rstrip("%"))
+                    if score >= 90:
+                        cell.fill = self.HIGH_SCORE_FILL
+                    elif score >= 70:
+                        cell.fill = self.MEDIUM_SCORE_FILL
+                    else:
+                        cell.fill = self.LOW_SCORE_FILL
+                except ValueError:
+                    pass
+            elif is_lccn and col in [5, 7, 9]:
+                cell.font = Font(bold=True, color="008000")
 
-    def _write_no_match_row(self, ws: Worksheet, row: int, source: str) -> None:
-        """Write a row indicating no match found"""
-        ws.cell(row=row, column=1, value=source).border = self.THIN_BORDER
-        ws.cell(row=row, column=2, value="No match").border = self.THIN_BORDER
-        for col in range(3, 10):
-            ws.cell(row=row, column=col, value="-").border = self.THIN_BORDER
+        return row + 1
 
-    def _get_display_author(self, pub: Publication) -> str:
-        """Get the best author for display (245c preferred)"""
-        return pub.original_author or pub.original_main_author or ""
+    def _get_warnings(self, analysis: JSONDict) -> str:
+        """Get warning indicators for the record"""
+        warnings = []
 
-    def _calculate_overall_confidence(self, pub: Publication) -> str:
-        """Calculate overall confidence level"""
-        # If we have an LCCN match, it's always HIGH
-        if pub.registration_match and pub.registration_match.match_type == MatchType.LCCN:
-            return "HIGH"
-        if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
-            return "HIGH"
+        # Check for generic title
+        generic_info = analysis.get("generic_title", {})
+        if generic_info.get("detected"):
+            warnings.append("Generic title detected")
 
-        # Calculate best combined score
-        best_score = 0.0
-        if pub.registration_match:
-            best_score = max(best_score, pub.registration_match.similarity_score)
-        if pub.renewal_match:
-            best_score = max(best_score, pub.renewal_match.similarity_score)
+        # Check for data completeness issues
+        data_issues = analysis.get("data_completeness", [])
+        if isinstance(data_issues, list):
+            warnings.extend(data_issues)
 
-        # Apply thresholds
-        if best_score >= 85:
-            return "HIGH"
-        elif best_score >= 60:
-            return "MEDIUM"
-        elif best_score > 0:
-            return "LOW"
-        else:
-            return "NO MATCH"
+        # Add status rule if available
+        status_rule = analysis.get("status_rule", "")
+        if status_rule:
+            warnings.append(f"Rule: {status_rule}")
 
-    def _apply_score_formatting(self, cell, score: float) -> None:
-        """Apply color formatting based on score value"""
-        if score >= 85:
-            cell.fill = self.HIGH_SCORE_FILL
-        elif score >= 60:
-            cell.fill = self.MEDIUM_SCORE_FILL
-        else:
-            cell.fill = self.LOW_SCORE_FILL
+        return " | ".join(warnings) if warnings else ""
 
-    def _apply_confidence_formatting(self, cell, confidence: str) -> None:
-        """Apply formatting based on confidence level"""
-        if confidence == "HIGH":
-            cell.fill = self.HIGH_SCORE_FILL
-            cell.font = Font(bold=True, color="006600")
-        elif confidence == "MEDIUM":
-            cell.fill = self.MEDIUM_SCORE_FILL
-            cell.font = Font(bold=True, color="996600")
-        elif confidence == "LOW":
-            cell.fill = self.LOW_SCORE_FILL
-            cell.font = Font(bold=True, color="990000")
-        else:
-            cell.font = Font(bold=True, color="666666")
+    def _autosize_columns(self, ws: Worksheet) -> None:
+        """Auto-size columns based on content"""
+        column_widths = {
+            "A": 12,  # Source
+            "B": 15,  # ID
+            "C": 12,  # Version
+            "D": 40,  # Title
+            "E": 8,  # Score
+            "F": 25,  # Author
+            "G": 8,  # Score
+            "H": 20,  # Publisher
+            "I": 8,  # Score
+            "J": 8,  # Year
+        }
+
+        for col_letter, width in column_widths.items():
+            ws.column_dimensions[col_letter].width = width

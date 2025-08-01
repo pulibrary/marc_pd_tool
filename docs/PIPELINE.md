@@ -615,45 +615,39 @@ The tool provides data matches only. Legal interpretation of copyright status re
 
 ### Using the Results
 
-The tool produces a CSV file with comprehensive analysis results:
+The tool produces output files with analysis results. The default CSV format has been simplified for clarity:
 
-**MARC Record Data:**
+**CSV Column Headers:**
 
-- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition, Language Code
-
-**Country Classification:**
-
-- Country Code (from MARC 008 field), Country Classification (US/Non-US/Unknown)
-
-**Copyright Analysis Results:**
-
-- Copyright Status (algorithmic determination)
-- Generic Title Detected, Generic Detection Reason (scoring adjustment tracking)
-- Registration Generic Title, Renewal Generic Title (per-dataset detection)
-- Registration Source ID, Renewal Entry ID (source IDs for lookup)
-- Registration Similarity Score, Renewal Similarity Score (overall match quality)
-
-**Complete CSV Column Headers:**
-
-- MARC ID, MARC Title, MARC Author, MARC Year, MARC Publisher, MARC Place, MARC Edition, Language Code
-- Country Code, Country Classification, Copyright Status
-- Generic Title Detected, Generic Detection Reason, Registration Generic Title, Renewal Generic Title
-- Registration Source ID, Renewal Entry ID
-- Registration Title, Registration Author, Registration Publisher, Registration Date
-- Registration Similarity Score, Registration Title Score, Registration Author Score, Registration Publisher Score
-- Renewal Title, Renewal Author, Renewal Publisher, Renewal Date
-- Renewal Similarity Score, Renewal Title Score, Renewal Author Score, Renewal Publisher Score
+- **ID** - MARC record identifier
+- **Title** - Original title from MARC record
+- **Author** - Author from MARC record (245c or 1xx)
+- **Year** - Publication year
+- **Publisher** - Publisher name
+- **Country** - Country classification (US/Non-US/Unknown)
+- **Status** - Copyright status determination
+- **Match Summary** - Shows match scores (e.g., "Reg: 95%, Ren: None" or "Reg: LCCN")
+- **Warning** - Flags for data issues (generic title, no year, etc.)
+- **Registration Source ID** - ID of matched registration record
+- **Renewal Entry ID** - ID of matched renewal record
 
 **Sample Output:**
 
 ```csv
-MARC ID,MARC Title,MARC Author,MARC Year,MARC Publisher,MARC Place,MARC Edition,Language Code,Country Code,Country Classification,Copyright Status,Generic Title Detected,Generic Detection Reason,Registration Generic Title,Renewal Generic Title,Registration Source ID,Renewal Entry ID,Registration Title,Registration Author,Registration Publisher,Registration Date,Registration Similarity Score,Registration Title Score,Registration Author Score,Registration Publisher Score,Renewal Title,Renewal Author,Renewal Publisher,Renewal Date,Renewal Similarity Score,Renewal Title Score,Renewal Author Score,Renewal Publisher Score
-99123456,The Great Novel,Smith John,1955,Great Books Inc,New York,First edition,eng,xxu,US,PD_DATE_VERIFY,False,none,False,False,R456789,,The great novel,Smith John,Great Books Inc,1955,82.5,85.0,75.0,90.0,,,,,,,,
-99234567,American Classic,Brown Alice,1947,US Publishers,Chicago,1st ed.,eng,xxu,US,PD_NO_RENEWAL,False,none,False,False,R789123,,American classic,Brown Alice,US Publishers,1947,88.2,92.0,81.0,88.0,,,,,,,,
-99789012,Complete Works,Jones Mary,1960,Academic Press,London,2nd ed.,fre,uk,Non-US,RESEARCH_US_STATUS,False,skipped_non_english_fre,False,False,,b3ce7263-9e8b-5f9e-b1a0-190723af8d29,,,Academic Press snippet,1960,75.3,78.0,70.0,,Complete works,Jones Mary,Academic Press,1960,82.1,85.0,72.0,75.0
-99345678,Mystery Work,Author Unknown,1950,,,,,,,COUNTRY_UNKNOWN,False,none,False,False,,,,,,,,,,,,,,,,
-99111222,Collected Poems,Common Author,1965,Popular Publishers,Boston,Rev. ed.,eng,xxu,US,IN_COPYRIGHT,True,pattern,True,True,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947,Collected poems,Common Author,Popular Publishers,1965,65.3,50.0,85.0,95.0,Collected poems,Common Author,Popular Publishers,1965,66.8,52.0,86.0,92.0
+ID,Title,Author,Year,Publisher,Country,Status,Match Summary,Warning,Registration Source ID,Renewal Entry ID
+99123456,The Great Novel,Smith John,1955,Great Books Inc,US,PD_DATE_VERIFY,"Reg: 83%, Ren: None",,R456789,
+99234567,American Classic,Brown Alice,1947,US Publishers,US,PD_NO_RENEWAL,"Reg: 88%, Ren: None",,R789123,
+99789012,Complete Works,Jones Mary,1960,Academic Press,Non-US,RESEARCH_US_STATUS,"Reg: None, Ren: 82%",,b3ce7263-9e8b-5f9e-b1a0-190723af8d29
+99345678,Mystery Work,Author Unknown,1950,,Unknown,COUNTRY_UNKNOWN,"Reg: None, Ren: None","No publisher, Unknown country",,
+99111222,Collected Poems,Common Author,1965,Popular Publishers,US,IN_COPYRIGHT,"Reg: 65%, Ren: 67%",Generic title,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947
 ```
+
+**For detailed analysis**, use the JSON or XLSX_ANALYSIS formats which include:
+
+- All individual field scores (title, author, publisher)
+- Normalized text versions showing how matching was performed
+- Complete match metadata including year differences
+- Status rule codes explaining copyright determinations
 
 **Important Notes:**
 

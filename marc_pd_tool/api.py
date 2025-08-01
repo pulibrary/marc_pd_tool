@@ -22,10 +22,7 @@ from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
 from marc_pd_tool.data.ground_truth import GroundTruthPair
 from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters import XLSXExporter
-from marc_pd_tool.exporters.csv_exporter import save_matches_csv
 from marc_pd_tool.exporters.json_exporter import save_matches_json
-from marc_pd_tool.exporters.xlsx_stacked_exporter import StackedXLSXExporter
 from marc_pd_tool.infrastructure.cache_manager import CacheManager
 from marc_pd_tool.infrastructure.config_loader import get_config
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
@@ -194,6 +191,9 @@ class MarcCopyrightAnalyzer:
         self.copyright_dir = "nypl-reg/xml/"
         self.renewal_dir = "nypl-ren/data/"
 
+        # Store analysis options for export metadata
+        self.analysis_options: AnalysisOptions | None = None
+
     def analyze_marc_file(
         self,
         marc_path: str,
@@ -236,6 +236,9 @@ class MarcCopyrightAnalyzer:
         # Initialize options if not provided
         if options is None:
             options = {}
+
+        # Store options for later use
+        self.analysis_options = options
 
         # Load and index copyright/renewal data
         self._load_and_index_data(options)
@@ -304,14 +307,14 @@ class MarcCopyrightAnalyzer:
             logger.info("=" * 80)
             logger.info("=== PHASE 5: EXPORTING RESULTS ===")
             logger.info("=" * 80)
-            output_format = options.get("format", "csv")
+            output_formats = options.get("formats", ["json", "csv"])
             single_file = options.get("single_file", False)
             logger.info(f"Exporting results to: {output_path}")
-            logger.info(f"  Format: {output_format.upper()}")
+            logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
             logger.info(
                 f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}"
             )
-            self.export_results(output_path, format=output_format, single_file=single_file)
+            self.export_results(output_path, formats=output_formats, single_file=single_file)
             logger.info("✓ Export complete")
 
         return self.results
@@ -452,41 +455,84 @@ class MarcCopyrightAnalyzer:
         return self.results
 
     def export_results(
-        self, output_path: str, format: str = "csv", single_file: bool = False
+        self, output_path: str, formats: list[str] | None = None, single_file: bool = False
     ) -> None:
-        """Export results in specified format
+        """Export results in specified formats (JSON always generated first)
 
         Args:
-            output_path: Path for output file
-            format: Output format ('csv', 'xlsx', 'json')
+            output_path: Base path for output files (without extension)
+            formats: List of output formats to generate. If None, defaults to ['json', 'csv']
             single_file: Export all results to single file (vs separated by status)
 
         Raises:
             ValueError: If format is not supported
         """
+        # Default formats if not specified
+        if formats is None:
+            formats = ["json", "csv"]
+
+        # Ensure JSON is always first
+        if "json" not in formats:
+            formats = ["json"] + formats
+        elif formats[0] != "json":
+            formats.remove("json")
+            formats = ["json"] + formats
+
         # Load publications from disk if not already loaded
         if not self.results.publications and self.results.result_file_paths:
             logger.info("Loading publications from disk for export...")
             self.results.load_all_publications()
 
-        if format == "csv":
-            save_matches_csv(self.results.publications, output_path, single_file=single_file)
-        elif format == "xlsx":
-            exporter = XLSXExporter(
-                self.results.publications, output_path, score_everything_mode=single_file
-            )
-            exporter.export()
-        elif format == "xlsx-stacked":
-            exporter = StackedXLSXExporter(
-                self.results.publications, output_path, parameters=self.options
-            )
-            exporter.export()
-        elif format == "json":
-            save_matches_json(self.results.publications, output_path)
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        # Always generate JSON first (master format)
+        json_path = f"{output_path}.json"
+        save_matches_json(
+            self.results.publications,
+            json_path,
+            single_file=single_file,
+            parameters=self.analysis_options,
+        )
+        logger.info(f"Generated master JSON file: {json_path}")
 
-        logger.info(f"Results exported to {output_path}")
+        # Generate other requested formats from JSON
+        for fmt in formats[1:]:  # Skip JSON since we already generated it
+            if fmt == "csv":
+                csv_path = f"{output_path}.csv"
+                # Local imports
+                from marc_pd_tool.exporters.csv_exporter import CSVExporter
+
+                exporter = CSVExporter(json_path, csv_path, single_file=single_file)
+                exporter.export()
+                logger.info(f"Generated CSV file(s) from JSON")
+            elif fmt == "xlsx":
+                xlsx_path = f"{output_path}.xlsx"
+                # Local imports
+                from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
+
+                exporter = XLSXExporter(json_path, xlsx_path, single_file=single_file)
+                exporter.export()
+                logger.info(f"Generated XLSX file: {xlsx_path}")
+            elif fmt == "xlsx-stacked":
+                xlsx_stacked_path = f"{output_path}_stacked.xlsx"
+                # Local imports
+                from marc_pd_tool.exporters.xlsx_stacked_exporter import (
+                    StackedXLSXExporter,
+                )
+
+                exporter = StackedXLSXExporter(
+                    json_path, xlsx_stacked_path, single_file=single_file
+                )
+                exporter.export()
+                logger.info(f"Generated stacked XLSX file: {xlsx_stacked_path}")
+            elif fmt == "html":
+                html_dir = f"{output_path}_html"
+                # Local imports
+                from marc_pd_tool.exporters.html_exporter import HTMLExporter
+
+                exporter = HTMLExporter(json_path, html_dir, single_file=single_file)
+                exporter.export()
+                logger.info(f"Generated HTML output in: {html_dir}/")
+            else:
+                logger.warning(f"Unsupported format: {fmt}")
 
         # Clean up result directory after export
         if self.results.result_temp_dir and os.path.exists(self.results.result_temp_dir):
@@ -1241,27 +1287,35 @@ class MarcCopyrightAnalyzer:
         logger.info("\n" + report)
 
         # Export based on format
-        if output_format in ("csv", "xlsx"):
-            # Use standard exporters for ground truth pairs
-            if self.results.ground_truth_pairs:
-                # Convert GroundTruthPair objects to Publication list
-                publications = []
-                for pair in self.results.ground_truth_pairs:
-                    # The MARC record already has the match result populated
-                    publications.append(pair.marc_record)
+        if self.results.ground_truth_pairs:
+            # Convert GroundTruthPair objects to Publication list
+            publications = []
+            for pair in self.results.ground_truth_pairs:
+                # The MARC record already has the match result populated
+                publications.append(pair.marc_record)
 
-                # Use standard export methods
-                if output_format == "csv":
-                    save_matches_csv(publications, output_path, single_file=True)
-                else:  # xlsx
-                    exporter = XLSXExporter(publications, output_path)
-                    exporter.export()
+            # Always save to JSON first
+            json_path = f"{output_path}.json"
+            save_matches_json(publications, json_path, single_file=True)
 
-        elif output_format == "json":
-            # Export full analysis as JSON
-            self._export_ground_truth_json(output_path)
-        else:
-            raise ValueError(f"Unsupported output format: {output_format}")
+            # Then export requested format
+            if output_format == "csv":
+                # Local imports
+                from marc_pd_tool.exporters.csv_exporter import CSVExporter
+
+                exporter = CSVExporter(json_path, f"{output_path}.csv", single_file=True)
+                exporter.export()
+            elif output_format == "xlsx":
+                # Local imports
+                from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
+
+                exporter = XLSXExporter(json_path, f"{output_path}.xlsx", single_file=True)
+                exporter.export()
+            elif output_format == "json":
+                # Already exported
+                pass
+            else:
+                raise ValueError(f"Unsupported output format: {output_format}")
 
     def _export_ground_truth_json(self, output_path: str) -> None:
         """Export ground truth analysis as JSON"""

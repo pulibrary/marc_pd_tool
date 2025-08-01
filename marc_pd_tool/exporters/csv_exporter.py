@@ -1,180 +1,188 @@
 # marc_pd_tool/exporters/csv_exporter.py
 
-"""CSV export functionality for publication match results"""
+"""CSV export functionality that reads from JSON data"""
 
 # Standard library imports
 from csv import writer
-from os.path import splitext
+from pathlib import Path
 
 # Local imports
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import CSVWriter
+from marc_pd_tool.utils.types import JSONDict
 
 
-def _calculate_confidence(pub: Publication) -> str:
-    """Calculate confidence level based on match scores and type
+class CSVExporter(BaseJSONExporter):
+    """Export CSV files from JSON data
 
-    Returns:
-        HIGH, MEDIUM, LOW, or WARNING
+    Reads from the master JSON format and generates CSV files
+    with simplified columns for easy analysis.
     """
-    # If we have an LCCN match, it's always HIGH confidence
-    if pub.registration_match and pub.registration_match.match_type == MatchType.LCCN:
-        return "HIGH"
-    if pub.renewal_match and pub.renewal_match.match_type == MatchType.LCCN:
-        return "HIGH"
 
-    # Calculate best combined score
-    best_score = 0.0
-    if pub.registration_match:
-        best_score = max(best_score, pub.registration_match.similarity_score)
-    if pub.renewal_match:
-        best_score = max(best_score, pub.renewal_match.similarity_score)
-
-    # Apply confidence thresholds
-    if best_score >= 85:
-        return "HIGH"
-    elif best_score >= 60:
-        return "MEDIUM"
-    elif best_score > 0:
-        return "LOW"
-    else:
-        return "WARNING"
-
-
-def _format_match_summary(pub: Publication) -> str:
-    """Format a concise match summary
-
-    Returns:
-        String like "Reg: 95%, Ren: None" or "Reg: LCCN, Ren: 82%"
-    """
-    parts = []
-
-    if pub.registration_match:
-        if pub.registration_match.match_type == MatchType.LCCN:
-            parts.append("Reg: LCCN")
+    def export(self) -> None:
+        """Export records to CSV file(s)"""
+        if self.single_file:
+            # Export all records to a single file
+            self._export_single_file()
         else:
-            parts.append(f"Reg: {pub.registration_match.similarity_score:.0f}%")
-    else:
-        parts.append("Reg: None")
+            # Export to separate files by status
+            self._export_by_status()
 
-    if pub.renewal_match:
-        if pub.renewal_match.match_type == MatchType.LCCN:
-            parts.append("Ren: LCCN")
-        else:
-            parts.append(f"Ren: {pub.renewal_match.similarity_score:.0f}%")
-    else:
-        parts.append("Ren: None")
+    def _export_single_file(self) -> None:
+        """Export all records to a single CSV file"""
+        records = self.get_records()
+        sorted_records = self.sort_by_quality(records)
 
-    return ", ".join(parts)
-
-
-def _get_warnings(pub: Publication) -> str:
-    """Get warning indicators for the record
-
-    Returns:
-        Comma-separated warnings or empty string
-    """
-    warnings = []
-
-    if pub.generic_title_detected:
-        warnings.append("Generic title")
-
-    if not pub.year:
-        warnings.append("No year")
-
-    if pub.country_classification.value == "Unknown":
-        warnings.append("Unknown country")
-
-    return ", ".join(warnings)
-
-
-def save_matches_csv(
-    marc_publications: list[Publication], csv_file: str, single_file: bool = False
-) -> None:
-    """Save results to CSV file(s) with country and status information
-
-    Args:
-        marc_publications: List of publications to save
-        csv_file: Base output filename
-        single_file: If True, save all records to a single file.
-                    If False, create separate files by copyright status (default).
-    """
-
-    def write_header(csv_writer: CSVWriter) -> None:
-        """Write the CSV header row"""
-        # Simplified headers for better readability
-        csv_writer.writerow(
-            [
-                "ID",
-                "Title",
-                "Author",
-                "Year",
-                "Publisher",
-                "Country",
-                "Status",
-                "Match Summary",
-                "Confidence",
-                "Warning",
-                "Registration Source ID",
-                "Renewal Entry ID",
-            ]
-        )
-
-    if single_file:
-        # Single file mode: all records in one file
-        with open(csv_file, "w", newline="", encoding="utf-8") as f:
+        with open(self.output_path, "w", newline="", encoding="utf-8") as f:
             csv_writer = writer(f)
-            write_header(csv_writer)
-            _write_publications_to_csv(csv_writer, marc_publications)
-    else:
-        # Multiple files: separate files by copyright status
-        # Group publications by copyright status
-        status_groups: dict[str, list[Publication]] = {}
-        for pub in marc_publications:
-            status = pub.copyright_status.value
-            if status not in status_groups:
-                status_groups[status] = []
-            status_groups[status].append(pub)
+            self._write_header(csv_writer)
 
-        # Get base filename without extension
-        base_name, ext = splitext(csv_file)
+            for record in sorted_records:
+                self._write_record(csv_writer, record)
 
-        # Create separate file for each status
-        for status, publications in status_groups.items():
-            # Convert status to lowercase filename format
+    def _export_by_status(self) -> None:
+        """Export records to separate files by copyright status"""
+        by_status = self.group_by_status()
+
+        # Get base path without extension
+        path = Path(self.output_path)
+        base_name = path.stem
+        parent = path.parent
+
+        for status, records in by_status.items():
+            if not records:
+                continue
+
+            # Sort records by quality
+            sorted_records = self.sort_by_quality(records)
+
+            # Create filename for this status
             status_filename = status.lower()
-            output_file = f"{base_name}_{status_filename}{ext}"
+            output_file = parent / f"{base_name}_{status_filename}.csv"
 
             with open(output_file, "w", newline="", encoding="utf-8") as f:
                 csv_writer = writer(f)
-                write_header(csv_writer)
-                _write_publications_to_csv(csv_writer, publications)
+                self._write_header(csv_writer)
 
+                for record in sorted_records:
+                    self._write_record(csv_writer, record)
 
-def _write_publications_to_csv(csv_writer: CSVWriter, marc_publications: list[Publication]) -> None:
-    """Helper function to write publication data to CSV writer"""
-    for pub in marc_publications:
-        # Simplified output - use 245c author if available, otherwise fall back to 1xx
-        author = pub.original_author or pub.original_main_author or ""
+    def _write_header(self, csv_writer: CSVWriter) -> None:
+        """Write CSV header row"""
+        headers = [
+            "ID",
+            "Title",
+            "Author",
+            "Year",
+            "Publisher",
+            "Country",
+            "Status",
+            "Match Summary",
+            "Warning",
+            "Registration Source ID",
+            "Renewal Entry ID",
+        ]
+        csv_writer.writerow(headers)
 
-        # Get source IDs for verification
-        reg_source_id = pub.registration_match.source_id if pub.registration_match else ""
-        ren_entry_id = pub.renewal_match.source_id if pub.renewal_match else ""
+    def _write_record(self, csv_writer: CSVWriter, record: JSONDict) -> None:
+        """Write a single record to CSV"""
+        marc = record.get("marc", {})
+        matches = record.get("matches", {})
+        analysis = record.get("analysis", {})
 
-        csv_writer.writerow(
-            [
-                pub.source_id,
-                pub.original_title,
-                author,
-                pub.year or "",
-                pub.original_publisher or "",
-                pub.country_classification.value,
-                pub.copyright_status.value,
-                _format_match_summary(pub),
-                _calculate_confidence(pub),
-                _get_warnings(pub),
-                reg_source_id,
-                ren_entry_id,
-            ]
-        )
+        # Extract MARC data
+        marc_id = marc.get("id", "")
+        original = marc.get("original", {})
+        title = original.get("title", "")
+        author = original.get("author_245c") or original.get("author_1xx", "")
+        year = original.get("year", "")
+        publisher = original.get("publisher", "")
+
+        # Extract metadata
+        metadata = marc.get("metadata", {})
+        country = metadata.get("country_code", "")
+
+        # Extract analysis data
+        status = analysis.get("status", "")
+
+        # Format match summary
+        match_summary = self._format_match_summary(matches)
+
+        # Get warnings
+        warnings = self._get_warnings(analysis)
+
+        # Get source IDs
+        reg_id = ""
+        ren_id = ""
+
+        reg_match = matches.get("registration", {})
+        if reg_match.get("found"):
+            reg_id = reg_match.get("id", "")
+
+        ren_match = matches.get("renewal", {})
+        if ren_match.get("found"):
+            ren_id = ren_match.get("id", "")
+
+        # Write row
+        row = [
+            marc_id,
+            title,
+            author,
+            year,
+            publisher,
+            country,
+            status,
+            match_summary,
+            warnings,
+            reg_id,
+            ren_id,
+        ]
+        csv_writer.writerow(row)
+
+    def _format_match_summary(self, matches: JSONDict) -> str:
+        """Format a concise match summary"""
+        parts = []
+
+        # Registration match
+        reg = matches.get("registration", {})
+        if reg.get("found"):
+            match_type = reg.get("match_type", "similarity")
+            if match_type == "lccn":
+                parts.append("Reg: LCCN")
+            else:
+                scores = reg.get("scores", {})
+                overall_score = scores.get("overall", 0)
+                parts.append(f"Reg: {overall_score:.0f}%")
+        else:
+            parts.append("Reg: None")
+
+        # Renewal match
+        ren = matches.get("renewal", {})
+        if ren.get("found"):
+            match_type = ren.get("match_type", "similarity")
+            if match_type == "lccn":
+                parts.append("Ren: LCCN")
+            else:
+                scores = ren.get("scores", {})
+                overall_score = scores.get("overall", 0)
+                parts.append(f"Ren: {overall_score:.0f}%")
+        else:
+            parts.append("Ren: None")
+
+        return ", ".join(parts)
+
+    def _get_warnings(self, analysis: JSONDict) -> str:
+        """Get warning indicators for the record"""
+        warnings = []
+
+        # Check for generic title
+        generic_info = analysis.get("generic_title", {})
+        if generic_info.get("detected"):
+            warnings.append("Generic title")
+
+        # Check for data completeness issues
+        data_issues = analysis.get("data_completeness", [])
+        if isinstance(data_issues, list):
+            warnings.extend(data_issues)
+
+        return ", ".join(warnings) if warnings else ""

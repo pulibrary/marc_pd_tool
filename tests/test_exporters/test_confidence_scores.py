@@ -11,9 +11,28 @@ from tempfile import NamedTemporaryFile
 from marc_pd_tool.data.publication import CountryClassification
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.csv_exporter import save_matches_csv
+from marc_pd_tool.exporters.csv_exporter import CSVExporter
+from marc_pd_tool.exporters.json_exporter import save_matches_json
 
 # pytest imported automatically by test runner
+
+
+def export_to_csv(publications, csv_file, single_file=True):
+    """Helper to export publications to CSV via JSON"""
+    # Standard library imports
+    import os
+    import tempfile
+
+    temp_fd, temp_json = tempfile.mkstemp(suffix=".json")
+    os.close(temp_fd)
+
+    try:
+        save_matches_json(publications, temp_json, single_file=single_file)
+        exporter = CSVExporter(temp_json, csv_file, single_file=single_file)
+        exporter.export()
+    finally:
+        if os.path.exists(temp_json):
+            os.unlink(temp_json)
 
 
 class TestConfidenceScores:
@@ -85,7 +104,7 @@ class TestConfidenceScores:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 headers = f.readline().strip().split(",")
@@ -100,7 +119,6 @@ class TestConfidenceScores:
                 "Country",
                 "Status",
                 "Match Summary",
-                "Confidence",
                 "Warning",
                 "Registration Source ID",
                 "Renewal Entry ID",
@@ -145,11 +163,14 @@ class TestConfidenceScores:
         )
         pub.set_renewal_match(ren_match)
 
+        # Determine copyright status
+        pub.determine_copyright_status()
+
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -203,11 +224,14 @@ class TestConfidenceScores:
         )
         pub.set_renewal_match(ren_match)
 
+        # Determine copyright status
+        pub.determine_copyright_status()
+
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -217,23 +241,20 @@ class TestConfidenceScores:
             # Create a mapping for easier access
             row_dict = dict(zip(headers, data_row))
 
-            # Check simple similarity scores
-            assert row_dict["Registration Similarity Score"] == "85.5"
-            assert row_dict["Renewal Similarity Score"] == "88.2"
+            # Check that the simplified CSV format contains expected data
+            assert row_dict["ID"] == "test_001"
+            assert row_dict["Title"] == "Test Book"
+            assert row_dict["Author"] == "Test Author"
+            assert row_dict["Year"] == "1950"
+            assert row_dict["Status"] == "IN_COPYRIGHT"  # Has renewal match, so still in copyright
 
-            # Check registration scores and source data
-            assert row_dict["Registration Title"] == "Test Book (reg)"
-            assert row_dict["Registration Author"] == "Test Author (reg)"
-            assert row_dict["Registration Date"] == "1950"
-            assert row_dict["Registration Title Score"] == "90.0"
-            assert row_dict["Registration Author Score"] == "75.0"
+            # Check match summary format (should show percentages for non-LCCN matches)
+            assert "Reg: 86%" in row_dict["Match Summary"]  # 85.5 rounds to 86
+            assert "Ren: 88%" in row_dict["Match Summary"]  # 88.2 rounds to 88
 
-            # Check renewal scores and source data
-            assert row_dict["Renewal Title"] == "Test Book (ren)"
-            assert row_dict["Renewal Author"] == "Test Author (ren)"
-            assert row_dict["Renewal Date"] == "1950-01-01"
-            assert row_dict["Renewal Title Score"] == "92.0"
-            assert row_dict["Renewal Author Score"] == "80.0"
+            # Check source IDs
+            assert row_dict["Registration Source ID"] == "reg_001"
+            assert row_dict["Renewal Entry ID"] == "ren_001"
 
         finally:
             unlink(temp_file)
@@ -249,12 +270,14 @@ class TestConfidenceScores:
         )
 
         # No matches added
+        # Determine copyright status
+        pub.determine_copyright_status()
 
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -264,19 +287,10 @@ class TestConfidenceScores:
             # Create a mapping for easier access
             row_dict = dict(zip(headers, data_row))
 
-            # Check that score fields and source data are empty
-            assert row_dict["Registration Similarity Score"] == ""
-            assert row_dict["Renewal Similarity Score"] == ""
-            assert row_dict["Registration Title"] == ""
-            assert row_dict["Registration Author"] == ""
-            assert row_dict["Registration Date"] == ""
-            assert row_dict["Registration Title Score"] == ""
-            assert row_dict["Registration Author Score"] == ""
-            assert row_dict["Renewal Title"] == ""
-            assert row_dict["Renewal Author"] == ""
-            assert row_dict["Renewal Date"] == ""
-            assert row_dict["Renewal Title Score"] == ""
-            assert row_dict["Renewal Author Score"] == ""
+            # Check the simplified format for no matches
+            assert row_dict["Match Summary"] == "Reg: None, Ren: None"
+            assert row_dict["Registration Source ID"] == ""
+            assert row_dict["Renewal Entry ID"] == ""
 
         finally:
             unlink(temp_file)
@@ -305,11 +319,14 @@ class TestConfidenceScores:
         )
         pub.set_registration_match(match)
 
+        # Determine copyright status
+        pub.determine_copyright_status()
+
         with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             temp_file = f.name
 
         try:
-            save_matches_csv([pub], temp_file, single_file=True)
+            export_to_csv([pub], temp_file, single_file=True)
 
             with open(temp_file, "r") as f:
                 csv_reader = reader(f)
@@ -319,21 +336,11 @@ class TestConfidenceScores:
             # Create a mapping for easier access
             row_dict = dict(zip(headers, data_row))
 
-            # Should show scores and source data from the single match
-            assert row_dict["Registration Similarity Score"] == "90.0"
-            assert row_dict["Registration Title"] == "Test Book"
-            assert row_dict["Registration Author"] == "Test Author"
-            assert row_dict["Registration Date"] == "1955"
-            assert row_dict["Registration Title Score"] == "95.0"
-            assert row_dict["Registration Author Score"] == "80.0"
-
-            # Should show empty renewal data
-            assert row_dict["Renewal Similarity Score"] == ""
-            assert row_dict["Renewal Title"] == ""
-            assert row_dict["Renewal Author"] == ""
-            assert row_dict["Renewal Date"] == ""
-            assert row_dict["Renewal Title Score"] == ""
-            assert row_dict["Renewal Author Score"] == ""
+            # Check simplified format for single match
+            assert "Reg: 90%" in row_dict["Match Summary"]
+            assert "Ren: None" in row_dict["Match Summary"]
+            assert row_dict["Registration Source ID"] == "reg_002"
+            assert row_dict["Renewal Entry ID"] == ""
 
         finally:
             unlink(temp_file)
