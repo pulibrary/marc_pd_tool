@@ -6,8 +6,8 @@ This module allows the package to be run as a script:
     python -m marc_pd_tool
 """
 
-if __name__ == "__main__":
-    # Local imports
-    from marc_pd_tool.cli.main import main
+# Local imports
+from marc_pd_tool.cli.main import main
 
+if __name__ == "__main__":
     main()

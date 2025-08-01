@@ -28,7 +28,7 @@ def export_to_xlsx(publications, xlsx_file, parameters=None):
     os.close(temp_fd)
 
     try:
-        save_matches_json(publications, temp_json, single_file=True, parameters=parameters)
+        save_matches_json(publications, temp_json, parameters=parameters)
         exporter = XLSXExporter(temp_json, xlsx_file, single_file=False)
         exporter.export()
     finally:
@@ -148,7 +148,7 @@ class TestXLSXExporter:
 
         try:
             # Create JSON file first
-            save_matches_json(sample_publications, json_path, single_file=True)
+            save_matches_json(sample_publications, json_path)
 
             # Create exporter with JSON path
             exporter = XLSXExporter(json_path, output_path, single_file=False)
@@ -225,12 +225,11 @@ class TestXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            summary = wb["Summary"]
+            wb["Summary"]
 
             # Find parameters section
             # The new JSON-based exporter doesn't include parameters in summary
             # This is expected behavior for the new implementation
-            pass
 
         finally:
             if exists(output_path):

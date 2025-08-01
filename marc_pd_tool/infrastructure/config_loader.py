@@ -6,11 +6,9 @@
 from json import load as json_load
 from logging import getLogger
 from os.path import exists
-from typing import cast
 
 # Local imports
 from marc_pd_tool.utils.types import JSONDict
-from marc_pd_tool.utils.types import JSONType
 from marc_pd_tool.utils.types import MatchingConfig
 from marc_pd_tool.utils.types import WordBasedConfig
 from marc_pd_tool.utils.types import Wordlists

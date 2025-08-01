@@ -28,7 +28,7 @@ def export_to_csv(publications, csv_file, single_file=True):
         os.close(temp_fd)
 
         try:
-            save_matches_json(publications, temp_json, single_file=True)
+            save_matches_json(publications, temp_json)
             exporter = CSVExporter(temp_json, csv_file, single_file=True)
             exporter.export()
         finally:
@@ -42,7 +42,7 @@ def export_to_csv(publications, csv_file, single_file=True):
 
         try:
             # Create single JSON with all publications
-            save_matches_json(publications, temp_json, single_file=True)
+            save_matches_json(publications, temp_json)
             # CSVExporter will split by status when single_file=False
             exporter = CSVExporter(temp_json, csv_file, single_file=False)
             exporter.export()

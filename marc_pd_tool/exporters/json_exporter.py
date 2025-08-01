@@ -6,11 +6,9 @@
 from datetime import datetime
 import gzip
 import json
-from pathlib import Path
 from typing import cast
 
 # Local imports
-from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.utils.types import JSONDict
 
@@ -18,89 +16,43 @@ from marc_pd_tool.utils.types import JSONDict
 def save_matches_json(
     marc_publications: list[Publication],
     json_file: str,
-    single_file: bool = False,
     pretty: bool = True,
     compress: bool = False,
     parameters: dict[str, str | int | float | bool] | None = None,
 ) -> None:
-    """Save results to JSON file(s) with comprehensive match data
+    """Save results to JSON file with comprehensive match data
 
     Args:
         marc_publications: List of publications to save
-        json_file: Base output filename
-        single_file: If True, save all records to a single file.
-                    If False, create separate files by copyright status (default).
+        json_file: Output filename
         pretty: If True, format JSON with indentation (default).
         compress: If True, use gzip compression.
         parameters: Processing parameters used (for metadata).
     """
 
-    if single_file:
-        # Single file mode: all records in one file
-        data = {
-            "metadata": _create_metadata(marc_publications, parameters=parameters),
-            "records": [_publication_to_comprehensive_dict(pub) for pub in marc_publications],
-        }
+    # Always create a single file with all records
+    data = {
+        "metadata": _create_metadata(marc_publications, parameters=parameters),
+        "records": [_publication_to_comprehensive_dict(pub) for pub in marc_publications],
+    }
 
-        output_path = json_file if not compress else f"{json_file}.gz"
-        if compress:
-            with gzip.open(output_path, "wt", encoding="utf-8") as f:
-                if pretty:
-                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
-                else:
-                    json.dump(data, f, ensure_ascii=False, default=str)
-        else:
-            with open(output_path, "w", encoding="utf-8") as f:
-                if pretty:
-                    json.dump(data, f, indent=2, ensure_ascii=False, default=str)
-                else:
-                    json.dump(data, f, ensure_ascii=False, default=str)
-    else:
-        # Multiple files: separate files by copyright status
-        # Group publications by copyright status
-        status_groups: dict[str, list[Publication]] = {}
-        for pub in marc_publications:
-            status = pub.copyright_status.value
-            if status not in status_groups:
-                status_groups[status] = []
-            status_groups[status].append(pub)
-
-        # Get base filename without extension
-        path = Path(json_file)
-        base_name = path.stem
-        ext = path.suffix or ".json"
-        parent = path.parent
-
-        # Create separate file for each status
-        for status, publications in status_groups.items():
-            # Convert status to lowercase filename format
-            status_filename = status.lower()
-            output_file = parent / f"{base_name}_{status_filename}{ext}"
-
-            data = {
-                "metadata": _create_metadata(publications, status, parameters=parameters),
-                "records": [_publication_to_comprehensive_dict(pub) for pub in publications],
-            }
-
-            final_output = str(output_file) if not compress else f"{output_file}.gz"
-            if compress:
-                with gzip.open(final_output, "wt", encoding="utf-8") as f:
-                    if pretty:
-                        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
-                    else:
-                        json.dump(data, f, ensure_ascii=False, default=str)
+    output_path = json_file if not compress else f"{json_file}.gz"
+    if compress:
+        with gzip.open(output_path, "wt", encoding="utf-8") as f:
+            if pretty:
+                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
             else:
-                with open(final_output, "w", encoding="utf-8") as f:
-                    if pretty:
-                        json.dump(data, f, indent=2, ensure_ascii=False, default=str)
-                    else:
-                        json.dump(data, f, ensure_ascii=False, default=str)
+                json.dump(data, f, ensure_ascii=False, default=str)
+    else:
+        with open(output_path, "w", encoding="utf-8") as f:
+            if pretty:
+                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+            else:
+                json.dump(data, f, ensure_ascii=False, default=str)
 
 
 def _create_metadata(
-    publications: list[Publication],
-    status: str | None = None,
-    parameters: dict[str, str | int | float | bool] | None = None,
+    publications: list[Publication], parameters: dict[str, str | int | float | bool] | None = None
 ) -> JSONDict:
     """Create enhanced metadata section for JSON output"""
     metadata = {
@@ -112,33 +64,30 @@ def _create_metadata(
     if parameters:
         metadata["parameters"] = parameters
 
-    if status:
-        metadata["copyright_status"] = status
-    else:
-        # Count by status
-        status_counts: dict[str, int] = {}
-        for pub in publications:
-            s = pub.copyright_status.value
-            status_counts[s] = status_counts.get(s, 0) + 1
-        metadata["status_counts"] = status_counts
+    # Count by status
+    status_counts: dict[str, int] = {}
+    for pub in publications:
+        s = pub.copyright_status.value
+        status_counts[s] = status_counts.get(s, 0) + 1
+    metadata["status_counts"] = status_counts
 
-        # Count match types
-        match_type_counts: dict[str, int] = {
-            "lccn_matches": 0,
-            "similarity_matches": 0,
-            "no_matches": 0,
-        }
-        for pub in publications:
-            if pub.registration_match or pub.renewal_match:
-                if (
-                    pub.registration_match and pub.registration_match.match_type.value == "lccn"
-                ) or (pub.renewal_match and pub.renewal_match.match_type.value == "lccn"):
-                    match_type_counts["lccn_matches"] += 1
-                else:
-                    match_type_counts["similarity_matches"] += 1
+    # Count match types
+    match_type_counts: dict[str, int] = {
+        "lccn_matches": 0,
+        "similarity_matches": 0,
+        "no_matches": 0,
+    }
+    for pub in publications:
+        if pub.registration_match or pub.renewal_match:
+            if (pub.registration_match and pub.registration_match.match_type.value == "lccn") or (
+                pub.renewal_match and pub.renewal_match.match_type.value == "lccn"
+            ):
+                match_type_counts["lccn_matches"] += 1
             else:
-                match_type_counts["no_matches"] += 1
-        metadata["match_type_counts"] = match_type_counts
+                match_type_counts["similarity_matches"] += 1
+        else:
+            match_type_counts["no_matches"] += 1
+    metadata["match_type_counts"] = match_type_counts
 
     return cast(JSONDict, metadata)
 

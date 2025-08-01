@@ -125,12 +125,12 @@ class TestJSONExporter:
     """Test JSON export functionality"""
 
     def test_json_export_single_file(self, sample_publications):
-        """Test exporting to a single JSON file"""
+        """Test that JSON export creates a single comprehensive file"""
         with NamedTemporaryFile(suffix=".json", delete=False) as f:
             output_path = f.name
 
         try:
-            save_matches_json(sample_publications, output_path, single_file=True)
+            save_matches_json(sample_publications, output_path)
 
             # Verify file was created
             assert exists(output_path)
@@ -162,15 +162,19 @@ class TestJSONExporter:
             if exists(output_path):
                 remove(output_path)
 
-    def test_json_export_multiple_files(self, sample_publications):
-        """Test exporting to multiple JSON files by status"""
+    def test_json_export_no_multiple_files(self, sample_publications):
+        """Test that JSON export no longer creates multiple files"""
         with NamedTemporaryFile(suffix=".json", delete=False) as f:
             output_path = f.name
 
         try:
-            save_matches_json(sample_publications, output_path, single_file=False)
+            # JSON export now always creates a single file
+            save_matches_json(sample_publications, output_path)
 
-            # Check that separate files were created
+            # Verify only the single file was created
+            assert exists(output_path)
+
+            # Check that separate files were NOT created
             path = Path(output_path)
             base = path.stem
             parent = path.parent
@@ -179,21 +183,15 @@ class TestJSONExporter:
             copyright_file = parent / f"{base}_in_copyright.json"
             research_file = parent / f"{base}_research_us_status.json"
 
-            assert exists(pd_file)
-            assert exists(copyright_file)
-            assert exists(research_file)
+            assert not exists(pd_file)
+            assert not exists(copyright_file)
+            assert not exists(research_file)
 
-            # Check PD file
-            with open(pd_file, "r") as f:
-                pd_data = json.load(f)
-            assert pd_data["metadata"]["total_records"] == 1
-            assert pd_data["metadata"]["copyright_status"] == "PD_NO_RENEWAL"
-            assert len(pd_data["records"]) == 1
-
-            # Clean up
-            remove(pd_file)
-            remove(copyright_file)
-            remove(research_file)
+            # Verify all records are in the single file
+            with open(output_path, "r") as f:
+                data = json.load(f)
+            assert data["metadata"]["total_records"] == 3
+            assert len(data["records"]) == 3
 
         finally:
             if exists(output_path):
@@ -205,7 +203,7 @@ class TestJSONExporter:
             output_path = f.name
 
         try:
-            save_matches_json(sample_publications, output_path, single_file=True, pretty=False)
+            save_matches_json(sample_publications, output_path, pretty=False)
 
             # Verify file was created
             assert exists(output_path)
@@ -233,7 +231,7 @@ class TestJSONExporter:
             output_path = f.name
 
         try:
-            save_matches_json(sample_publications, output_path, single_file=True)
+            save_matches_json(sample_publications, output_path)
 
             # Load and verify unicode is preserved
             with open(output_path, "r", encoding="utf-8") as f:

@@ -501,10 +501,10 @@ class MarcCopyrightAnalyzer:
                         # Convert to string for any other types
                         params[str(k)] = str(v)
 
-        save_matches_json(
-            self.results.publications, json_path, single_file=single_file, parameters=params
-        )
-        logger.info(f"Generated master JSON file: {json_path}")
+        # JSON is always a single file regardless of single_file parameter
+        # The single_file parameter only affects CSV and other formats
+        save_matches_json(self.results.publications, json_path, parameters=params)
+        logger.info(f"Generated JSON file: {json_path}")
 
         # Generate other requested formats from JSON
         for fmt in formats[1:]:  # Skip JSON since we already generated it
@@ -1346,7 +1346,7 @@ class MarcCopyrightAnalyzer:
 
             # Always save to JSON first
             json_path = f"{output_path}.json"
-            save_matches_json(publications, json_path, single_file=True)
+            save_matches_json(publications, json_path)
 
             # Then export requested format
             if output_format == "csv":

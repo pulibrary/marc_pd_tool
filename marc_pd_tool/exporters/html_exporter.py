@@ -3,8 +3,6 @@
 """Static HTML export functionality with paginated stacked format"""
 
 # Standard library imports
-from datetime import datetime
-import os
 from pathlib import Path
 
 # Local imports

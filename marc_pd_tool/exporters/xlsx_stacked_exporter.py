@@ -3,7 +3,6 @@
 """Stacked XLSX export functionality that reads from JSON data"""
 
 # Standard library imports
-from datetime import datetime
 
 # Third party imports
 from openpyxl import Workbook
@@ -12,12 +11,10 @@ from openpyxl.styles import Border
 from openpyxl.styles import Font
 from openpyxl.styles import PatternFill
 from openpyxl.styles import Side
-from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
-from marc_pd_tool.utils.types import JSONDict
 from marc_pd_tool.utils.types import JSONList
 from marc_pd_tool.utils.types import JSONType
 

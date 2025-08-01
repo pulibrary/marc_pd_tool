@@ -3,7 +3,6 @@
 """Standard XLSX export functionality that reads from JSON data"""
 
 # Standard library imports
-from datetime import datetime
 
 # Third party imports
 from openpyxl import Workbook

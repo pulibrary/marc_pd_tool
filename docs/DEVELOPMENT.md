@@ -41,8 +41,7 @@ marc_pd_tool/
     └── main.py             # Command-line interface
 
 scripts/
-├── compare.py              # Main entry point
-└── analyze_ground_truth_scores.py
+└── analyze_ground_truth_scores.py  # Ground truth analysis tool
 ```
 
 ## Getting Started
@@ -87,7 +86,7 @@ For long-running processes (3-10 hours), use screen or tmux:
 
 ```bash
 screen -S marc_processing
-pdm run python -m marc_pd_tool --marcxml data.xml [options]
+pdm run marc-pd-tool --marcxml data.xml [options]
 # Detach: Ctrl+A, D
 # Reattach: screen -r marc_processing
 ```
@@ -96,7 +95,7 @@ pdm run python -m marc_pd_tool --marcxml data.xml [options]
 
 ```bash
 tmux new -s marc_processing
-pdm run python -m marc_pd_tool --marcxml data.xml [options]
+pdm run marc-pd-tool --marcxml data.xml [options]
 # Detach: Ctrl+B, D
 # Reattach: tmux attach -t marc_processing
 ```
@@ -436,7 +435,7 @@ analyzer.analyze_ground_truth_scores(pairs)
 
 ```bash
 # Profile with cProfile
-pdm run python -m cProfile -o profile.stats scripts/compare.py [options]
+pdm run python -m cProfile -o profile.stats -m marc_pd_tool [options]
 
 # Analyze results
 pdm run python -c "import pstats; p = pstats.Stats('profile.stats'); p.sort_stats('cumulative').print_stats(20)"
@@ -478,7 +477,7 @@ pdm run pytest --lf        # Last failed only
 ### Enable Debug Logging
 
 ```bash
-pdm run python -m marc_pd_tool --debug [options]
+pdm run marc-pd-tool --debug [options]
 ```
 
 ### Check Cache Status
@@ -488,10 +487,10 @@ pdm run python -m marc_pd_tool --debug [options]
 ls -la .marcpd_cache/
 
 # Force cache rebuild
-pdm run python -m marc_pd_tool --force-refresh [options]
+pdm run marc-pd-tool --force-refresh [options]
 
 # Disable cache for testing
-pdm run python -m marc_pd_tool --disable-cache [options]
+pdm run marc-pd-tool --disable-cache [options]
 ```
 
 ### Common Issues

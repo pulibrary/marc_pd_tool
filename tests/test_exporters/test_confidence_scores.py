@@ -27,7 +27,7 @@ def export_to_csv(publications, csv_file, single_file=True):
     os.close(temp_fd)
 
     try:
-        save_matches_json(publications, temp_json, single_file=single_file)
+        save_matches_json(publications, temp_json)
         exporter = CSVExporter(temp_json, csv_file, single_file=single_file)
         exporter.export()
     finally:
