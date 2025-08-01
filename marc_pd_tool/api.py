@@ -14,6 +14,7 @@ from multiprocessing import cpu_count
 from multiprocessing import get_start_method
 import os
 from time import time
+from typing import Any
 from typing import cast
 
 # Local imports
@@ -39,6 +40,7 @@ from marc_pd_tool.utils.time_utils import format_time_duration
 from marc_pd_tool.utils.types import AnalysisOptions
 from marc_pd_tool.utils.types import BatchProcessingInfo
 from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONType
 from marc_pd_tool.utils.types import MatchResultDict
 
 logger = getLogger(__name__)
@@ -130,7 +132,7 @@ class AnalysisResults:
         for file_path in self.result_file_paths:
             try:
                 with open(file_path, "rb") as f:
-                    batch = pickle.load(f)
+                    batch = cast(list[Publication], pickle.load(f))
                     self.publications.extend(batch)
             except Exception as e:
                 logger.error(f"Failed to load result file {file_path}: {e}")
@@ -253,11 +255,11 @@ class MarcCopyrightAnalyzer:
         min_year = options.get("min_year")
         max_year = options.get("max_year")
         year_ranges = {"copyright": (min_year, max_year), "renewal": (min_year, max_year)}
-        filtering_options = {
-            "us_only": options.get("us_only", False),
-            "min_year": min_year,
-            "max_year": max_year,
-        }
+        filtering_options: dict[str, bool | int] = {"us_only": bool(options.get("us_only", False))}
+        if min_year is not None:
+            filtering_options["min_year"] = min_year
+        if max_year is not None:
+            filtering_options["max_year"] = max_year
 
         # Check for cached MARC data
         cached_marc_batches = self.cache_manager.get_cached_marc_data(
@@ -485,11 +487,22 @@ class MarcCopyrightAnalyzer:
 
         # Always generate JSON first (master format)
         json_path = f"{output_path}.json"
+        # Convert AnalysisOptions to dict for save_matches_json
+        params: dict[str, str | int | float | bool] | None = None
+        if self.analysis_options:
+            # Convert AnalysisOptions TypedDict to regular dict with proper types
+            params = {}
+            for k, v in self.analysis_options.items():
+                if v is not None:
+                    # Ensure values are of expected types
+                    if isinstance(v, (str, int, float, bool)):
+                        params[k] = v
+                    else:
+                        # Convert to string for any other types
+                        params[str(k)] = str(v)
+
         save_matches_json(
-            self.results.publications,
-            json_path,
-            single_file=single_file,
-            parameters=self.analysis_options,
+            self.results.publications, json_path, single_file=single_file, parameters=params
         )
         logger.info(f"Generated master JSON file: {json_path}")
 
@@ -500,16 +513,16 @@ class MarcCopyrightAnalyzer:
                 # Local imports
                 from marc_pd_tool.exporters.csv_exporter import CSVExporter
 
-                exporter = CSVExporter(json_path, csv_path, single_file=single_file)
-                exporter.export()
+                csv_exporter = CSVExporter(json_path, csv_path, single_file=single_file)
+                csv_exporter.export()
                 logger.info(f"Generated CSV file(s) from JSON")
             elif fmt == "xlsx":
                 xlsx_path = f"{output_path}.xlsx"
                 # Local imports
                 from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
 
-                exporter = XLSXExporter(json_path, xlsx_path, single_file=single_file)
-                exporter.export()
+                xlsx_exporter = XLSXExporter(json_path, xlsx_path, single_file=single_file)
+                xlsx_exporter.export()
                 logger.info(f"Generated XLSX file: {xlsx_path}")
             elif fmt == "xlsx-stacked":
                 xlsx_stacked_path = f"{output_path}_stacked.xlsx"
@@ -518,18 +531,18 @@ class MarcCopyrightAnalyzer:
                     StackedXLSXExporter,
                 )
 
-                exporter = StackedXLSXExporter(
+                stacked_exporter = StackedXLSXExporter(
                     json_path, xlsx_stacked_path, single_file=single_file
                 )
-                exporter.export()
+                stacked_exporter.export()
                 logger.info(f"Generated stacked XLSX file: {xlsx_stacked_path}")
             elif fmt == "html":
                 html_dir = f"{output_path}_html"
                 # Local imports
                 from marc_pd_tool.exporters.html_exporter import HTMLExporter
 
-                exporter = HTMLExporter(json_path, html_dir, single_file=single_file)
-                exporter.export()
+                html_exporter = HTMLExporter(json_path, html_dir, single_file=single_file)
+                html_exporter.export()
                 logger.info(f"Generated HTML output in: {html_dir}/")
             else:
                 logger.warning(f"Unsupported format: {fmt}")
@@ -584,35 +597,57 @@ class MarcCopyrightAnalyzer:
 
         # Year filtering options are already passed as parameters
 
-        # Create a single batch with all publications
-        batch_info: BatchProcessingInfo = (
-            1,  # batch_id
-            publications,  # marc_batch
-            self.cache_dir,  # cache_dir
-            self.copyright_dir,  # copyright_dir
-            self.renewal_dir,  # renewal_dir
-            config_hash,  # config_hash
-            detector_config,  # detector_config
-            1,  # total_batches
-            title_threshold,
-            author_threshold,
-            publisher_threshold,
-            year_tolerance,
-            early_exit_title,
-            early_exit_author,
-            score_everything_mode,
-            minimum_combined_score,
-            brute_force_missing_year,
-            min_year,
-            max_year,
-        )
+        # Create a temporary directory for the batch file
+        # Standard library imports
+        import os
+        import pickle
+        import tempfile
 
-        # Process using the same logic as parallel processing
-        _, processed_publications, stats = process_batch(batch_info)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Save the batch to a temporary file
+            batch_path = os.path.join(temp_dir, "batch_001.pkl")
+            with open(batch_path, "wb") as f:
+                pickle.dump(publications, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+            # Create result temp dir
+            result_temp_dir = os.path.join(temp_dir, "results")
+            os.makedirs(result_temp_dir, exist_ok=True)
+
+            # Create a single batch with all publications
+            batch_info: BatchProcessingInfo = (
+                1,  # batch_id
+                batch_path,  # batch_path (path to pickled publications)
+                self.cache_dir,  # cache_dir
+                self.copyright_dir,  # copyright_dir
+                self.renewal_dir,  # renewal_dir
+                config_hash,  # config_hash
+                detector_config,  # detector_config
+                1,  # total_batches
+                title_threshold,
+                author_threshold,
+                publisher_threshold,
+                year_tolerance,
+                early_exit_title,
+                early_exit_author,
+                score_everything_mode,
+                minimum_combined_score,
+                brute_force_missing_year,
+                min_year,
+                max_year,
+                result_temp_dir,  # result_temp_dir
+            )
+
+            # Process using the same logic as parallel processing
+            batch_id, result_file_path, stats = process_batch(batch_info)
+
+            # Load the results from the pickle file
+            with open(result_file_path, "rb") as f:
+                processed_publications = cast(list[Publication], pickle.load(f))
 
         # Update results
         for pub in processed_publications:
-            self.results.add_publication(pub)
+            if isinstance(pub, Publication):
+                self.results.add_publication(pub)
 
         logger.info(
             f"Sequential processing complete: {stats['registration_matches_found']} registration, "
@@ -656,7 +691,7 @@ class MarcCopyrightAnalyzer:
         logger.info(f"Worker results will be saved to: {result_temp_dir}")
 
         # Ensure cleanup on exit - only clean batch dir, keep results
-        def cleanup_batch_dir():
+        def cleanup_batch_dir() -> None:
             if os.path.exists(batch_temp_dir):
                 shutil.rmtree(batch_temp_dir)
                 logger.debug(f"Cleaned up batch directory: {batch_temp_dir}")
@@ -665,7 +700,7 @@ class MarcCopyrightAnalyzer:
         atexit.register(cleanup_batch_dir)
 
         # Register cleanup for signals (interrupt, terminate)
-        def signal_cleanup(signum, frame):
+        def signal_cleanup(signum: int, frame: Any) -> None:  # type: ignore[explicit-any]
             logger.info(f"Received signal {signum}, cleaning up...")
             cleanup_batch_dir()
             # Re-raise the signal to allow normal termination
@@ -816,7 +851,7 @@ class MarcCopyrightAnalyzer:
                 }
 
                 # Use minimal initializer that just sets up worker data from shared
-                def init_worker_fork():
+                def init_worker_fork() -> None:
                     """Initialize worker on Linux - use pre-loaded shared data"""
                     # Standard library imports
                     from os import getpid
@@ -851,7 +886,7 @@ class MarcCopyrightAnalyzer:
                 }
 
             # Create pool with platform-specific arguments
-            with Pool(**pool_args) as pool:
+            with Pool(**pool_args) as pool:  # type: ignore[arg-type]
                 logger.info(f"Processing {total_batches} batches with {num_processes} workers")
 
                 # Process batches as they complete (unordered for efficiency)
@@ -870,18 +905,20 @@ class MarcCopyrightAnalyzer:
                             stats_file_path = result_file_path.replace("result_", "stats_")
 
                             # Load just the statistics (small data)
-                            with open(stats_file_path, "rb") as f:
-                                detailed_stats = pickle.load(f)
+                            with open(stats_file_path, "rb") as stats_file:
+                                detailed_stats: JSONType = pickle.load(stats_file)
 
                             # Update statistics directly
-                            for key, value in detailed_stats.items():
-                                if key in self.results.statistics:
-                                    self.results.statistics[key] += value
-                                else:
-                                    # For copyright status counts
-                                    self.results.statistics[key] = (
-                                        self.results.statistics.get(key, 0) + value
-                                    )
+                            if isinstance(detailed_stats, dict):
+                                for key, value in detailed_stats.items():
+                                    if isinstance(key, str) and isinstance(value, int):
+                                        if key in self.results.statistics:
+                                            self.results.statistics[key] += value
+                                        else:
+                                            # For copyright status counts
+                                            self.results.statistics[key] = (
+                                                self.results.statistics.get(key, 0) + value
+                                            )
 
                             # Track the result file path for later loading
                             self.results.add_result_file(result_file_path)
@@ -889,8 +926,17 @@ class MarcCopyrightAnalyzer:
                             # Delete the stats file - we don't need it anymore
                             os.unlink(stats_file_path)
 
+                            # Log tracking info (avoid using detailed_stats directly)
+                            total_records = 0
+                            if (
+                                isinstance(detailed_stats, dict)
+                                and "total_records" in detailed_stats
+                            ):
+                                tr = detailed_stats["total_records"]
+                                if isinstance(tr, int):
+                                    total_records = tr
                             logger.debug(
-                                f"Tracked result file: {result_file_path} ({detailed_stats['total_records']} publications)"
+                                f"Tracked result file: {result_file_path} ({total_records} publications)"
                             )
 
                         except Exception as e:
@@ -947,7 +993,11 @@ class MarcCopyrightAnalyzer:
 
                             # Get garbage collection stats
                             gc_stats = gc.get_stats()
-                            gc0_collections = gc_stats[0]["collections"] if gc_stats else 0
+                            gc0_collections = 0
+                            if gc_stats and len(gc_stats) > 0:
+                                first_stat = gc_stats[0]
+                                if isinstance(first_stat, dict) and "collections" in first_stat:
+                                    gc0_collections = first_stat["collections"]
 
                             logger.debug(
                                 f"Memory after {completed_batches} batches: RSS={mem_mb:.1f}MB, "
@@ -967,7 +1017,7 @@ class MarcCopyrightAnalyzer:
                                 f"Batch {batch_id} timed out after 15 minutes - skipping"
                             )
                             # Create minimal stats for failed batch
-                            failed_stats = {
+                            failed_stats: dict[str, int] = {
                                 "batch_id": batch_id,
                                 "marc_count": 0,
                                 "registration_matches_found": 0,
@@ -977,7 +1027,7 @@ class MarcCopyrightAnalyzer:
                                 "non_us_records": 0,
                                 "unknown_country_records": 0,
                             }
-                            all_stats.append(failed_stats)
+                            all_stats.append(failed_stats)  # type: ignore[arg-type]
                             completed_batches += 1
                             continue
                         else:
@@ -1303,14 +1353,14 @@ class MarcCopyrightAnalyzer:
                 # Local imports
                 from marc_pd_tool.exporters.csv_exporter import CSVExporter
 
-                exporter = CSVExporter(json_path, f"{output_path}.csv", single_file=True)
-                exporter.export()
+                csv_exporter = CSVExporter(json_path, f"{output_path}.csv", single_file=True)
+                csv_exporter.export()
             elif output_format == "xlsx":
                 # Local imports
                 from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
 
-                exporter = XLSXExporter(json_path, f"{output_path}.xlsx", single_file=True)
-                exporter.export()
+                xlsx_exporter = XLSXExporter(json_path, f"{output_path}.xlsx", single_file=True)
+                xlsx_exporter.export()
             elif output_format == "json":
                 # Already exported
                 pass

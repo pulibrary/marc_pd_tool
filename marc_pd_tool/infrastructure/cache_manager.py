@@ -16,7 +16,6 @@ from time import time
 from typing import Mapping
 from typing import Optional  # Needed for forward references
 from typing import TYPE_CHECKING
-from typing import cast
 
 # Local imports
 from marc_pd_tool.utils.types import CacheMetadata
@@ -298,7 +297,7 @@ class CacheManager:
 
         try:
             with open(data_file, "rb") as f:
-                return cast(T, pickle_load(f))
+                return pickle_load(f)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(f"Failed to load cache data from {data_file}: {e}")
             return None
@@ -519,9 +518,7 @@ class CacheManager:
         Returns:
             Cached MARC batches or None if not valid
         """
-        additional_deps = cast(
-            JSONDict, {"year_ranges": year_ranges, "filtering_options": filtering_options}
-        )
+        additional_deps: JSONDict = {"year_ranges": year_ranges, "filtering_options": filtering_options}  # type: ignore[dict-item]
         if self._is_cache_valid(self.marc_cache_dir, [marc_path], additional_deps):
             logger.info("Using cached MARC data")
             return self._load_cache_data(self.marc_cache_dir, "batches.pkl")
@@ -548,9 +545,7 @@ class CacheManager:
         total_records = sum(len(batch) for batch in batches)
         logger.info(f"Caching MARC data ({len(batches)} batches, {total_records:,} records)...")
 
-        additional_deps = cast(
-            JSONDict, {"year_ranges": year_ranges, "filtering_options": filtering_options}
-        )
+        additional_deps: JSONDict = {"year_ranges": year_ranges, "filtering_options": filtering_options}  # type: ignore[dict-item]
         return self._save_cache_data(
             self.marc_cache_dir, "batches.pkl", batches, [marc_path], additional_deps
         )
@@ -687,7 +682,7 @@ class CacheManager:
         Returns:
             Cached detector or None if not valid
         """
-        additional_deps = cast(JSONDict, {"detector_config": detector_config})
+        additional_deps: JSONDict = {"detector_config": detector_config}  # type: ignore[dict-item]
         if self._is_cache_valid(
             self.generic_detector_cache_dir, [copyright_dir, renewal_dir], additional_deps
         ):
@@ -714,7 +709,7 @@ class CacheManager:
             True if successful
         """
         logger.info(f"Caching generic title detector...")
-        additional_deps = cast(JSONDict, {"detector_config": detector_config})
+        additional_deps: JSONDict = {"detector_config": detector_config}  # type: ignore[dict-item]
         return self._save_cache_data(
             self.generic_detector_cache_dir,
             "detector.pkl",
@@ -754,7 +749,7 @@ class CacheManager:
         info: JSONDict = {
             "cache_dir": self.cache_dir,
             "cache_exists": exists(self.cache_dir),
-            "components": cast(JSONType, components_dict),
+            "components": components_dict,  # type: ignore[dict-item]
         }
 
         components = [

@@ -18,6 +18,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONList
+from marc_pd_tool.utils.types import JSONType
 
 
 class XLSXExporter(BaseJSONExporter):
@@ -133,17 +135,18 @@ class XLSXExporter(BaseJSONExporter):
 
         row = 8
         status_counts = metadata.get("status_counts", {})
-        for status, count in status_counts.items():
-            display_name = self.STATUS_TAB_NAMES.get(status, status)
-            ws[f"A{row}"] = display_name
-            ws[f"B{row}"] = count
-            row += 1
+        if isinstance(status_counts, dict):
+            for status, count in status_counts.items():
+                display_name = self.STATUS_TAB_NAMES.get(status, status)
+                ws[f"A{row}"] = display_name
+                ws[f"B{row}"] = count
+                row += 1
 
         # Auto-size columns
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 20
 
-    def _create_data_sheet(self, wb: Workbook, sheet_name: str, records: list[JSONDict]) -> None:
+    def _create_data_sheet(self, wb: Workbook, sheet_name: str, records: JSONList) -> None:
         """Create a data sheet with records"""
         ws = wb.create_sheet(sheet_name)
 
@@ -187,25 +190,45 @@ class XLSXExporter(BaseJSONExporter):
 
         # Write data rows
         for row_num, record in enumerate(records, 2):
-            self._write_data_row(ws, row_num, record)
+            if isinstance(record, dict):
+                self._write_data_row(ws, row_num, record)
 
         # Freeze the header row
         ws.freeze_panes = "A2"
 
-    def _write_data_row(self, ws: Worksheet, row_num: int, record: JSONDict) -> None:
+    def _write_data_row(self, ws: Worksheet, row_num: int, record: dict[str, JSONType]) -> None:
         """Write a single data row"""
         marc = record.get("marc", {})
         matches = record.get("matches", {})
         analysis = record.get("analysis", {})
 
         # Extract basic MARC data
-        marc_id = marc.get("id", "")
-        original = marc.get("original", {})
-        metadata = marc.get("metadata", {})
+        marc_id = ""
+        original = {}
+        metadata = {}
+
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            original_data = marc.get("original", {})
+            if isinstance(original_data, dict):
+                original = original_data
+            metadata_data = marc.get("metadata", {})
+            if isinstance(metadata_data, dict):
+                metadata = metadata_data
 
         # Extract match data
-        reg_match = matches.get("registration", {})
-        ren_match = matches.get("renewal", {})
+        reg_match = {}
+        ren_match = {}
+
+        if isinstance(matches, dict):
+            reg_data = matches.get("registration", {})
+            if isinstance(reg_data, dict):
+                reg_match = reg_data
+            ren_data = matches.get("renewal", {})
+            if isinstance(ren_data, dict):
+                ren_match = ren_data
 
         # Determine match type
         match_types = []
@@ -221,13 +244,15 @@ class XLSXExporter(BaseJSONExporter):
 
         # Format data issues
         data_issues = []
-        generic_info = analysis.get("generic_title", {})
-        if generic_info.get("detected"):
-            data_issues.append("generic_title")
 
-        data_completeness = analysis.get("data_completeness", [])
-        if isinstance(data_completeness, list):
-            data_issues.extend(data_completeness)
+        if isinstance(analysis, dict):
+            generic_data = analysis.get("generic_title", {})
+            if isinstance(generic_data, dict) and generic_data.get("detected"):
+                data_issues.append("generic_title")
+
+            data_completeness = analysis.get("data_completeness", [])
+            if isinstance(data_completeness, list):
+                data_issues.extend([x for x in data_completeness if isinstance(x, str)])
 
         # Build row data
         row_data = [
@@ -237,27 +262,23 @@ class XLSXExporter(BaseJSONExporter):
             original.get("publisher", ""),
             original.get("year", ""),
             metadata.get("country_code", ""),
-            analysis.get("status_rule", ""),
+            analysis.get("status_rule", "") if isinstance(analysis, dict) else "",
             reg_match.get("id", "") if reg_match.get("found") else "",
             self._format_score(reg_match),
             self._format_match_ratio(reg_match, "title"),
             self._format_author_match(reg_match),
-            (
-                "Y"
-                if reg_match.get("scores", {}).get("publisher", 0) > 0
-                else "N" if reg_match.get("found") else ""
+            self._format_publisher_match(reg_match),
+            self._format_year_diff(
+                reg_match, str(original.get("year", "")) if original.get("year") else None
             ),
-            self._format_year_diff(reg_match, original.get("year")),
             ren_match.get("id", "") if ren_match.get("found") else "",
             self._format_score(ren_match),
             self._format_match_ratio(ren_match, "title"),
             self._format_author_match(ren_match),
-            (
-                "Y"
-                if ren_match.get("scores", {}).get("publisher", 0) > 0
-                else "N" if ren_match.get("found") else ""
+            self._format_publisher_match(ren_match),
+            self._format_year_diff(
+                ren_match, str(original.get("year", "")) if original.get("year") else None
             ),
-            self._format_year_diff(ren_match, original.get("year")),
             match_type,
             ",".join(data_issues) if data_issues else "",
             metadata.get("lccn", ""),
@@ -291,8 +312,11 @@ class XLSXExporter(BaseJSONExporter):
             return "LCCN"
 
         scores = match_data.get("scores", {})
-        overall = scores.get("overall", 0)
-        return f"{overall:.0f}%"
+        if isinstance(scores, dict):
+            overall = scores.get("overall", 0)
+            if isinstance(overall, (int, float)):
+                return f"{overall:.0f}%"
+        return "0%"
 
     def _format_match_ratio(self, match_data: JSONDict, field: str) -> str:
         """Format match ratio like '8/10'"""
@@ -303,13 +327,13 @@ class XLSXExporter(BaseJSONExporter):
             return "exact"
 
         indicators = match_data.get("match_indicators", {})
-        field_data = indicators.get(field, {})
-
-        if isinstance(field_data, dict):
-            matched = field_data.get("words_matched", 0)
-            total = field_data.get("words_total", 0)
-            if total > 0:
-                return f"{matched}/{total}"
+        if isinstance(indicators, dict):
+            field_data = indicators.get(field, {})
+            if isinstance(field_data, dict):
+                matched = field_data.get("words_matched", 0)
+                total_val = field_data.get("words_total", 0)
+                if isinstance(total_val, (int, float)) and total_val > 0:
+                    return f"{matched}/{total_val}"
 
         return ""
 
@@ -322,23 +346,38 @@ class XLSXExporter(BaseJSONExporter):
             return "exact"
 
         indicators = match_data.get("match_indicators", {})
-        author_data = indicators.get("author", {})
+        if isinstance(indicators, dict):
+            author_data = indicators.get("author", {})
+            if isinstance(author_data, dict):
+                parts = []
+                if author_data.get("surname_match"):
+                    parts.append("surname")
+                if author_data.get("given_match"):
+                    parts.append("given")
 
-        if isinstance(author_data, dict):
-            parts = []
-            if author_data.get("surname_match"):
-                parts.append("surname")
-            if author_data.get("given_match"):
-                parts.append("given")
+                if parts:
+                    return "/".join(parts)
 
-            if parts:
-                return "/".join(parts)
-            elif match_data.get("scores", {}).get("author", 0) > 0:
+        # Check for partial match
+        scores = match_data.get("scores", {})
+        if isinstance(scores, dict):
+            author_score = scores.get("author", 0)
+            if isinstance(author_score, (int, float)) and author_score > 0:
                 return "partial"
-            else:
-                return "none"
 
-        return ""
+        return "none" if match_data.get("found") else ""
+
+    def _format_publisher_match(self, match_data: JSONDict) -> str:
+        """Format publisher match as Y/N"""
+        if not match_data.get("found"):
+            return ""
+
+        scores = match_data.get("scores", {})
+        if isinstance(scores, dict):
+            publisher_score = scores.get("publisher", 0)
+            if isinstance(publisher_score, (int, float)) and publisher_score > 0:
+                return "Y"
+        return "N"
 
     def _format_year_diff(self, match_data: JSONDict, marc_year: str | None) -> str:
         """Format year difference"""
@@ -346,13 +385,16 @@ class XLSXExporter(BaseJSONExporter):
             return ""
 
         original = match_data.get("original", {})
-        match_year = original.get("date") or original.get("year")
+        if isinstance(original, dict):
+            match_year = original.get("date") or original.get("year")
+        else:
+            match_year = None
 
         if not match_year:
             return ""
 
         try:
-            diff = int(match_year) - int(marc_year)
+            diff = int(str(match_year)) - int(marc_year)
             if diff == 0:
                 return "0"
             elif diff > 0:

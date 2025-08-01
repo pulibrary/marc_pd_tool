@@ -139,7 +139,7 @@ class ConfigLoader:
 
         for key, value in update.items():
             if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._deep_merge(cast(JSONDict, result[key]), value)
+                result[key] = self._deep_merge(result[key], value)  # type: ignore[arg-type]
             else:
                 result[key] = value
 
@@ -156,11 +156,8 @@ class ConfigLoader:
             Dictionary with title, author, and optionally publisher weights
         """
         weights = self._config.get("scoring_weights", {})
-        if isinstance(weights, dict):
-            scenario_weights = weights.get(scenario, {})
-            if isinstance(scenario_weights, dict):
-                return {k: v for k, v in scenario_weights.items() if isinstance(v, (int, float))}
-        return {}
+        scenario_weights = weights.get(scenario, {})  # type: ignore[union-attr]
+        return {k: float(v) for k, v in scenario_weights.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
 
     def get_threshold(self, threshold_name: str) -> int:
         """Get a specific threshold value
@@ -172,10 +169,9 @@ class ConfigLoader:
             Threshold value
         """
         thresholds = self._config.get("default_thresholds", {})
-        if isinstance(thresholds, dict):
-            value = thresholds.get(threshold_name, 80)
-            if isinstance(value, (int, float)):
-                return int(value)
+        value = thresholds.get(threshold_name, 80)  # type: ignore[union-attr]
+        if isinstance(value, (int, float)):
+            return int(value)
         return 80
 
     def get_generic_detector_config(self) -> dict[str, int]:
@@ -185,9 +181,7 @@ class ConfigLoader:
             Configuration dictionary for GenericTitleDetector
         """
         config = self._config.get("generic_title_detector", {"frequency_threshold": 10})
-        if isinstance(config, dict):
-            return {k: int(v) for k, v in config.items() if isinstance(v, (int, float))}
-        return {"frequency_threshold": 10}
+        return {k: int(v) for k, v in config.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
 
     def get_stopwords_set(self) -> set[str]:
         """Get stopwords as a set for efficient lookup
@@ -236,25 +230,16 @@ class ConfigLoader:
             Configuration dictionary for matching engines
         """
         matching = self._config.get("matching", {})
-        if isinstance(matching, dict):
-            word_based_raw = matching.get("word_based", {})
-            if isinstance(word_based_raw, dict):
-                # Ensure all required fields are present
-                word_based: WordBasedConfig = {
-                    "default_language": str(word_based_raw.get("default_language", "eng")),
-                    "enable_stemming": bool(word_based_raw.get("enable_stemming", True)),
-                    "enable_abbreviation_expansion": bool(
-                        word_based_raw.get("enable_abbreviation_expansion", True)
-                    ),
-                }
-                return MatchingConfig(word_based=word_based)
-        # Default config
-        default_word_based: WordBasedConfig = {
-            "default_language": "eng",
-            "enable_stemming": True,
-            "enable_abbreviation_expansion": True,
+        word_based_raw = matching.get("word_based", {})  # type: ignore[union-attr]
+        # Ensure all required fields are present
+        word_based: WordBasedConfig = {
+            "default_language": str(word_based_raw.get("default_language", "eng")),  # type: ignore[union-attr]
+            "enable_stemming": bool(word_based_raw.get("enable_stemming", True)),  # type: ignore[union-attr]
+            "enable_abbreviation_expansion": bool(
+                word_based_raw.get("enable_abbreviation_expansion", True)  # type: ignore[union-attr]
+            ),
         }
-        return MatchingConfig(word_based=default_word_based)
+        return MatchingConfig(word_based=word_based)
 
     def get_processing_config(self) -> JSONDict:
         """Get processing configuration
@@ -263,9 +248,7 @@ class ConfigLoader:
             Dictionary with batch_size, max_workers, score_everything_mode, brute_force_missing_year
         """
         processing = self._config.get("processing", {})
-        if isinstance(processing, dict):
-            return dict(processing)
-        return {}
+        return dict(processing)  # type: ignore[arg-type]
 
     def get_filtering_config(self) -> JSONDict:
         """Get filtering configuration
@@ -274,9 +257,7 @@ class ConfigLoader:
             Dictionary with min_year, max_year, us_only
         """
         filtering = self._config.get("filtering", {})
-        if isinstance(filtering, dict):
-            return dict(filtering)
-        return {}
+        return dict(filtering)  # type: ignore[arg-type]
 
     def get_output_config(self) -> JSONDict:
         """Get output configuration
@@ -285,9 +266,7 @@ class ConfigLoader:
             Dictionary with single_file setting
         """
         output = self._config.get("output", {})
-        if isinstance(output, dict):
-            return dict(output)
-        return {}
+        return dict(output)  # type: ignore[arg-type]
 
     def get_caching_config(self) -> JSONDict:
         """Get caching configuration
@@ -296,9 +275,7 @@ class ConfigLoader:
             Dictionary with cache_dir, force_refresh, no_cache
         """
         caching = self._config.get("caching", {})
-        if isinstance(caching, dict):
-            return dict(caching)
-        return {}
+        return dict(caching)  # type: ignore[arg-type]
 
     def get_logging_config(self) -> JSONDict:
         """Get logging configuration
@@ -307,9 +284,7 @@ class ConfigLoader:
             Dictionary with debug, log_file
         """
         logging = self._config.get("logging", {})
-        if isinstance(logging, dict):
-            return dict(logging)
-        return {}
+        return dict(logging)  # type: ignore[arg-type]
 
     def reload(self) -> None:
         """Reload configuration from file"""
@@ -380,7 +355,7 @@ class ConfigLoader:
         if self._wordlists and "abbreviations" in self._wordlists:
             abbrevs = self._wordlists["abbreviations"].get("bibliographic", {})
             # Ensure we return a proper dict[str, str]
-            return {k: v for k, v in abbrevs.items() if isinstance(k, str) and isinstance(v, str)}
+            return {k: str(v) for k, v in abbrevs.items() if isinstance(k, str)}
         return {}
 
     def get_stopwords(self, category: str = "general") -> list[str]:
@@ -395,7 +370,7 @@ class ConfigLoader:
         if self._wordlists and "stopwords" in self._wordlists:
             words = self._wordlists["stopwords"].get(category, [])
             # Ensure we return a proper list[str]
-            return [w for w in words if isinstance(w, str)]
+            return [str(w) for w in words]
         # Return empty list if no wordlists loaded
         return []
 
@@ -411,7 +386,7 @@ class ConfigLoader:
         if self._wordlists and "patterns" in self._wordlists:
             patterns = self._wordlists["patterns"].get(pattern_type, [])
             # Ensure we return a proper list[str]
-            return [p for p in patterns if isinstance(p, str)]
+            return [str(p) for p in patterns]
         return []
 
     def get_author_stopwords(self) -> set[str]:
@@ -471,9 +446,9 @@ class ConfigLoader:
             Dictionary with stopwords, abbreviations, and generic patterns
         """
         return {
-            "stopwords": cast(list[JSONType], list(self.get_stopwords("title"))),
-            "abbreviations": cast(JSONDict, self.get_abbreviations()),
-            "generic_patterns": cast(list[JSONType], self.get_patterns("generic_titles")),
+            "stopwords": list(self.get_stopwords("title")),
+            "abbreviations": self.get_abbreviations(),  # type: ignore[dict-item]
+            "generic_patterns": self.get_patterns("generic_titles"),  # type: ignore[dict-item]
         }
 
     def get_author_processing_config(self) -> JSONDict:
@@ -483,9 +458,9 @@ class ConfigLoader:
             Dictionary with stopwords, titles, and other author-specific config
         """
         return {
-            "stopwords": cast(list[JSONType], list(self.get_author_stopwords())),
-            "titles": cast(list[JSONType], self.get_patterns("author_titles")),
-            "abbreviations": cast(JSONDict, self.get_abbreviations()),
+            "stopwords": list(self.get_author_stopwords()),
+            "titles": self.get_patterns("author_titles"),  # type: ignore[dict-item]
+            "abbreviations": self.get_abbreviations(),  # type: ignore[dict-item]
         }
 
     def get_publisher_suffixes(self) -> list[str]:

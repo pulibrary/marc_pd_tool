@@ -18,6 +18,8 @@ from openpyxl.worksheet.worksheet import Worksheet
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONList
+from marc_pd_tool.utils.types import JSONType
 
 
 class StackedXLSXExporter(BaseJSONExporter):
@@ -136,17 +138,18 @@ class StackedXLSXExporter(BaseJSONExporter):
 
         row = 8
         status_counts = metadata.get("status_counts", {})
-        for status, count in status_counts.items():
-            display_name = self.STATUS_TAB_NAMES.get(status, status)
-            ws[f"A{row}"] = display_name
-            ws[f"B{row}"] = count
-            row += 1
+        if isinstance(status_counts, dict):
+            for status, count in status_counts.items():
+                display_name = self.STATUS_TAB_NAMES.get(status, status)
+                ws[f"A{row}"] = display_name
+                ws[f"B{row}"] = count
+                row += 1
 
         # Auto-size columns
         ws.column_dimensions["A"].width = 25
         ws.column_dimensions["B"].width = 20
 
-    def _create_stacked_sheet(self, wb: Workbook, sheet_name: str, records: list[JSONDict]) -> None:
+    def _create_stacked_sheet(self, wb: Workbook, sheet_name: str, records: JSONList) -> None:
         """Create a sheet with stacked comparison format"""
         ws = wb.create_sheet(sheet_name)
 
@@ -175,34 +178,50 @@ class StackedXLSXExporter(BaseJSONExporter):
         current_row = 2
 
         for record_idx, record in enumerate(records, 1):
-            # Add record header
-            current_row = self._add_record_header(ws, current_row, record_idx, record)
+            if isinstance(record, dict):
+                # Add record header
+                current_row = self._add_record_header(ws, current_row, record_idx, record)
 
-            # Add MARC rows
-            current_row = self._add_marc_rows(ws, current_row, record)
+                # Add MARC rows
+                current_row = self._add_marc_rows(ws, current_row, record)
 
-            # Add registration match
-            current_row = self._add_match_row(
-                ws, current_row, record, "registration", "Registration"
-            )
+                # Add registration match
+                current_row = self._add_match_row(
+                    ws, current_row, record, "registration", "Registration"
+                )
 
-            # Add renewal match
-            current_row = self._add_match_row(ws, current_row, record, "renewal", "Renewal")
+                # Add renewal match
+                current_row = self._add_match_row(ws, current_row, record, "renewal", "Renewal")
 
-            # Add spacing
-            current_row += 1
+                # Add spacing
+                current_row += 1
 
         # Auto-size columns
         self._autosize_columns(ws)
 
-    def _add_record_header(self, ws: Worksheet, row: int, record_num: int, record: JSONDict) -> int:
+    def _add_record_header(
+        self, ws: Worksheet, row: int, record_num: int, record: dict[str, JSONType]
+    ) -> int:
         """Add record header row"""
         marc = record.get("marc", {})
         analysis = record.get("analysis", {})
 
-        marc_id = marc.get("id", "Unknown")
-        status = analysis.get("status", "UNKNOWN")
-        metadata = marc.get("metadata", {})
+        marc_id = "Unknown"
+        metadata: dict[str, JSONType] = {}
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "Unknown")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            meta_data = marc.get("metadata", {})
+            if isinstance(meta_data, dict):
+                metadata = meta_data
+
+        status = "UNKNOWN"
+        if isinstance(analysis, dict):
+            status_val = analysis.get("status", "UNKNOWN")
+            if isinstance(status_val, str):
+                status = status_val
+
         country = metadata.get("country_code", "")
 
         # Format header text
@@ -219,7 +238,9 @@ class StackedXLSXExporter(BaseJSONExporter):
         cell.alignment = Alignment(horizontal="left", vertical="center")
 
         # Add warnings if any
-        warnings = self._get_warnings(analysis)
+        warnings = ""
+        if isinstance(analysis, dict):
+            warnings = self._get_warnings(analysis)
         if warnings:
             row += 1
             ws.merge_cells(f"A{row}:J{row}")
@@ -229,16 +250,28 @@ class StackedXLSXExporter(BaseJSONExporter):
 
         return row + 1
 
-    def _add_marc_rows(self, ws: Worksheet, row: int, record: JSONDict) -> int:
+    def _add_marc_rows(self, ws: Worksheet, row: int, record: dict[str, JSONType]) -> int:
         """Add MARC original and normalized rows"""
         marc = record.get("marc", {})
-        original = marc.get("original", {})
-        normalized = marc.get("normalized", {})
+        original: dict[str, JSONType] = {}
+        normalized: dict[str, JSONType] = {}
+        marc_id = ""
+
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            orig_data = marc.get("original", {})
+            if isinstance(orig_data, dict):
+                original = orig_data
+            norm_data = marc.get("normalized", {})
+            if isinstance(norm_data, dict):
+                normalized = norm_data
 
         # Original row
         values = [
             "MARC",
-            marc.get("id", ""),
+            marc_id,
             "Original",
             original.get("title", ""),
             "-",
@@ -258,7 +291,7 @@ class StackedXLSXExporter(BaseJSONExporter):
         # Normalized row
         values = [
             "MARC",
-            marc.get("id", ""),
+            marc_id,
             "Normalized",
             normalized.get("title", ""),
             "-",
@@ -278,11 +311,20 @@ class StackedXLSXExporter(BaseJSONExporter):
         return row + 1
 
     def _add_match_row(
-        self, ws: Worksheet, row: int, record: JSONDict, match_type: str, source_name: str
+        self,
+        ws: Worksheet,
+        row: int,
+        record: dict[str, JSONType],
+        match_type: str,
+        source_name: str,
     ) -> int:
         """Add a match row (registration or renewal)"""
         matches = record.get("matches", {})
-        match_data = matches.get(match_type, {})
+        match_data: dict[str, JSONType] = {}
+        if isinstance(matches, dict):
+            data = matches.get(match_type, {})
+            if isinstance(data, dict):
+                match_data = data
 
         if not match_data.get("found"):
             # No match row
@@ -294,9 +336,17 @@ class StackedXLSXExporter(BaseJSONExporter):
             return row + 1
 
         # Match found
-        original = match_data.get("original", {})
-        scores = match_data.get("scores", {})
-        match_method = match_data.get("match_type", "similarity")
+        original: dict[str, JSONType] = {}
+        scores: dict[str, JSONType] = {}
+        orig_data = match_data.get("original", {})
+        if isinstance(orig_data, dict):
+            original = orig_data
+        score_data = match_data.get("scores", {})
+        if isinstance(score_data, dict):
+            scores = score_data
+
+        match_method_val = match_data.get("match_type", "similarity")
+        match_method = match_method_val if isinstance(match_method_val, str) else "similarity"
 
         # Format scores
         def format_score(score_value: float | None, is_lccn: bool = False) -> str:
@@ -308,17 +358,28 @@ class StackedXLSXExporter(BaseJSONExporter):
 
         is_lccn = match_method == "lccn"
 
+        def get_score_value(field: str) -> float | None:
+            val = scores.get(field)
+            if isinstance(val, (int, float)):
+                return float(val)
+            return None
+
+        match_id = ""
+        id_val = match_data.get("id", "")
+        if isinstance(id_val, str):
+            match_id = id_val
+
         values = [
             source_name,
-            match_data.get("id", ""),
+            match_id,
             "Original",
-            original.get("title", ""),
-            format_score(scores.get("title"), is_lccn),
-            original.get("author", ""),
-            format_score(scores.get("author"), is_lccn),
-            original.get("publisher", ""),
-            format_score(scores.get("publisher"), is_lccn),
-            original.get("date", ""),
+            str(original.get("title", "")),
+            format_score(get_score_value("title"), is_lccn),
+            str(original.get("author", "")),
+            format_score(get_score_value("author"), is_lccn),
+            str(original.get("publisher", "")),
+            format_score(get_score_value("publisher"), is_lccn),
+            str(original.get("date", "")),
         ]
 
         for col, value in enumerate(values, 1):
@@ -342,24 +403,24 @@ class StackedXLSXExporter(BaseJSONExporter):
 
         return row + 1
 
-    def _get_warnings(self, analysis: JSONDict) -> str:
+    def _get_warnings(self, analysis: dict[str, JSONType]) -> str:
         """Get warning indicators for the record"""
         warnings = []
 
         # Check for generic title
         generic_info = analysis.get("generic_title", {})
-        if generic_info.get("detected"):
+        if isinstance(generic_info, dict) and generic_info.get("detected"):
             warnings.append("Generic title detected")
 
         # Check for data completeness issues
         data_issues = analysis.get("data_completeness", [])
         if isinstance(data_issues, list):
-            warnings.extend(data_issues)
+            warnings.extend([x for x in data_issues if isinstance(x, str)])
 
         # Add status rule if available
-        status_rule = analysis.get("status_rule", "")
-        if status_rule:
-            warnings.append(f"Rule: {status_rule}")
+        status_rule_val = analysis.get("status_rule", "")
+        if isinstance(status_rule_val, str) and status_rule_val:
+            warnings.append(f"Rule: {status_rule_val}")
 
         return " | ".join(warnings) if warnings else ""
 

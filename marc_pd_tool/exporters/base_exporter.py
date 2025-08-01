@@ -8,9 +8,12 @@ from abc import abstractmethod
 import gzip
 import json
 from pathlib import Path
+from typing import cast
 
 # Local imports
 from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONList
+from marc_pd_tool.utils.types import JSONType
 
 
 class BaseJSONExporter(ABC):
@@ -48,10 +51,10 @@ class BaseJSONExporter(ABC):
 
         if path.suffix == ".gz" or str(path).endswith(".json.gz"):
             with gzip.open(json_path, "rt", encoding="utf-8") as f:
-                return json.load(f)
+                return cast(JSONDict, json.load(f))
         else:
             with open(json_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                return cast(JSONDict, json.load(f))
 
     @abstractmethod
     def export(self) -> None:
@@ -61,16 +64,13 @@ class BaseJSONExporter(ABC):
         """
         pass
 
-    def get_records(self) -> list[JSONDict]:
+    def get_records(self) -> JSONList:
         """Get all records from the JSON data
 
         Returns:
             List of record dictionaries
         """
-        records = self.json_data.get("records", [])
-        if not isinstance(records, list):
-            return []
-        return records
+        return self.json_data.get("records", [])  # type: ignore[return-value]
 
     def get_metadata(self) -> JSONDict:
         """Get metadata from the JSON data
@@ -78,35 +78,31 @@ class BaseJSONExporter(ABC):
         Returns:
             Metadata dictionary
         """
-        metadata = self.json_data.get("metadata", {})
-        if not isinstance(metadata, dict):
-            return {}
-        return metadata
+        return self.json_data.get("metadata", {})  # type: ignore[return-value]
 
-    def group_by_status(self) -> dict[str, list[JSONDict]]:
+    def group_by_status(self) -> dict[str, JSONList]:
         """Group records by copyright status
 
         Returns:
             Dictionary mapping status to list of records
         """
-        grouped: dict[str, list[JSONDict]] = {}
+        grouped: dict[str, JSONList] = {}
 
         for record in self.get_records():
-            if not isinstance(record, dict):
-                continue
-
-            analysis = record.get("analysis", {})
-            if not isinstance(analysis, dict):
-                continue
-
-            status = analysis.get("status", "UNKNOWN")
-            if status not in grouped:
-                grouped[status] = []
-            grouped[status].append(record)
+            if isinstance(record, dict):
+                analysis = record.get("analysis", {})
+                status = "UNKNOWN"
+                if isinstance(analysis, dict):
+                    status_val = analysis.get("status", "UNKNOWN")
+                    if isinstance(status_val, str):
+                        status = status_val
+                if status not in grouped:
+                    grouped[status] = []
+                grouped[status].append(record)
 
         return grouped
 
-    def sort_by_quality(self, records: list[JSONDict]) -> list[JSONDict]:
+    def sort_by_quality(self, records: JSONList) -> JSONList:
         """Sort records by match quality (best first)
 
         Args:
@@ -116,13 +112,14 @@ class BaseJSONExporter(ABC):
             Sorted list of records
         """
 
-        def get_sort_score(record: JSONDict) -> float:
+        def get_sort_score(record: JSONType) -> float:
             """Calculate sort score for a record"""
-            analysis = record.get("analysis", {})
-            if isinstance(analysis, dict):
-                score = analysis.get("sort_score", 0.0)
-                if isinstance(score, (int, float)):
-                    return float(score)
+            if isinstance(record, dict):
+                analysis = record.get("analysis", {})
+                if isinstance(analysis, dict):
+                    score = analysis.get("sort_score", 0.0)
+                    if isinstance(score, (int, float)):
+                        return float(score)
             return 0.0
 
         return sorted(records, key=get_sort_score, reverse=True)

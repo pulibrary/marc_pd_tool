@@ -9,7 +9,7 @@ from pathlib import Path
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import CSVWriter
-from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONType
 
 
 class CSVExporter(BaseJSONExporter):
@@ -38,7 +38,8 @@ class CSVExporter(BaseJSONExporter):
             self._write_header(csv_writer)
 
             for record in sorted_records:
-                self._write_record(csv_writer, record)
+                if isinstance(record, dict):
+                    self._write_record(csv_writer, record)
 
     def _export_by_status(self) -> None:
         """Export records to separate files by copyright status"""
@@ -65,7 +66,8 @@ class CSVExporter(BaseJSONExporter):
                 self._write_header(csv_writer)
 
                 for record in sorted_records:
-                    self._write_record(csv_writer, record)
+                    if isinstance(record, dict):
+                        self._write_record(csv_writer, record)
 
     def _write_header(self, csv_writer: CSVWriter) -> None:
         """Write CSV header row"""
@@ -82,46 +84,71 @@ class CSVExporter(BaseJSONExporter):
             "Registration Source ID",
             "Renewal Entry ID",
         ]
-        csv_writer.writerow(headers)
+        csv_writer.writerow(headers)  # type: ignore[arg-type]
 
-    def _write_record(self, csv_writer: CSVWriter, record: JSONDict) -> None:
+    def _write_record(self, csv_writer: CSVWriter, record: dict[str, JSONType]) -> None:
         """Write a single record to CSV"""
         marc = record.get("marc", {})
         matches = record.get("matches", {})
         analysis = record.get("analysis", {})
 
         # Extract MARC data
-        marc_id = marc.get("id", "")
-        original = marc.get("original", {})
+        marc_id = ""
+        original = {}
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            orig_data = marc.get("original", {})
+            if isinstance(orig_data, dict):
+                original = orig_data
+
         title = original.get("title", "")
         author = original.get("author_245c") or original.get("author_1xx", "")
         year = original.get("year", "")
         publisher = original.get("publisher", "")
 
         # Extract metadata
-        metadata = marc.get("metadata", {})
+        metadata = {}
+        if isinstance(marc, dict):
+            meta_data = marc.get("metadata", {})
+            if isinstance(meta_data, dict):
+                metadata = meta_data
         country = metadata.get("country_code", "")
 
         # Extract analysis data
-        status = analysis.get("status", "")
+        status = ""
+        if isinstance(analysis, dict):
+            status_val = analysis.get("status", "")
+            if isinstance(status_val, str):
+                status = status_val
 
         # Format match summary
-        match_summary = self._format_match_summary(matches)
+        match_summary = ""
+        if isinstance(matches, dict):
+            match_summary = self._format_match_summary(matches)
 
         # Get warnings
-        warnings = self._get_warnings(analysis)
+        warnings = ""
+        if isinstance(analysis, dict):
+            warnings = self._get_warnings(analysis)
 
         # Get source IDs
         reg_id = ""
         ren_id = ""
 
-        reg_match = matches.get("registration", {})
-        if reg_match.get("found"):
-            reg_id = reg_match.get("id", "")
+        if isinstance(matches, dict):
+            reg_data = matches.get("registration", {})
+            if isinstance(reg_data, dict) and reg_data.get("found"):
+                id_val = reg_data.get("id", "")
+                if isinstance(id_val, str):
+                    reg_id = id_val
 
-        ren_match = matches.get("renewal", {})
-        if ren_match.get("found"):
-            ren_id = ren_match.get("id", "")
+            ren_data = matches.get("renewal", {})
+            if isinstance(ren_data, dict) and ren_data.get("found"):
+                id_val = ren_data.get("id", "")
+                if isinstance(id_val, str):
+                    ren_id = id_val
 
         # Write row
         row = [
@@ -137,52 +164,79 @@ class CSVExporter(BaseJSONExporter):
             reg_id,
             ren_id,
         ]
-        csv_writer.writerow(row)
+        csv_writer.writerow(row)  # type: ignore[arg-type]
 
-    def _format_match_summary(self, matches: JSONDict) -> str:
+    def _format_match_summary(self, matches: JSONType) -> str:
         """Format a concise match summary"""
         parts = []
 
         # Registration match
-        reg = matches.get("registration", {})
-        if reg.get("found"):
-            match_type = reg.get("match_type", "similarity")
-            if match_type == "lccn":
-                parts.append("Reg: LCCN")
-            else:
-                scores = reg.get("scores", {})
-                overall_score = scores.get("overall", 0)
-                parts.append(f"Reg: {overall_score:.0f}%")
-        else:
+        reg_added = False
+        if isinstance(matches, dict):
+            reg = matches.get("registration", {})
+            if isinstance(reg, dict) and reg.get("found"):
+                match_type = reg.get("match_type", "similarity")
+                if match_type == "lccn":
+                    parts.append("Reg: LCCN")
+                    reg_added = True
+                else:
+                    scores = reg.get("scores", {})
+                    if isinstance(scores, dict):
+                        overall_score = scores.get("overall", 0)
+                        if isinstance(overall_score, (int, float)):
+                            parts.append(f"Reg: {overall_score:.0f}%")
+                            reg_added = True
+                        else:
+                            parts.append("Reg: 0%")
+                            reg_added = True
+                    else:
+                        parts.append("Reg: 0%")
+                        reg_added = True
+
+        if not reg_added:
             parts.append("Reg: None")
 
         # Renewal match
-        ren = matches.get("renewal", {})
-        if ren.get("found"):
-            match_type = ren.get("match_type", "similarity")
-            if match_type == "lccn":
-                parts.append("Ren: LCCN")
-            else:
-                scores = ren.get("scores", {})
-                overall_score = scores.get("overall", 0)
-                parts.append(f"Ren: {overall_score:.0f}%")
-        else:
+        ren_added = False
+        if isinstance(matches, dict):
+            ren = matches.get("renewal", {})
+            if isinstance(ren, dict) and ren.get("found"):
+                match_type = ren.get("match_type", "similarity")
+                if match_type == "lccn":
+                    parts.append("Ren: LCCN")
+                    ren_added = True
+                else:
+                    scores = ren.get("scores", {})
+                    if isinstance(scores, dict):
+                        overall_score = scores.get("overall", 0)
+                        if isinstance(overall_score, (int, float)):
+                            parts.append(f"Ren: {overall_score:.0f}%")
+                            ren_added = True
+                        else:
+                            parts.append("Ren: 0%")
+                            ren_added = True
+                    else:
+                        parts.append("Ren: 0%")
+                        ren_added = True
+
+        if not ren_added:
             parts.append("Ren: None")
 
         return ", ".join(parts)
 
-    def _get_warnings(self, analysis: JSONDict) -> str:
+    def _get_warnings(self, analysis: JSONType) -> str:
         """Get warning indicators for the record"""
         warnings = []
 
         # Check for generic title
-        generic_info = analysis.get("generic_title", {})
-        if generic_info.get("detected"):
-            warnings.append("Generic title")
+        if isinstance(analysis, dict):
+            generic_info = analysis.get("generic_title", {})
+            if isinstance(generic_info, dict) and generic_info.get("detected"):
+                warnings.append("Generic title")
 
-        # Check for data completeness issues
-        data_issues = analysis.get("data_completeness", [])
-        if isinstance(data_issues, list):
-            warnings.extend(data_issues)
+            # Check for data completeness issues
+            data_issues = analysis.get("data_completeness", [])
+            if isinstance(data_issues, list):
+                warnings.extend([x for x in data_issues if isinstance(x, str)])
 
         return ", ".join(warnings) if warnings else ""

@@ -10,6 +10,8 @@ from pathlib import Path
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import JSONDict
+from marc_pd_tool.utils.types import JSONList
+from marc_pd_tool.utils.types import JSONType
 
 
 class HTMLExporter(BaseJSONExporter):
@@ -337,7 +339,7 @@ footer {
 """
         css_path.write_text(css_content)
 
-    def _generate_index(self, by_status: dict[str, list[JSONDict]], output_path: Path) -> None:
+    def _generate_index(self, by_status: dict[str, JSONList], output_path: Path) -> None:
         """Generate the main index page"""
         metadata = self.get_metadata()
         total_records = sum(len(records) for records in by_status.values())
@@ -454,9 +456,7 @@ footer {
 
         (output_path / "index.html").write_text(html)
 
-    def _generate_status_pages(
-        self, status: str, records: list[JSONDict], output_dir: Path
-    ) -> None:
+    def _generate_status_pages(self, status: str, records: JSONList, output_dir: Path) -> None:
         """Generate paginated HTML pages for a status group"""
         total_pages = (len(records) + self.items_per_page - 1) // self.items_per_page
 
@@ -474,7 +474,7 @@ footer {
         status: str,
         page_num: int,
         total_pages: int,
-        records: list[JSONDict],
+        records: JSONList,
         start_record: int,
         output_dir: Path,
     ) -> None:
@@ -517,8 +517,9 @@ footer {
 
         # Add each record
         for i, record in enumerate(records):
-            record_num = start_record + i
-            html += self._format_record(record_num, record)
+            if isinstance(record, dict):
+                record_num = start_record + i
+                html += self._format_record(record_num, record)
 
         html += """    </div>
     
@@ -548,15 +549,35 @@ footer {
 
         (output_dir / f"page_{page_num}.html").write_text(html)
 
-    def _format_record(self, record_num: int, record: JSONDict) -> str:
+    def _format_record(self, record_num: int, record: dict[str, JSONType]) -> str:
         """Format a single record as HTML"""
         marc = record.get("marc", {})
         matches = record.get("matches", {})
         analysis = record.get("analysis", {})
 
-        marc_id = marc.get("id", "Unknown")
-        status = analysis.get("status", "UNKNOWN")
-        status_rule = analysis.get("status_rule", "")
+        marc_id = "Unknown"
+        metadata: dict[str, JSONType] = {}
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "Unknown")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            meta_data = marc.get("metadata", {})
+            if isinstance(meta_data, dict):
+                metadata = meta_data
+
+        status = "UNKNOWN"
+        status_rule = ""
+        data_completeness = []
+        if isinstance(analysis, dict):
+            status_val = analysis.get("status", "UNKNOWN")
+            if isinstance(status_val, str):
+                status = status_val
+            rule_val = analysis.get("status_rule", "")
+            if isinstance(rule_val, str):
+                status_rule = rule_val
+            data_comp = analysis.get("data_completeness", [])
+            if isinstance(data_comp, list):
+                data_completeness = [x for x in data_comp if isinstance(x, str)]
 
         # Start record HTML
         html = f"""
@@ -568,7 +589,6 @@ footer {
             html += f'            <p class="status-rule">Rule: {status_rule}</p>\n'
 
         # Add metadata
-        metadata = marc.get("metadata", {})
         if metadata:
             html += '            <div class="metadata">\n'
 
@@ -585,18 +605,18 @@ footer {
             html += "            </div>\n"
 
         # Add warnings for data issues
-        data_completeness = analysis.get("data_completeness", [])
         if data_completeness:
             html += f'            <div class="warning">Data issues: {", ".join(data_completeness)}</div>\n'
 
         # Add stacked comparison table
-        html += self._format_stacked_table(marc, matches)
+        if isinstance(marc, dict) and isinstance(matches, dict):
+            html += self._format_stacked_table(marc, matches)
 
         html += "        </div>\n"
 
         return html
 
-    def _format_stacked_table(self, marc: JSONDict, matches: JSONDict) -> str:
+    def _format_stacked_table(self, marc: JSONType, matches: JSONType) -> str:
         """Format the stacked comparison table"""
         html = """
             <table class="stacked-comparison">
@@ -618,44 +638,59 @@ footer {
 """
 
         # MARC original row
-        original = marc.get("original", {})
+        original = {}
+        normalized = {}
+        marc_id = ""
+
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            orig_data = marc.get("original", {})
+            if isinstance(orig_data, dict):
+                original = orig_data
+            norm_data = marc.get("normalized", {})
+            if isinstance(norm_data, dict):
+                normalized = norm_data
+
         html += f"""                    <tr class="marc-original">
                         <td>MARC</td>
-                        <td>{marc.get("id", "")}</td>
+                        <td>{marc_id}</td>
                         <td>Original</td>
-                        <td>{self._escape_html(original.get("title", ""))}</td>
+                        <td>{self._escape_html(str(original.get("title", "")))}</td>
                         <td>-</td>
-                        <td>{self._escape_html(original.get("author_245c", "") or original.get("author_1xx", ""))}</td>
+                        <td>{self._escape_html(str(original.get("author_245c", "") or original.get("author_1xx", "")))}</td>
                         <td>-</td>
-                        <td>{self._escape_html(original.get("publisher", ""))}</td>
+                        <td>{self._escape_html(str(original.get("publisher", "")))}</td>
                         <td>-</td>
                         <td>{original.get("year", "")}</td>
                     </tr>
 """
 
         # MARC normalized row
-        normalized = marc.get("normalized", {})
         html += f"""                    <tr class="marc-normalized">
                         <td>MARC</td>
-                        <td>{marc.get("id", "")}</td>
+                        <td>{marc_id}</td>
                         <td>Normalized</td>
-                        <td class="normalized">{self._escape_html(normalized.get("title", ""))}</td>
+                        <td class="normalized">{self._escape_html(str(normalized.get("title", "")))}</td>
                         <td>-</td>
-                        <td class="normalized">{self._escape_html(normalized.get("author", ""))}</td>
+                        <td class="normalized">{self._escape_html(str(normalized.get("author", "")))}</td>
                         <td>-</td>
-                        <td class="normalized">{self._escape_html(normalized.get("publisher", ""))}</td>
+                        <td class="normalized">{self._escape_html(str(normalized.get("publisher", "")))}</td>
                         <td>-</td>
                         <td>-</td>
                     </tr>
 """
 
         # Registration match
-        reg = matches.get("registration", {})
-        if reg.get("found"):
-            match_type = reg.get("match_type", "similarity")
-            html += self._format_match_row("Registration", reg, match_type)
-        else:
-            html += """                    <tr class="no-match">
+        if isinstance(matches, dict):
+            reg = matches.get("registration", {})
+            if isinstance(reg, dict) and reg.get("found"):
+                match_type_val = reg.get("match_type", "similarity")
+                match_type = match_type_val if isinstance(match_type_val, str) else "similarity"
+                html += self._format_match_row("Registration", reg, match_type)
+            else:
+                html += """                    <tr class="no-match">
                         <td>Registration</td>
                         <td>-</td>
                         <td>No match</td>
@@ -668,14 +703,14 @@ footer {
                         <td>-</td>
                     </tr>
 """
-
-        # Renewal match
-        ren = matches.get("renewal", {})
-        if ren.get("found"):
-            match_type = ren.get("match_type", "similarity")
-            html += self._format_match_row("Renewal", ren, match_type)
-        else:
-            html += """                    <tr class="no-match">
+            # Renewal match
+            ren = matches.get("renewal", {})
+            if isinstance(ren, dict) and ren.get("found"):
+                match_type_val = ren.get("match_type", "similarity")
+                match_type = match_type_val if isinstance(match_type_val, str) else "similarity"
+                html += self._format_match_row("Renewal", ren, match_type)
+            else:
+                html += """                    <tr class="no-match">
                         <td>Renewal</td>
                         <td>-</td>
                         <td>No match</td>
@@ -697,11 +732,19 @@ footer {
 
     def _format_match_row(self, source: str, match_data: JSONDict, match_type: str) -> str:
         """Format a match row for registration or renewal"""
-        original = match_data.get("original", {})
-        scores = match_data.get("scores", {})
+        original = {}
+        scores = {}
+
+        if isinstance(match_data, dict):
+            orig_data = match_data.get("original", {})
+            if isinstance(orig_data, dict):
+                original = orig_data
+            score_data = match_data.get("scores", {})
+            if isinstance(score_data, dict):
+                scores = score_data
 
         # Format scores
-        def format_score(score: float | str | None) -> str:
+        def format_score(score: JSONType) -> str:
             if match_type == "lccn":
                 return '<span class="lccn-match">LCCN</span>'
             if score is None:
@@ -721,13 +764,13 @@ footer {
 
         return f"""                    <tr class="{row_class}">
                         <td>{source}</td>
-                        <td>{match_data.get("id", "")}</td>
+                        <td>{match_data.get("id", "") if isinstance(match_data, dict) else ""}</td>
                         <td>Original</td>
-                        <td>{self._escape_html(original.get("title", ""))}</td>
+                        <td>{self._escape_html(str(original.get("title", "")))}</td>
                         <td>{format_score(scores.get("title"))}</td>
-                        <td>{self._escape_html(original.get("author", ""))}</td>
+                        <td>{self._escape_html(str(original.get("author", "")))}</td>
                         <td>{format_score(scores.get("author"))}</td>
-                        <td>{self._escape_html(original.get("publisher", ""))}</td>
+                        <td>{self._escape_html(str(original.get("publisher", "")))}</td>
                         <td>{format_score(scores.get("publisher"))}</td>
                         <td>{original.get("date", "")}</td>
                     </tr>

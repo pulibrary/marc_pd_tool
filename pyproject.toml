@@ -102,12 +102,14 @@ module = [
     "openpyxl",
     "openpyxl.*",
     "stop_words",
+    "psutil",
 ]
 ignore_missing_imports = true
 
 
 [[tool.mypy.overrides]]
 module = [
+    "marc_pd_tool.api",
     "marc_pd_tool.cli.main",
     "marc_pd_tool.infrastructure.run_index_manager",
     "marc_pd_tool.infrastructure.config_loader",
@@ -115,6 +117,7 @@ module = [
     "marc_pd_tool.processing.text_processing",
     "marc_pd_tool.loaders.copyright_loader",
     "marc_pd_tool.exporters.xlsx_exporter",
+    "marc_pd_tool.exporters.xlsx_stacked_exporter",
     "marc_pd_tool.processing.similarity_calculator",
     "marc_pd_tool.loaders.marc_loader",
     "marc_pd_tool.exporters.csv_exporter",

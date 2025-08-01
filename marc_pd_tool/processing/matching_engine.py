@@ -9,6 +9,7 @@ from logging import StreamHandler
 from logging import getLogger
 from os import getpid
 from time import time
+from typing import Any
 from typing import cast
 
 # Local imports
@@ -465,10 +466,6 @@ class DataMatcher(ConfigurableMixin):
                 "source_id": copyright_pub.source_id or "",
                 "pub_date": copyright_pub.pub_date or "",
                 "full_text": getattr(copyright_pub, "full_text", ""),
-                # Normalized versions for comparison
-                "normalized_title": copyright_pub.title,
-                "normalized_author": copyright_pub.author,
-                "normalized_publisher": copyright_pub.publisher,
             },
             "similarity_scores": {
                 "title": title_score,
@@ -513,10 +510,10 @@ class DataMatcher(ConfigurableMixin):
 
 
 # Global storage for worker-specific data
-_worker_data = {}
+_worker_data: dict[str, Any] = {}  # type: ignore[explicit-any]
 
 # Global storage for shared data (Linux fork mode)
-_shared_data = {}
+_shared_data: dict[str, Any] = {}  # type: ignore[explicit-any]
 
 
 def init_worker(
