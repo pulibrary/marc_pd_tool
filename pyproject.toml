@@ -136,29 +136,47 @@ python_classes = "Test*"
 python_functions = "test_*"
 # Exclude submodules from test discovery
 norecursedirs = "nypl-ren nypl-reg .git .venv __pycache__ *.egg build dist .hypothesis"
-addopts = "-ra -q --cov=marc_pd_tool --cache-clear --cov-report=term-missing --no-cov-on-fail --tb=native -W error::DeprecationWarning"
+# Default options
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+]
 # Add current directory to Python path
 pythonpath = ["."]
+# Markers for different test types
+markers = [
+    "unit: Unit tests (fast, isolated)",
+    "integration: Integration tests (slower, may use real files)",
+    "performance: Performance benchmarks",
+    "slow: Slow running tests",
+    "full_isolation: Tests requiring complete isolation",
+]
 
 # https://pytest-cov.readthedocs.io/en/latest/config.html
 # https://coverage.readthedocs.io/en/latest/config.html 
 [tool.coverage.run]
 source = ["marc_pd_tool"]
 branch = true
-omit = [ ]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__main__.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
     "if __name__ == .__main__.:",
-    "pass",
     "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "pass",
     "# TYPE_CHECKING only imports",
     "raise ImportError",
-    "raise NotImplementedError",
     "except ImportError",
-    "@abstractmethod",
 ]
 
 [tool.pdm.scripts]
@@ -168,7 +186,10 @@ mdformat = { cmd = "mdformat . --exclude projects/*" }
 mypy = { cmd = "mypy --pretty --no-incremental --warn-unused-configs" }
 autoflake = { cmd = "autoflake . -i -r --remove-unused-variables --remove-all-unused-imports --ignore-pass-after-docstring --exclude ./.venv/*,./_scripts/*" }
 headers = { cmd = "python lint/add_file_headers.py" }
-test = { cmd = "pytest tests/ -v" }
+test = { cmd = "pytest tests/ -v --cov=marc_pd_tool --cov-report=term-missing" }
+test-unit = { cmd = "pytest tests/ -v -m 'not integration'" }
+test-integration = { cmd = "pytest tests/integration/ -v" }
+test-quick = { cmd = "pytest tests/ -v -m 'not slow and not integration'" }
 # Black can't ignore submodules. Below is the hack:
 submod_clean = { shell = "cd ./nypl-ren ; git checkout . -q ; cd ../nypl-reg ; git checkout . -q ; cd ../" }
 format = { composite = [ "black", "isort", "mdformat", "submod_clean" ] }

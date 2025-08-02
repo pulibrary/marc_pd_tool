@@ -53,6 +53,7 @@ class AnalysisResults:
         """Initialize empty results container"""
         self.publications: list[Publication] = []
         self.result_file_paths: list[str] = []  # Store paths to result pickle files
+        self.result_files: dict[str, str] = {}  # Store exported file paths by format
         self.statistics: dict[str, int] = {
             "total_records": 0,
             "us_records": 0,
@@ -78,9 +79,22 @@ class AnalysisResults:
         self.publications.append(pub)
         self._update_statistics(pub)
 
-    def add_result_file(self, file_path: str) -> None:
-        """Add a result file path for later loading"""
-        self.result_file_paths.append(file_path)
+    def add_result_file(self, *args: str) -> None:
+        """Add a result file path
+        
+        Can be called with either:
+        - Single argument: file_path (for backward compatibility)
+        - Two arguments: format_name, file_path (for new API)
+        """
+        if len(args) == 1:
+            # Backward compatibility: single file path
+            self.result_file_paths.append(args[0])
+        elif len(args) == 2:
+            # New API: format name and file path
+            format_name, file_path = args
+            self.result_files[format_name] = file_path
+        else:
+            raise ValueError("add_result_file expects 1 or 2 arguments")
 
     def update_statistics_from_batch(self, publications: list[Publication]) -> None:
         """Update statistics from a batch of publications without storing them"""
@@ -138,6 +152,139 @@ class AnalysisResults:
                 logger.error(f"Failed to load result file {file_path}: {e}")
 
         logger.info(f"Loaded {len(self.publications)} publications from disk")
+
+    def export_json(self, output_path: str, pretty: bool = True, compress: bool = False) -> None:
+        """Export results to JSON format
+        
+        Args:
+            output_path: Path for output JSON file
+            pretty: Format JSON with indentation
+            compress: Use gzip compression
+        """
+        # Ensure all publications are loaded
+        self.load_all_publications()
+        
+        # Use the existing JSON exporter
+        from marc_pd_tool.exporters.json_exporter import save_matches_json
+        # Convert statistics dict to compatible type
+        parameters: dict[str, str | int | float | bool] = {}
+        for key, value in self.statistics.items():
+            parameters[f"stat_{key}"] = value
+            
+        save_matches_json(
+            self.publications, 
+            output_path, 
+            pretty=pretty, 
+            compress=compress,
+            parameters=parameters
+        )
+        
+    def export_csv(self, output_prefix: str) -> None:
+        """Export results to CSV format
+        
+        Args:
+            output_prefix: Prefix for output CSV files
+        """
+        # First export to JSON
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+            json_path = tmp.name
+            self.export_json(json_path)
+        
+        # Use the JSON-based CSV exporter
+        from marc_pd_tool.exporters.csv_exporter import CSVExporter
+        exporter = CSVExporter(json_path, output_prefix)
+        exporter.export()
+        
+        # Clean up temp file
+        import os
+        os.unlink(json_path)
+        
+    def export_xlsx(self, output_path: str) -> None:
+        """Export results to XLSX format
+        
+        Args:
+            output_path: Path for output XLSX file
+        """
+        # First export to JSON
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+            json_path = tmp.name
+            self.export_json(json_path)
+        
+        # Use the JSON-based XLSX exporter
+        from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
+        exporter = XLSXExporter(json_path, output_path)
+        exporter.export()
+        
+        # Clean up temp file
+        import os
+        os.unlink(json_path)
+        
+    def export_html(self, output_dir: str) -> None:
+        """Export results to HTML format
+        
+        Args:
+            output_dir: Directory for HTML output
+        """
+        # First export to JSON
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+            json_path = tmp.name
+            self.export_json(json_path)
+        
+        # Use the JSON-based HTML exporter
+        from marc_pd_tool.exporters.html_exporter import HTMLExporter
+        exporter = HTMLExporter(json_path, output_dir)
+        exporter.export()
+        
+        # Clean up temp file
+        import os
+        os.unlink(json_path)
+        
+    def export_all(self, output_path: str) -> dict[str, str]:
+        """Export results to all available formats
+        
+        Args:
+            output_path: Base path for output files
+            
+        Returns:
+            Dictionary mapping format names to output file paths
+        """
+        result_paths = {}
+        
+        # JSON export
+        try:
+            json_path = f"{output_path}.json"
+            self.export_json(json_path)
+            result_paths["json"] = json_path
+        except Exception as e:
+            logger.error(f"Failed to export JSON: {e}")
+        
+        # CSV export (creates multiple files)
+        try:
+            self.export_csv(output_path)
+            result_paths["csv"] = output_path
+        except Exception as e:
+            logger.error(f"Failed to export CSV: {e}")
+        
+        # XLSX export
+        try:
+            xlsx_path = f"{output_path}.xlsx"
+            self.export_xlsx(xlsx_path)
+            result_paths["xlsx"] = xlsx_path
+        except Exception as e:
+            logger.error(f"Failed to export XLSX: {e}")
+        
+        # HTML export
+        try:
+            html_dir = f"{output_path}_html"
+            self.export_html(html_dir)
+            result_paths["html"] = html_dir
+        except Exception as e:
+            logger.error(f"Failed to export HTML: {e}")
+        
+        return result_paths
 
 
 class MarcCopyrightAnalyzer:

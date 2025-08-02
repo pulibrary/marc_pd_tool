@@ -466,6 +466,10 @@ class DataMatcher(ConfigurableMixin):
                 "source_id": copyright_pub.source_id or "",
                 "pub_date": copyright_pub.pub_date or "",
                 "full_text": getattr(copyright_pub, "full_text", ""),
+                # Add normalized versions
+                "normalized_title": copyright_pub.title,
+                "normalized_author": copyright_pub.author,
+                "normalized_publisher": copyright_pub.publisher,
             },
             "similarity_scores": {
                 "title": title_score,
