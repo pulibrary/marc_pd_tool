@@ -12,14 +12,14 @@ from marc_pd_tool.data.publication import MatchResult
 
 class MatchResultBuilder:
     """Builder pattern for creating test match results"""
-    
+
     @staticmethod
     def registration_match(**kwargs) -> MatchResult:
         """Create a registration match with sensible defaults
-        
+
         Args:
             **kwargs: Override any default values
-            
+
         Returns:
             MatchResult instance for registration
         """
@@ -39,14 +39,14 @@ class MatchResultBuilder:
         }
         defaults.update(kwargs)
         return MatchResult(**defaults)
-    
+
     @staticmethod
     def renewal_match(**kwargs) -> MatchResult:
         """Create a renewal match with sensible defaults
-        
+
         Args:
             **kwargs: Override any default values
-            
+
         Returns:
             MatchResult instance for renewal
         """
@@ -66,15 +66,15 @@ class MatchResultBuilder:
         }
         defaults.update(kwargs)
         return MatchResult(**defaults)
-    
+
     @staticmethod
     def lccn_match(source_type: str = "registration", **kwargs) -> MatchResult:
         """Create an LCCN-based match
-        
+
         Args:
             source_type: Either "registration" or "renewal"
             **kwargs: Override any default values
-            
+
         Returns:
             MatchResult instance with LCCN match type
         """
@@ -94,14 +94,14 @@ class MatchResultBuilder:
         }
         defaults.update(kwargs)
         return MatchResult(**defaults)
-    
+
     @staticmethod
     def low_score_match(**kwargs) -> MatchResult:
         """Create a low-scoring match for threshold testing
-        
+
         Args:
             **kwargs: Override any default values
-            
+
         Returns:
             MatchResult instance with low scores
         """

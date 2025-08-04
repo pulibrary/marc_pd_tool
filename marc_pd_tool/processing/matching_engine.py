@@ -8,9 +8,19 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from os import getpid
+from os import unlink
+from os.path import join
+from pickle import HIGHEST_PROTOCOL
+from pickle import dump
+from pickle import load
 from time import time
+from traceback import format_exc
 from typing import Any
 from typing import cast
+
+# Third party imports
+# Third-party imports
+import psutil
 
 # Local imports
 from marc_pd_tool.data.enums import MatchType
@@ -92,6 +102,7 @@ class DataMatcher(ConfigurableMixin):
         publisher_threshold: int,
         early_exit_title: int,
         early_exit_author: int,
+        early_exit_publisher: int = 85,
         generic_detector: GenericTitleDetector | None = None,
     ) -> MatchResultDict | None:
         """Find the best matching copyright publication using word-based matching
@@ -108,6 +119,7 @@ class DataMatcher(ConfigurableMixin):
             publisher_threshold: Minimum publisher similarity score (0-100)
             early_exit_title: Title score for early termination (0-100)
             early_exit_author: Author score for early termination (0-100)
+            early_exit_publisher: Publisher score for early termination (0-100), default 85
             generic_detector: Optional generic title detector
 
         Returns:
@@ -126,19 +138,20 @@ class DataMatcher(ConfigurableMixin):
                 if year_diff > year_tolerance:
                     continue
 
-            # LCCN exact matching - highest priority with perfect score
+            # LCCN exact matching - highest priority
             if (
                 marc_pub.normalized_lccn
                 and copyright_pub.normalized_lccn
                 and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
             ):
-                # Perfect match - return immediately with 100% scores
+                # LCCN match found - in normal mode, we don't calculate scores
+                # Use -1.0 to indicate "not checked" (still sortable)
                 return self._create_match_result(
                     copyright_pub,
-                    100.0,  # title_score
-                    100.0,  # author_score
-                    100.0,  # publisher_score
-                    100.0,  # combined_score
+                    -1.0,  # title_score: -1 indicates not checked
+                    -1.0,  # author_score: -1 indicates not checked
+                    -1.0,  # publisher_score: -1 indicates not checked
+                    100.0,  # combined_score: still 100 for LCCN match
                     marc_pub,
                     generic_detector,
                     is_lccn_match=True,
@@ -173,7 +186,7 @@ class DataMatcher(ConfigurableMixin):
             publisher_score = self.similarity_calculator.calculate_publisher_similarity(
                 marc_pub.publisher,
                 copyright_pub.publisher,
-                getattr(copyright_pub, "full_text", ""),
+                copyright_pub.full_text or "",
                 marc_pub.language_code,
             )
 
@@ -190,12 +203,18 @@ class DataMatcher(ConfigurableMixin):
             ):
                 continue
 
-            # Early exit conditions (maintain existing logic)
-            # For early exit, require both high title AND high author scores when author data exists
-            # If no author data, only require high title score
-            if title_score >= early_exit_title and (
-                not has_author_data or author_score >= early_exit_author
-            ):
+            # Early exit conditions - require high scores for all available data
+            # Title must always meet threshold
+            # Author must meet threshold if data exists
+            # Publisher must meet threshold if data exists
+            title_meets_exit = title_score >= early_exit_title
+            author_meets_exit = not has_author_data or author_score >= early_exit_author
+            publisher_meets_exit = (
+                not (marc_pub.publisher and copyright_pub.publisher)
+                or publisher_score >= early_exit_publisher
+            )
+
+            if title_meets_exit and author_meets_exit and publisher_meets_exit:
                 # Found high-confidence match, return immediately
                 combined_score = self._combine_scores(
                     title_score,
@@ -248,6 +267,7 @@ class DataMatcher(ConfigurableMixin):
         year_tolerance: int,
         early_exit_title: int,
         early_exit_author: int,
+        early_exit_publisher: int = 85,
         generic_detector: GenericTitleDetector | None = None,
         minimum_combined_score: float | None = None,
     ) -> MatchResultDict | None:
@@ -269,19 +289,61 @@ class DataMatcher(ConfigurableMixin):
                 if abs(marc_pub.year - copyright_pub.year) > year_tolerance:
                     continue
 
-            # LCCN exact matching - highest priority with perfect score
+            # LCCN exact matching - highest priority
             if (
                 marc_pub.normalized_lccn
                 and copyright_pub.normalized_lccn
                 and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
             ):
-                # Perfect match - return immediately with 100% scores
+                # In score-everything mode, calculate real scores even for LCCN matches
+                # This is important for ground truth analysis
+                title_score = self.similarity_calculator.calculate_title_similarity(
+                    marc_pub.title, copyright_pub.title, marc_pub.language_code or "eng"
+                )
+
+                # Calculate author score with dual scoring
+                author_score = 0.0
+                if marc_pub.author and copyright_pub.author:
+                    author_score = max(
+                        author_score,
+                        self.similarity_calculator.calculate_author_similarity(
+                            marc_pub.author, copyright_pub.author, marc_pub.language_code or "eng"
+                        ),
+                    )
+                if marc_pub.main_author and copyright_pub.author:
+                    author_score = max(
+                        author_score,
+                        self.similarity_calculator.calculate_author_similarity(
+                            marc_pub.main_author,
+                            copyright_pub.author,
+                            marc_pub.language_code or "eng",
+                        ),
+                    )
+
+                publisher_score = self.similarity_calculator.calculate_publisher_similarity(
+                    marc_pub.publisher,
+                    copyright_pub.publisher,
+                    copyright_pub.full_text or "",
+                    marc_pub.language_code or "eng",
+                )
+
+                # Calculate combined score
+                combined_score = self._combine_scores(
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    marc_pub,
+                    copyright_pub,
+                    generic_detector,
+                )
+
+                # Return immediately with calculated scores
                 return self._create_match_result(
                     copyright_pub,
-                    100.0,  # title_score
-                    100.0,  # author_score
-                    100.0,  # publisher_score
-                    100.0,  # combined_score
+                    title_score,
+                    author_score,
+                    publisher_score,
+                    combined_score,
                     marc_pub,
                     generic_detector,
                     is_lccn_match=True,
@@ -312,7 +374,7 @@ class DataMatcher(ConfigurableMixin):
             publisher_score = self.similarity_calculator.calculate_publisher_similarity(
                 marc_pub.publisher,
                 copyright_pub.publisher,
-                getattr(copyright_pub, "full_text", ""),
+                copyright_pub.full_text or "",
                 marc_pub.language_code or "eng",
             )
 
@@ -391,7 +453,7 @@ class DataMatcher(ConfigurableMixin):
             marc_pub.main_author and copyright_pub.author
         )
         has_publisher = marc_pub.publisher and (
-            copyright_pub.publisher or getattr(copyright_pub, "full_text", "")
+            copyright_pub.publisher or copyright_pub.full_text or ""
         )
 
         if not has_author and not has_publisher:
@@ -465,7 +527,7 @@ class DataMatcher(ConfigurableMixin):
                 "publisher": copyright_pub.original_publisher or copyright_pub.publisher,
                 "source_id": copyright_pub.source_id or "",
                 "pub_date": copyright_pub.pub_date or "",
-                "full_text": getattr(copyright_pub, "full_text", ""),
+                "full_text": copyright_pub.full_text or "",
                 # Add normalized versions
                 "normalized_title": copyright_pub.title,
                 "normalized_author": copyright_pub.author,
@@ -566,9 +628,6 @@ def init_worker(
         )
 
         # Log memory usage
-        # Third party imports
-        import psutil
-
         process = psutil.Process(pid)
         mem_mb = process.memory_info().rss / 1024 / 1024
         process_logger.info(f"Worker {pid}: Current memory usage: {mem_mb:.1f}MB")
@@ -623,6 +682,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         year_tolerance,
         early_exit_title,
         early_exit_author,
+        early_exit_publisher,
         score_everything_mode,
         minimum_combined_score,
         brute_force_missing_year,
@@ -645,16 +705,13 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     process_logger = getLogger(f"batch_{batch_id}")
 
     # Load the batch from pickle file
-    # Standard library imports
-    import os
-    import pickle
 
     try:
         with open(batch_path, "rb") as f:
-            marc_batch = pickle.load(f)
+            marc_batch = load(f)
 
         # Delete the batch file to free disk space
-        os.unlink(batch_path)
+        unlink(batch_path)
         process_logger.debug(f"Deleted batch file: {batch_path}")
 
     except Exception as e:
@@ -679,6 +736,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         "non_us_records": 0,
         "unknown_country_records": 0,
         "processing_time": 0.0,  # Will be updated with actual processing time
+        "skipped_no_year": 0,  # Track records skipped due to missing year
     }
 
     try:
@@ -713,6 +771,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
             # Skip records without year data unless brute-force mode is enabled
             if marc_pub.year is None and not brute_force_missing_year:
                 process_logger.debug(f"Skipping MARC record {marc_pub.source_id} - no year data")
+                stats["skipped_no_year"] += 1
                 continue
 
             # Count by country classification
@@ -734,6 +793,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                     year_tolerance,
                     early_exit_title,
                     early_exit_author,
+                    early_exit_publisher,
                     generic_detector,
                     minimum_combined_score,
                 )
@@ -747,6 +807,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                     publisher_threshold,
                     early_exit_title,
                     early_exit_author,
+                    early_exit_publisher,
                     generic_detector,
                 )
 
@@ -815,6 +876,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                     year_tolerance,
                     early_exit_title,
                     early_exit_author,
+                    early_exit_publisher,
                     generic_detector,
                     minimum_combined_score,
                 )
@@ -828,6 +890,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
                     publisher_threshold,
                     early_exit_title,
                     early_exit_author,
+                    early_exit_publisher,
                     generic_detector,
                 )
 
@@ -920,16 +983,13 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         )
 
         # Save results to pickle file instead of returning through queue
-        # Standard library imports
-        import os
-
-        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}.pkl")
-        stats_file_path = os.path.join(result_temp_dir, f"stats_{batch_id:05d}.pkl")
+        result_file_path = join(result_temp_dir, f"result_{batch_id:05d}.pkl")
+        stats_file_path = join(result_temp_dir, f"stats_{batch_id:05d}.pkl")
 
         try:
             # Save publications
             with open(result_file_path, "wb") as f:
-                pickle.dump(processed_publications, f, protocol=pickle.HIGHEST_PROTOCOL)
+                dump(processed_publications, f, protocol=HIGHEST_PROTOCOL)
 
             # Calculate detailed statistics for the main process
             detailed_stats = {
@@ -964,7 +1024,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
 
             # Save detailed statistics separately
             with open(stats_file_path, "wb") as f:
-                pickle.dump(detailed_stats, f, protocol=pickle.HIGHEST_PROTOCOL)
+                dump(detailed_stats, f, protocol=HIGHEST_PROTOCOL)
 
             process_logger.debug(
                 f"Batch {batch_id}: Saved {len(processed_publications)} publications and statistics"
@@ -983,19 +1043,13 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     except Exception as e:
         process_logger.error(f"Error in batch {batch_id}: {str(e)}")
         process_logger.error(f"Error type: {type(e).__name__}")
-        # Standard library imports
-        import traceback
-
-        process_logger.error(f"Traceback:\n{traceback.format_exc()}")
+        process_logger.error(f"Traceback:\n{format_exc()}")
 
         # For error case, save empty results to maintain consistency
-        # Standard library imports
-        import os
-
-        result_file_path = os.path.join(result_temp_dir, f"result_{batch_id:05d}_failed.pkl")
+        result_file_path = join(result_temp_dir, f"result_{batch_id:05d}_failed.pkl")
         try:
             with open(result_file_path, "wb") as f:
-                pickle.dump([], f, protocol=pickle.HIGHEST_PROTOCOL)
+                dump([], f, protocol=HIGHEST_PROTOCOL)
         except:
             pass
 

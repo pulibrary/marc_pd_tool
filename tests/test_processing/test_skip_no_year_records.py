@@ -82,6 +82,7 @@ class TestSkipNoYearRecords:
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author
+            85,  # early_exit_publisher
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
@@ -126,6 +127,7 @@ class TestSkipNoYearRecords:
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author
+            85,  # early_exit_publisher
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
@@ -178,6 +180,7 @@ class TestSkipNoYearRecords:
             1,  # year_tolerance
             95,  # early_exit_title
             90,  # early_exit_author
+            85,  # early_exit_publisher
             False,  # score_everything
             40,  # minimum_combined_score
             False,  # brute_force_missing_year (default: skip no-year records)
@@ -216,6 +219,7 @@ class TestSkipNoYearRecords:
         assert stats["marc_count"] == 0
         assert stats["registration_matches_found"] == 0
         assert stats["renewal_matches_found"] == 0
+        assert stats["skipped_no_year"] == 1  # Should track the skipped record
 
     def test_process_records_without_year_with_brute_force(
         self, mock_batch_info_no_year, monkeypatch, tmp_path
@@ -227,8 +231,8 @@ class TestSkipNoYearRecords:
 
         # Enable brute force mode and update temp directory
         batch_info_list = list(mock_batch_info_no_year)
-        # The batch info tuple has brute_force_missing_year at index 16
-        batch_info_list[16] = True  # Set brute_force_missing_year to True
+        # The batch info tuple has brute_force_missing_year at index 17 (after adding early_exit_publisher)
+        batch_info_list[17] = True  # Set brute_force_missing_year to True
         batch_info_list[-1] = str(result_dir)  # Update result_temp_dir
         batch_info_brute_force = tuple(batch_info_list)
 
@@ -274,6 +278,7 @@ class TestSkipNoYearRecords:
         # Only the record with a year should be processed
         assert len(processed_pubs) == 1
         assert stats["marc_count"] == 1
+        assert stats["skipped_no_year"] == 1  # Should track the one skipped record
         assert processed_pubs[0].original_title == "Book With Year"
         assert processed_pubs[0].year == 2023
 
@@ -287,8 +292,8 @@ class TestSkipNoYearRecords:
 
         # Enable brute force mode and update temp directory
         batch_info_list = list(mock_batch_info_no_year)
-        # The batch info tuple has brute_force_missing_year at index 16
-        batch_info_list[16] = True  # Set brute_force_missing_year to True
+        # The batch info tuple has brute_force_missing_year at index 17 (after adding early_exit_publisher)
+        batch_info_list[17] = True  # Set brute_force_missing_year to True
         batch_info_list[-1] = str(result_dir)  # Update result_temp_dir
         batch_info_brute_force = tuple(batch_info_list)
 

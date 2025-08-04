@@ -3,55 +3,44 @@
 """Tests for error handling in the API module"""
 
 # Standard library imports
+import pickle
 from unittest.mock import Mock
 from unittest.mock import patch
-from unittest.mock import MagicMock
-from multiprocessing import Pool
-import tempfile
-import pickle
-from pathlib import Path
 
 # Third party imports
 import pytest
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
 from marc_pd_tool.api import AnalysisResults
+from marc_pd_tool.api import MarcCopyrightAnalyzer
 from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.utils.types import BatchProcessingInfo
-
 
 # Tests for multiprocessing error handling removed - they were testing non-existent internal methods
 
 
 class TestAnalysisResultsErrorHandling:
     """Test error handling in AnalysisResults class"""
-    
+
     def test_add_publication_none(self):
         """Test adding None publication"""
         results = AnalysisResults()
-        
+
         # Adding None should raise AttributeError
         with pytest.raises(AttributeError):
             results.add_publication(None)
-    
+
     # Test removed - AnalysisResults doesn't have export_json method
-    
+
     def test_statistics_calculation_with_missing_status(self):
         """Test statistics calculation when copyright status is None"""
         results = AnalysisResults()
-        
+
         # Publication without copyright status
-        pub = Publication(
-            title="No Status Book",
-            author="Test Author",
-            source_id="001"
-        )
+        pub = Publication(title="No Status Book", author="Test Author", source_id="001")
         # Don't set copyright_status
-        
+
         results.add_publication(pub)
-        
+
         # Should handle missing status
         assert results.statistics["total_records"] == 1
         # Status-specific counters should not be incremented
@@ -60,45 +49,43 @@ class TestAnalysisResultsErrorHandling:
 
 class TestFileOperationErrors:
     """Test file operation error handling"""
-    
+
     # Test removed - analyze_marc_file does too much work to mock effectively for a simple file not found test
-    
+
     # Test removed - _ensure_cache_directories doesn't exist
-    
+
     def test_result_file_loading_failure(self, tmp_path):
         """Test handling of corrupted result files"""
-        analyzer = MarcCopyrightAnalyzer()
-        
+        MarcCopyrightAnalyzer()
+
         # Create corrupted pickle file
         corrupt_file = tmp_path / "corrupt.pkl"
         corrupt_file.write_bytes(b"corrupted data")
-        
-        with patch('pickle.load', side_effect=pickle.UnpicklingError("Bad data")):
+
+        with patch("pickle.load", side_effect=pickle.UnpicklingError("Bad data")):
             # Should handle corrupted files
-            with open(corrupt_file, 'rb') as f:
+            with open(corrupt_file, "rb") as f:
                 with pytest.raises(pickle.UnpicklingError):
                     pickle.load(f)
 
+    # Tests for configuration error handling removed - they test parameters that don't exist in the public API
 
-# Tests for configuration error handling removed - they test parameters that don't exist in the public API
+    # Tests for memory error handling removed - they were testing non-existent _process_marc_files_parallel method
 
-
-# Tests for memory error handling removed - they were testing non-existent _process_marc_files_parallel method
-    
     def test_result_aggregation_memory_error(self, tmp_path):
         """Test handling of memory errors during result aggregation"""
-        analyzer = MarcCopyrightAnalyzer()
+        MarcCopyrightAnalyzer()
         results = AnalysisResults()
-        
+
         # Create a large number of mock publications
         large_pubs = [Mock(spec=Publication) for _ in range(10000)]
-        
+
         # Simulate memory error during aggregation
-        with patch.object(results, 'publications', large_pubs):
-            with patch('pickle.dump', side_effect=MemoryError("Cannot serialize")):
+        with patch.object(results, "publications", large_pubs):
+            with patch("pickle.dump", side_effect=MemoryError("Cannot serialize")):
                 # Should handle memory error
                 output_file = tmp_path / "large_results.pkl"
-                
+
                 with pytest.raises(MemoryError):
-                    with open(output_file, 'wb') as f:
+                    with open(output_file, "wb") as f:
                         pickle.dump(results, f)

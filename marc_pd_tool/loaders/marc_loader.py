@@ -5,12 +5,14 @@
 # Standard library imports
 from logging import getLogger
 from pathlib import Path
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import iterparse
 
 # Local imports
 from marc_pd_tool.data.enums import CountryClassification
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.utils.marc_utilities import extract_country_from_marc_008
+from marc_pd_tool.utils.text_utils import remove_bracketed_content
 
 logger = getLogger(__name__)
 
@@ -57,7 +59,7 @@ class MarcLoader:
         for marc_file in marc_files:
             logger.info(f"Processing MARC file: {marc_file.name}")
             try:
-                context = ET.iterparse(marc_file, events=("start", "end"))
+                context = iterparse(marc_file, events=("start", "end"))
                 event, root = next(context)
 
                 file_record_count = 0
@@ -128,8 +130,8 @@ class MarcLoader:
         return batches
 
     def _extract_marc_field(
-        self, record: ET.Element, ns: dict[str, str], tags: list[str], subfield_code: str
-    ) -> ET.Element | None:
+        self, record: Element, ns: dict[str, str], tags: list[str], subfield_code: str
+    ) -> Element | None:
         """Extract a MARC field using pattern matching, trying multiple tags in order
 
         Args:
@@ -172,7 +174,7 @@ class MarcLoader:
         else:
             return []
 
-    def _extract_from_record(self, record: ET.Element) -> Publication | None:
+    def _extract_from_record(self, record: Element) -> Publication | None:
         try:
             ns = {"marc": "http://www.loc.gov/MARC21/slim"}
 
@@ -199,10 +201,6 @@ class MarcLoader:
 
             # Remove bracketed content from title (e.g., "[microform]", "[electronic resource]")
             if title:
-                # Import here to avoid circular import issues
-                # Local imports
-                from marc_pd_tool.utils.text_utils import remove_bracketed_content
-
                 title = remove_bracketed_content(title)
 
             if not title:

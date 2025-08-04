@@ -251,7 +251,7 @@ def _publication_to_comprehensive_dict(pub: Publication) -> JSONDict:
     # Analysis results
     analysis = {
         "status": pub.copyright_status.value,
-        "status_rule": pub.status_rule,
+        "status_rule": pub.status_rule.value if pub.status_rule else "",
         "sort_score": pub.sort_score,
         "data_completeness": pub.data_completeness,
         "generic_title": {

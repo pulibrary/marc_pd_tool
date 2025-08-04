@@ -31,12 +31,12 @@ class TestDynamicFilenames:
     def test_user_provided_filename_gets_correct_extension(self, base_args):
         """Test that user-provided filenames get extensions stripped (added by exporters)"""
         base_args.output_filename = "my_custom_analysis.csv"
-        assert generate_output_filename(base_args) == "my_custom_analysis"
+        assert generate_output_filename(base_args) == "reports/my_custom_analysis"
 
         # Extension should be stripped regardless of format
         base_args.output_formats = ["xlsx"]
         base_args.output_filename = "my_custom_analysis.xlsx"
-        assert generate_output_filename(base_args) == "my_custom_analysis"
+        assert generate_output_filename(base_args) == "reports/my_custom_analysis"
 
     def test_user_provided_filename_with_path_gets_correct_extension(self, base_args):
         """Test that user-provided filenames with paths get correct extension"""
@@ -50,65 +50,65 @@ class TestDynamicFilenames:
 
     def test_default_filename_no_filters(self, base_args):
         """Test default filename when no filters are applied"""
-        assert generate_output_filename(base_args) == "matches"
+        assert generate_output_filename(base_args) == "reports/matches"
 
     def test_us_only_filter_adds_suffix(self, base_args):
         """Test that US-only filter adds us-only suffix"""
         base_args.us_only = True
-        assert generate_output_filename(base_args) == "matches_us-only"
+        assert generate_output_filename(base_args) == "reports/matches_us-only"
 
     def test_year_range_filter(self, base_args):
         """Test filename generation with year range"""
         base_args.min_year = 1950
         base_args.max_year = 1960
-        assert generate_output_filename(base_args) == "matches_1950-1960"
+        assert generate_output_filename(base_args) == "reports/matches_1950-1960"
 
     def test_single_year_filter(self, base_args):
         """Test filename generation when min_year equals max_year"""
         base_args.min_year = 1955
         base_args.max_year = 1955
-        assert generate_output_filename(base_args) == "matches_1955-1955"
+        assert generate_output_filename(base_args) == "reports/matches_1955-1955"
 
     def test_min_year_only_filter(self, base_args):
         """Test filename generation with only minimum year"""
         base_args.min_year = 1945
-        assert generate_output_filename(base_args) == "matches_1945-current"
+        assert generate_output_filename(base_args) == "reports/matches_1945-current"
 
     def test_max_year_only_filter(self, base_args):
         """Test filename generation with only maximum year"""
         base_args.max_year = 1970
-        assert generate_output_filename(base_args) == "matches_pre-1970"
+        assert generate_output_filename(base_args) == "reports/matches_pre-1970"
 
     def test_combined_us_only_and_year_range(self, base_args):
         """Test filename generation with both US-only and year range filters"""
         base_args.us_only = True
         base_args.min_year = 1950
         base_args.max_year = 1960
-        assert generate_output_filename(base_args) == "matches_us-only_1950-1960"
+        assert generate_output_filename(base_args) == "reports/matches_us-only_1950-1960"
 
     def test_combined_us_only_and_single_year(self, base_args):
         """Test filename generation with US-only and single year"""
         base_args.us_only = True
         base_args.min_year = 1955
         base_args.max_year = 1955
-        assert generate_output_filename(base_args) == "matches_us-only_1955-1955"
+        assert generate_output_filename(base_args) == "reports/matches_us-only_1955-1955"
 
     def test_combined_us_only_and_min_year(self, base_args):
         """Test filename generation with US-only and minimum year only"""
         base_args.us_only = True
         base_args.min_year = 1945
-        assert generate_output_filename(base_args) == "matches_us-only_1945-current"
+        assert generate_output_filename(base_args) == "reports/matches_us-only_1945-current"
 
     def test_combined_us_only_and_max_year(self, base_args):
         """Test filename generation with US-only and maximum year only"""
         base_args.us_only = True
         base_args.max_year = 1970
-        assert generate_output_filename(base_args) == "matches_us-only_pre-1970"
+        assert generate_output_filename(base_args) == "reports/matches_us-only_pre-1970"
 
     def test_score_everything_indicator(self, base_args):
         """Test filename includes score-everything indicator when enabled"""
         base_args.score_everything_mode = True
-        assert generate_output_filename(base_args) == "matches_score-everything"
+        assert generate_output_filename(base_args) == "reports/matches_score-everything"
 
     def test_score_everything_with_filters(self, base_args):
         """Test filename with score-everything and other filters"""
@@ -116,7 +116,10 @@ class TestDynamicFilenames:
         base_args.us_only = True
         base_args.min_year = 1930
         base_args.max_year = 1960
-        assert generate_output_filename(base_args) == "matches_us-only_1930-1960_score-everything"
+        assert (
+            generate_output_filename(base_args)
+            == "reports/matches_us-only_1930-1960_score-everything"
+        )
 
 
 class TestFilenameEdgeCases:
@@ -132,11 +135,11 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args) == "custom"
+        assert generate_output_filename(args) == "reports/custom"
 
         # Extension stripped regardless of format
         args.output_formats = ["xlsx"]
-        assert generate_output_filename(args) == "custom"
+        assert generate_output_filename(args) == "reports/custom"
 
     def test_output_with_different_extension(self):
         """Test that file extensions are replaced based on output format"""
@@ -149,11 +152,11 @@ class TestFilenameEdgeCases:
             output_formats=["csv"],
         )
         # Extension is stripped
-        assert generate_output_filename(args) == "data"
+        assert generate_output_filename(args) == "reports/data"
 
         # Test with xlsx format
         args.output_formats = ["xlsx"]
-        assert generate_output_filename(args) == "data"
+        assert generate_output_filename(args) == "reports/data"
 
     def test_relative_path_preserved(self):
         """Test that relative paths are preserved"""
@@ -178,7 +181,7 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args1) == "matches_us-only_1950-1959"
+        assert generate_output_filename(args1) == "reports/matches_us-only_1950-1959"
 
         # Scenario 2: Everything after 1930
         args2 = Namespace(
@@ -189,7 +192,7 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args2) == "matches_1930-current"
+        assert generate_output_filename(args2) == "reports/matches_1930-current"
 
         # Scenario 3: US publications up to 1970
         args3 = Namespace(
@@ -200,7 +203,7 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args3) == "matches_us-only_pre-1970"
+        assert generate_output_filename(args3) == "reports/matches_us-only_pre-1970"
 
     def test_default_detection_logic(self):
         """Test that only the exact default triggers dynamic naming"""
@@ -224,11 +227,11 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args_similar) == "matches2"
+        assert generate_output_filename(args_similar) == "reports/matches2"
 
         # Test extension stripped
         args_similar.output_formats = ["json"]
-        assert generate_output_filename(args_similar) == "matches2"
+        assert generate_output_filename(args_similar) == "reports/matches2"
 
         args_case = Namespace(
             output_filename="Matches.csv",
@@ -238,11 +241,11 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args_case) == "Matches"
+        assert generate_output_filename(args_case) == "reports/Matches"
 
         # Test case preservation
         args_case.output_formats = ["xlsx"]
-        assert generate_output_filename(args_case) == "Matches"
+        assert generate_output_filename(args_case) == "reports/Matches"
 
     def test_filename_without_extension_gets_added(self):
         """Test that filenames without extensions get the correct extension added"""
@@ -254,10 +257,10 @@ class TestFilenameEdgeCases:
             score_everything_mode=False,
             output_formats=["csv"],
         )
-        assert generate_output_filename(args) == "my_output"
+        assert generate_output_filename(args) == "reports/my_output"
 
         args.output_formats = ["xlsx"]
-        assert generate_output_filename(args) == "my_output"
+        assert generate_output_filename(args) == "reports/my_output"
 
         args.output_formats = ["json"]
-        assert generate_output_filename(args) == "my_output"
+        assert generate_output_filename(args) == "reports/my_output"

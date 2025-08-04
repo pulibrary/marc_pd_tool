@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus
+from marc_pd_tool.data.enums import CopyrightStatusRule
 from marc_pd_tool.data.enums import CountryClassification
 from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.utils.marc_utilities import extract_language_from_marc
@@ -143,7 +144,7 @@ class Publication:
 
         # Final status
         self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
-        self.status_rule: str = ""  # Rule code explaining copyright status
+        self.status_rule: CopyrightStatusRule | None = None  # Rule explaining copyright status
         self.sort_score: float = 0.0  # Score for sorting by match quality
         self.data_completeness: list[str] = []  # Data quality issues
 
@@ -245,53 +246,49 @@ class Publication:
             # US works 1930-1963 with specific registration/renewal patterns
             case (CountryClassification.US, year, True, False) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 with registration but no renewal are PD
-                self.copyright_status = CopyrightStatus.PD_NO_RENEWAL
-                self.status_rule = "us_1930_1963_no_renewal"
+                self.copyright_status = CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
+                self.status_rule = CopyrightStatusRule.US_1930_1963_NO_RENEWAL
             case (CountryClassification.US, year, _, True) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 that were renewed are likely still copyrighted
-                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                self.status_rule = "us_1930_1963_renewed"
+                self.copyright_status = CopyrightStatus.IN_COPYRIGHT_US_1930_1963_RENEWED
+                self.status_rule = CopyrightStatusRule.US_1930_1963_RENEWED
             case (CountryClassification.US, year, False, False) if year and 1930 <= year <= 1963:
                 # US works 1930-1963 with no registration/renewal need verification
-                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-                self.status_rule = "us_1930_1963_no_reg_data"
+                self.copyright_status = CopyrightStatus.UNKNOWN_US_1930_1963_NO_DATA
+                self.status_rule = CopyrightStatusRule.US_1930_1963_NO_REG_DATA
 
             # General US records for other years
             case (CountryClassification.US, _, True, False):
-                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-                self.status_rule = "us_registered_no_renewal"
+                self.copyright_status = CopyrightStatus.PD_US_REG_NO_RENEWAL
+                self.status_rule = CopyrightStatusRule.US_REGISTERED_NO_RENEWAL
             case (CountryClassification.US, _, False, True):
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                self.status_rule = "us_renewal_found"
+                self.status_rule = CopyrightStatusRule.US_RENEWAL_FOUND
             case (CountryClassification.US, _, False, False):
-                self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-                self.status_rule = "us_no_reg_data"
+                self.copyright_status = CopyrightStatus.PD_US_NO_REG_DATA
+                self.status_rule = CopyrightStatusRule.US_NO_REG_DATA
             case (CountryClassification.US, _, True, True):
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                self.status_rule = "us_registered_and_renewed"
+                self.status_rule = CopyrightStatusRule.US_REGISTERED_AND_RENEWED
 
             # Non-US records
             case (CountryClassification.NON_US, _, _, _) if has_reg or has_ren:
                 self.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
-                self.status_rule = "foreign_us_activity"
+                self.status_rule = CopyrightStatusRule.FOREIGN_US_ACTIVITY
             case (CountryClassification.NON_US, _, _, _):
                 self.copyright_status = CopyrightStatus.RESEARCH_US_ONLY_PD
-                self.status_rule = "foreign_no_us_activity"
+                self.status_rule = CopyrightStatusRule.FOREIGN_NO_US_ACTIVITY
 
             # Unknown country
             case _:
                 # Unknown country - still track matches but can't determine status
                 self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
-                self.status_rule = "unknown_country"
+                self.status_rule = CopyrightStatusRule.UNKNOWN_COUNTRY
 
         # Check for special cases based on year
         if self.year and self.year < 1928:
-            self.copyright_status = CopyrightStatus.PD_DATE_VERIFY
-            self.status_rule = "us_pre_1928"
-        elif not self.year:
-            self.status_rule = (
-                f"{self.status_rule}_missing_year" if self.status_rule else "missing_year"
-            )
+            self.copyright_status = CopyrightStatus.PD_PRE_1928
+            self.status_rule = CopyrightStatusRule.US_PRE_1928
 
         return self.copyright_status
 

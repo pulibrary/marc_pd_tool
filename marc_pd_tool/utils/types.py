@@ -71,6 +71,7 @@ class AnalysisOptions(TypedDict, total=False):
     publisher_threshold: int
     early_exit_title: int
     early_exit_author: int
+    early_exit_publisher: int
     score_everything_mode: bool
     lccn_support: bool
     fuzzy_ratio_threshold: int
@@ -181,6 +182,10 @@ class CopyrightRecordDict(TypedDict):
     source_id: str
     pub_date: str
     full_text: str
+    # Normalized versions for analysis
+    normalized_title: str
+    normalized_author: str
+    normalized_publisher: str
 
 
 class MatchResultDict(TypedDict):
@@ -242,6 +247,7 @@ BatchProcessingInfo = tuple[
     int,  # year_tolerance
     int,  # early_exit_title
     int,  # early_exit_author
+    int,  # early_exit_publisher
     bool,  # score_everything
     int | None,  # minimum_combined_score
     bool,  # brute_force_missing_year
@@ -267,3 +273,4 @@ class BatchStats(TypedDict):
     non_us_records: int
     unknown_country_records: int
     processing_time: float  # Actual processing time in seconds
+    skipped_no_year: int  # Records skipped due to missing year

@@ -9,12 +9,8 @@ from os.path import exists
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-# Third party imports
-import pytest
-
 # Local imports
 from marc_pd_tool.exporters.json_exporter import save_matches_json
-from tests.fixtures.publications import sample_publications
 
 
 class TestJSONExporter:

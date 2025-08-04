@@ -11,6 +11,9 @@ from unicodedata import normalize as unicode_normalize
 # Third party imports
 from unidecode import unidecode
 
+# Local imports
+from marc_pd_tool.infrastructure.config_loader import get_config
+
 
 def ascii_fold(text: str) -> str:
     """Convert accented characters to their ASCII equivalents
@@ -52,9 +55,6 @@ def normalize_unicode(text: str) -> str:
 
     # Get encoding corruption mappings from config
     # These are specific patterns found in ground truth analysis
-    # Local imports
-    from marc_pd_tool.infrastructure.config_loader import get_config
-
     config = get_config()
     replacements = config.get_unicode_corrections()
 

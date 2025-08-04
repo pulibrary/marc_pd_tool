@@ -5,10 +5,11 @@
 # Third party imports
 import pytest
 
-
 # Configure pytest-benchmark if available
 try:
-    import pytest_benchmark
+    # Third party imports
+    pass
+
     BENCHMARK_AVAILABLE = True
 except ImportError:
     BENCHMARK_AVAILABLE = False
@@ -24,9 +25,5 @@ def skip_if_no_benchmark():
 # Performance test markers
 def pytest_configure(config):
     """Register custom markers"""
-    config.addinivalue_line(
-        "markers", "performance: mark test as a performance benchmark"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "performance: mark test as a performance benchmark")
+    config.addinivalue_line("markers", "slow: mark test as slow running")

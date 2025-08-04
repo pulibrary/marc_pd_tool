@@ -3,15 +3,13 @@
 """Integration test fixtures and configuration"""
 
 # Standard library imports
+from os import environ
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Generator
 
 # Third party imports
 import pytest
-
-# Local imports
-from marc_pd_tool.loaders.marc_loader import MarcLoader
 
 
 @pytest.fixture(scope="session")
@@ -101,7 +99,7 @@ def small_marc_file(temp_output_dir: Path) -> Path:
     </datafield>
   </record>
 </collection>"""
-    
+
     marc_path = temp_output_dir / "small_test.marcxml"
     marc_path.write_text(marc_content)
     return marc_path
@@ -136,12 +134,12 @@ def medium_marc_file(temp_output_dir: Path) -> Path:
     </datafield>
   </record>"""
         records.append(record)
-    
+
     marc_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <collection xmlns="http://www.loc.gov/MARC21/slim">
 {chr(10).join(records)}
 </collection>"""
-    
+
     marc_path = temp_output_dir / "medium_test.marcxml"
     marc_path.write_text(marc_content)
     return marc_path
@@ -152,7 +150,7 @@ def mock_copyright_data(temp_output_dir: Path) -> Path:
     """Create mock copyright registration data"""
     copyright_dir = temp_output_dir / "copyright"
     copyright_dir.mkdir()
-    
+
     # Create sample copyright XML files following the expected format
     copyright_content = """<?xml version="1.0" encoding="UTF-8"?>
 <copyrightEntries>
@@ -179,7 +177,7 @@ def mock_copyright_data(temp_output_dir: Path) -> Path:
         <regnum>A234567</regnum>
     </copyrightEntry>
 </copyrightEntries>"""
-    
+
     # Write to a file with year in filename as the loader expects
     (copyright_dir / "1950s_1960s_sample.xml").write_text(copyright_content)
     return copyright_dir
@@ -190,12 +188,12 @@ def mock_renewal_data(temp_output_dir: Path) -> Path:
     """Create mock renewal data"""
     renewal_dir = temp_output_dir / "renewal"
     renewal_dir.mkdir()
-    
+
     # Create a sample renewal TSV file
     renewal_content = """title\tauthor\toreg\todat\tid\trdat\tclaimants
 A test book for integration testing\tSmith, John Q.\tA123456\t1960\tR123456\t1988\tSmith, John Q.
 """
-    
+
     (renewal_dir / "1988_sample.tsv").write_text(renewal_content)
     return renewal_dir
 
@@ -205,14 +203,12 @@ A test book for integration testing\tSmith, John Q.\tA123456\t1960\tR123456\t198
 def configure_integration_tests():
     """Configure settings for integration tests"""
     # Set longer timeout for integration tests
-    import pytest
     pytest.INTEGRATION_TEST_TIMEOUT = 300  # 5 minutes
-    
+
     # Disable cache during integration tests to ensure fresh runs
-    import os
-    os.environ["MARCPD_DISABLE_CACHE"] = "1"
-    
+    environ["MARCPD_DISABLE_CACHE"] = "1"
+
     yield
-    
+
     # Cleanup
-    os.environ.pop("MARCPD_DISABLE_CACHE", None)
+    environ.pop("MARCPD_DISABLE_CACHE", None)

@@ -252,6 +252,36 @@ CopyrightStatus.RESEARCH_US_ONLY_PD # Foreign work - may be PD in US only
 CopyrightStatus.COUNTRY_UNKNOWN    # Cannot determine - country unknown
 ```
 
+### AnalysisResults
+
+Container for analysis results with comprehensive statistics.
+
+```python
+# Access results after analysis
+results = analyzer.analyze()
+
+# Get statistics dictionary
+stats = results.statistics
+
+# Available statistics:
+print(f"Total records processed: {stats['total_records']}")
+print(f"Records skipped (no year): {stats['skipped_no_year']}")  # When not using --brute-force-missing-year
+print(f"US records: {stats['us_records']}")
+print(f"Non-US records: {stats['non_us_records']}")
+print(f"Unknown country: {stats['unknown_country']}")
+print(f"Registration matches: {stats['registration_matches']}")
+print(f"Renewal matches: {stats['renewal_matches']}")
+print(f"No matches found: {stats['no_matches']}")
+
+# Copyright status breakdown
+print(f"Public domain (pre-1928): {stats.get('pd_pre_1928', 0)}")
+print(f"Public domain (no renewal): {stats['pd_no_renewal']}")
+print(f"In copyright: {stats['in_copyright']}")
+# ... other status counts
+```
+
+**Note**: The `skipped_no_year` statistic tracks MARC records that were skipped because they lack publication year data when not using the `--brute-force-missing-year` option. This helps identify potentially incomplete analysis coverage.
+
 ## Advanced Usage
 
 ### Custom Configuration

@@ -5,7 +5,10 @@
 # Standard library imports
 from json import load as json_load
 from logging import getLogger
+from os import getcwd
+from os.path import dirname
 from os.path import exists
+from os.path import join
 
 # Local imports
 from marc_pd_tool.utils.types import JSONDict
@@ -44,10 +47,6 @@ class ConfigLoader:
             return config_path
 
         # Auto-detect config.json in current working directory
-        # Standard library imports
-        from os import getcwd
-        from os.path import join
-
         auto_config_path = join(getcwd(), "config.json")
         if exists(auto_config_path):
             return auto_config_path
@@ -297,11 +296,8 @@ class ConfigLoader:
         """
         # Check in same directory as config
         if self.config_path:
-            # Standard library imports
-            import os
-
-            config_dir = os.path.dirname(self.config_path)
-            wordlists_path = os.path.join(config_dir, "wordlists.json")
+            config_dir = dirname(self.config_path)
+            wordlists_path = join(config_dir, "wordlists.json")
             if exists(wordlists_path):
                 return wordlists_path
 

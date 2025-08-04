@@ -7,11 +7,14 @@ from json import dump as json_dump
 from json import load as json_load
 from logging import getLogger
 from os import makedirs
+from os import walk
 from os.path import exists
 from os.path import getmtime
+from os.path import isdir
 from os.path import join
 from pickle import dump as pickle_dump
 from pickle import load as pickle_load
+from shutil import rmtree
 from time import time
 from typing import Mapping
 from typing import Optional  # Needed for forward references
@@ -72,9 +75,6 @@ class CacheManager:
 
         max_mtime = getmtime(directory_path)
         try:
-            # Standard library imports
-            from os import walk
-
             for root, dirs, files in walk(directory_path):
                 for file in files:
                     file_path = join(root, file)
@@ -191,9 +191,6 @@ class CacheManager:
 
             # Get current modification time
             if exists(source_path):
-                # Standard library imports
-                from os.path import isdir
-
                 if isdir(source_path):
                     current_mtime = self._get_directory_modification_time(source_path)
                 else:
@@ -256,9 +253,6 @@ class CacheManager:
             modification_times: dict[str, float] = {}
             for source_path in source_paths:
                 if exists(source_path):
-                    # Standard library imports
-                    from os.path import isdir
-
                     if isdir(source_path):
                         modification_times[source_path] = self._get_directory_modification_time(
                             source_path
@@ -722,9 +716,6 @@ class CacheManager:
         """Clear all cached data"""
         logger.info(f"Clearing all caches in {self.cache_dir}")
         try:
-            # Standard library imports
-            from shutil import rmtree
-
             if exists(self.cache_dir):
                 rmtree(self.cache_dir)
                 # Recreate directory structure

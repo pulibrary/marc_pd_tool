@@ -46,7 +46,7 @@ This tool implements a comprehensive algorithm to classify publications by copyr
 
 1. **Results:**
 
-   - `matches.csv` - CSV with copyright status classifications
+   - `reports/matches.csv` - CSV with copyright status classifications (saved to `reports/` directory by default)
    - Country classification (US/Non-US/Unknown)
    - Registration and renewal match analysis
    - Completion time: Several hours for large datasets
@@ -109,7 +109,7 @@ pdm run python -m marc_pd_tool \
     --brute-force-missing-year
 ```
 
-**Note**: By default, MARC records without year data are skipped for performance. Use `--brute-force-missing-year` to process them, but this significantly increases processing time as they must be compared against all copyright/renewal records.
+**Note**: By default, MARC records without year data are skipped for performance. Use `--brute-force-missing-year` to process them, but this significantly increases processing time as they must be compared against all copyright/renewal records. The number of skipped records will be reported in the processing summary.
 
 ## Key Options
 
@@ -136,13 +136,13 @@ Key optimizations:
 
 ## Output
 
-The tool supports multiple output formats that can be generated in a single run. JSON is always generated first as the master format, then other formats are derived from it.
+The tool supports multiple output formats that can be generated in a single run. JSON is always generated first as the master format, then other formats are derived from it. All output files are saved to the `reports/` directory by default (created automatically if it doesn't exist).
 
 ### CSV Output (Default)
 
 The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status:
 
-- `matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
+- `reports/matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
 - `matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
 - `matches_in_copyright.csv` - Works still under copyright
 - `matches_research_us_status.csv` - Requires additional research

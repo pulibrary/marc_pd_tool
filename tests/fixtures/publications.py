@@ -15,14 +15,14 @@ from marc_pd_tool.data.publication import Publication
 
 class PublicationBuilder:
     """Builder pattern for creating test publications with sensible defaults"""
-    
+
     @staticmethod
     def basic_us_publication(**kwargs) -> Publication:
         """Create a basic US publication with sensible defaults
-        
+
         Args:
             **kwargs: Override any default values
-            
+
         Returns:
             Publication instance with test data
         """
@@ -41,26 +41,26 @@ class PublicationBuilder:
             "country_classification": CountryClassification.US,
         }
         defaults.update(kwargs)
-        
+
         pub = Publication(**defaults)
-        
+
         # Set fields that aren't in constructor
         pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
         pub.generic_title_detected = False
         pub.generic_detection_reason = ""
         pub.registration_generic_title = False
         pub.renewal_generic_title = False
-        
+
         return pub
-    
+
     @staticmethod
     def with_registration_match(pub: Publication, **match_kwargs) -> Publication:
         """Add a registration match to a publication
-        
+
         Args:
             pub: Publication to add match to
             **match_kwargs: Override any default match values
-            
+
         Returns:
             Publication with registration match added
         """
@@ -79,18 +79,18 @@ class PublicationBuilder:
             "match_type": MatchType.SIMILARITY,
         }
         match_defaults.update(match_kwargs)
-        
+
         pub.registration_match = MatchResult(**match_defaults)
         return pub
-    
+
     @staticmethod
     def with_renewal_match(pub: Publication, **match_kwargs) -> Publication:
         """Add a renewal match to a publication
-        
+
         Args:
             pub: Publication to add match to
             **match_kwargs: Override any default match values
-            
+
         Returns:
             Publication with renewal match added
         """
@@ -109,23 +109,23 @@ class PublicationBuilder:
             "match_type": MatchType.SIMILARITY,
         }
         match_defaults.update(match_kwargs)
-        
+
         pub.renewal_match = MatchResult(**match_defaults)
         return pub
-    
+
     @staticmethod
     def batch_publications(count: int = 3, year_start: int = 1950) -> list[Publication]:
         """Create a batch of diverse test publications
-        
+
         Args:
             count: Number of publications to create
             year_start: Starting year for publications
-            
+
         Returns:
             List of diverse publications
         """
         publications = []
-        
+
         for i in range(count):
             year = year_start + i
             pub = PublicationBuilder.basic_us_publication(
@@ -135,7 +135,7 @@ class PublicationBuilder:
                 main_author=f"Author{i+1}, Test",
                 pub_date=str(year),
             )
-            
+
             # Vary the matches and statuses
             if i % 3 == 0:
                 pub = PublicationBuilder.with_registration_match(pub)
@@ -146,9 +146,9 @@ class PublicationBuilder:
             else:
                 # No matches
                 pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
-                
+
             publications.append(pub)
-            
+
         return publications
 
 
@@ -161,16 +161,16 @@ def publication_builder():
 @pytest.fixture
 def sample_publications():
     """Standard set of 3 diverse publications for testing
-    
+
     Returns:
         List containing:
         - Publication with registration match (PD_NO_RENEWAL)
-        - Publication with renewal match (IN_COPYRIGHT)  
+        - Publication with renewal match (IN_COPYRIGHT)
         - Publication with no matches (RESEARCH_US_STATUS)
     """
     # This replaces the duplicate fixtures across multiple test files
     pubs = []
-    
+
     # Publication with registration match
     pub1 = PublicationBuilder.basic_us_publication(
         source_id="123",
@@ -186,7 +186,7 @@ def sample_publications():
     pub1 = PublicationBuilder.with_registration_match(pub1)
     pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
     pubs.append(pub1)
-    
+
     # Publication with renewal match
     pub2 = PublicationBuilder.basic_us_publication(
         source_id="456",
@@ -202,7 +202,7 @@ def sample_publications():
     pub2 = PublicationBuilder.with_renewal_match(pub2, matched_publisher="")
     pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
     pubs.append(pub2)
-    
+
     # Publication with no matches
     pub3 = PublicationBuilder.basic_us_publication(
         source_id="789",
@@ -219,7 +219,7 @@ def sample_publications():
     )
     pub3.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
     pubs.append(pub3)
-    
+
     return pubs
 
 
@@ -229,11 +229,9 @@ def us_publication():
     return PublicationBuilder.basic_us_publication()
 
 
-@pytest.fixture  
+@pytest.fixture
 def non_us_publication():
     """Single non-US publication for simple tests"""
     return PublicationBuilder.basic_us_publication(
-        country_code="xxk",
-        country_classification=CountryClassification.NON_US,
-        place="London"
+        country_code="xxk", country_classification=CountryClassification.NON_US, place="London"
     )

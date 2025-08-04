@@ -9,6 +9,7 @@ This CLI uses the public API provided by marc_pd_tool.
 
 # Standard library imports
 from argparse import ArgumentParser
+from argparse import BooleanOptionalAction
 from argparse import Namespace
 from datetime import datetime
 from logging import DEBUG
@@ -18,7 +19,9 @@ from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from multiprocessing import cpu_count
+from os import getcwd
 from os import makedirs
+from os.path import dirname
 from os.path import exists
 from os.path import join
 from time import time
@@ -27,6 +30,7 @@ from time import time
 from marc_pd_tool import MarcCopyrightAnalyzer
 from marc_pd_tool.infrastructure.config_loader import get_config
 from marc_pd_tool.infrastructure.run_index_manager import RunIndexManager
+from marc_pd_tool.utils.types import AnalysisOptions
 
 logger = getLogger(__name__)
 
@@ -94,10 +98,6 @@ def set_up_logging(
 
 def create_argument_parser() -> ArgumentParser:
     """Create and configure argument parser with all CLI options"""
-    # Standard library imports
-    from argparse import BooleanOptionalAction
-    from os import getcwd
-
     # Get current working directory for default paths
     cwd = getcwd()
 
@@ -136,7 +136,7 @@ def create_argument_parser() -> ArgumentParser:
         "--output-filename",
         "-o",
         default="matches.csv",
-        help="Output file (default auto-generates descriptive names based on filters)",
+        help="Output file (default: reports/[auto-generated name based on filters])",
     )
     parser.add_argument(
         "--output-formats",
@@ -202,6 +202,12 @@ def create_argument_parser() -> ArgumentParser:
         type=int,
         default=config.get_threshold("early_exit_author"),
         help="Author score for early termination (default: from config)",
+    )
+    parser.add_argument(
+        "--early-exit-publisher",
+        type=int,
+        default=config.get_threshold("early_exit_publisher"),
+        help="Publisher score for early termination (default: from config)",
     )
 
     # Filtering options
@@ -320,8 +326,13 @@ def create_argument_parser() -> ArgumentParser:
 def generate_output_filename(args: Namespace) -> str:
     """Generate descriptive output filename based on filters"""
     if args.output_filename != "matches.csv":
-        # User specified a filename - ensure it has the right extension
+        # User specified a filename - check if it already includes a directory
         base_name = str(args.output_filename)
+
+        # If user didn't specify a directory, add reports/
+        if dirname(base_name) == "":
+            base_name = join("reports", base_name)
+
         # Remove any existing extension (more broadly)
         if "." in base_name:
             # Split on last dot to handle paths with dots
@@ -352,7 +363,10 @@ def generate_output_filename(args: Namespace) -> str:
         components.append("score-everything")
 
     # Return base name without extension (will be added by exporters)
-    return "_".join(components)
+    filename = "_".join(components)
+
+    # Add reports directory
+    return join("reports", filename)
 
 
 def log_run_summary(
@@ -369,6 +383,8 @@ def log_run_summary(
     logger.info("PROCESSING COMPLETE")
     logger.info("=" * 80)
     logger.info(f"Total records processed: {results_stats['total_records']:,}")
+    if results_stats.get("skipped_no_year", 0) > 0:
+        logger.info(f"Records skipped (no year): {results_stats['skipped_no_year']:,}")
     logger.info(f"Registration matches: {results_stats['registration_matches']:,}")
     logger.info(f"Renewal matches: {results_stats['renewal_matches']:,}")
     logger.info(f"Processing time: {duration:.2f} seconds")
@@ -428,6 +444,11 @@ def main() -> None:
     # Initialize run index manager
     run_index_manager = RunIndexManager()
     output_filename = generate_output_filename(args)
+
+    # Create reports directory if it doesn't exist
+    output_dir = dirname(output_filename)
+    if output_dir:
+        makedirs(output_dir, exist_ok=True)
 
     # Create initial run info
     run_info = {
@@ -505,9 +526,6 @@ def main() -> None:
             return  # Exit early for ground truth mode
 
         # Normal analysis mode
-        # Local imports
-        from marc_pd_tool.utils.types import AnalysisOptions
-
         options: AnalysisOptions = {
             "us_only": args.us_only,
             "min_year": args.min_year,
@@ -518,6 +536,7 @@ def main() -> None:
             "publisher_threshold": args.publisher_threshold,
             "early_exit_title": args.early_exit_title,
             "early_exit_author": args.early_exit_author,
+            "early_exit_publisher": args.early_exit_publisher,
             "score_everything_mode": args.score_everything_mode,
             "brute_force_missing_year": args.brute_force_missing_year,
             "formats": args.output_formats,

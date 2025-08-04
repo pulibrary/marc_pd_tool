@@ -5,14 +5,42 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.data.publication import CopyrightStatus
-from marc_pd_tool.data.publication import CountryClassification
+from marc_pd_tool.data.enums import CopyrightStatus
+from marc_pd_tool.data.enums import CopyrightStatusRule
+from marc_pd_tool.data.enums import CountryClassification
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 
 
 class TestUSCopyrightStatusDetermination:
     """Test copyright status determination for US publications"""
+
+    def test_us_pre_1928_public_domain(self):
+        """Test that US works published before 1928 are public domain"""
+        pub = Publication(
+            title="Test Book",
+            author="Test Author",
+            pub_date="1925",
+            country_classification=CountryClassification.US,
+        )
+
+        # Even with registration/renewal, pre-1928 is PD
+        reg_match = MatchResult(
+            matched_title="Test Book",
+            matched_author="Test Author",
+            similarity_score=90.0,
+            title_score=95.0,
+            author_score=85.0,
+            year_difference=0,
+            source_id="reg_001",
+            source_type="registration",
+        )
+        pub.set_registration_match(reg_match)
+
+        status = pub.determine_copyright_status()
+        assert status == CopyrightStatus.PD_PRE_1928
+        assert pub.copyright_status == CopyrightStatus.PD_PRE_1928
+        assert pub.status_rule == CopyrightStatusRule.US_PRE_1928
 
     def test_us_1930_1963_no_renewal_rule(self):
         """Test special rule for US works 1930-1963 with registration but no renewal"""
@@ -37,8 +65,8 @@ class TestUSCopyrightStatusDetermination:
         pub.set_registration_match(reg_match)
 
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_NO_RENEWAL
-        assert pub.copyright_status == CopyrightStatus.PD_NO_RENEWAL
+        assert status == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
+        assert pub.copyright_status == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
 
     def test_us_1930_1963_with_renewal(self):
         """Test US works 1930-1963 that were renewed are still copyrighted"""
@@ -75,8 +103,8 @@ class TestUSCopyrightStatusDetermination:
         pub.set_renewal_match(ren_match)
 
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.IN_COPYRIGHT
-        assert pub.copyright_status == CopyrightStatus.IN_COPYRIGHT
+        assert status == CopyrightStatus.IN_COPYRIGHT_US_1930_1963_RENEWED
+        assert pub.copyright_status == CopyrightStatus.IN_COPYRIGHT_US_1930_1963_RENEWED
 
     def test_us_1930_1963_no_registration_no_renewal(self):
         """Test US works 1930-1963 with no registration/renewal need verification"""
@@ -89,8 +117,8 @@ class TestUSCopyrightStatusDetermination:
 
         # No matches added
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_DATE_VERIFY
-        assert pub.copyright_status == CopyrightStatus.PD_DATE_VERIFY
+        assert status == CopyrightStatus.UNKNOWN_US_1930_1963_NO_DATA
+        assert pub.copyright_status == CopyrightStatus.UNKNOWN_US_1930_1963_NO_DATA
 
     def test_us_1930_1963_boundary_years(self):
         """Test boundary years for the 1930-1963 rule"""
@@ -109,35 +137,35 @@ class TestUSCopyrightStatusDetermination:
             source_type="registration",
         )
         pub_1930.set_registration_match(reg_match)
-        assert pub_1930.determine_copyright_status() == CopyrightStatus.PD_NO_RENEWAL
+        assert pub_1930.determine_copyright_status() == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
 
         # Test 1963 (should use special rule)
         pub_1963 = Publication(
             title="Test Book 1963", pub_date="1963", country_classification=CountryClassification.US
         )
         pub_1963.set_registration_match(reg_match)
-        assert pub_1963.determine_copyright_status() == CopyrightStatus.PD_NO_RENEWAL
+        assert pub_1963.determine_copyright_status() == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
 
         # Test 1929 (should use general rule)
         pub_1929 = Publication(
             title="Test Book 1929", pub_date="1929", country_classification=CountryClassification.US
         )
         pub_1929.set_registration_match(reg_match)
-        assert pub_1929.determine_copyright_status() == CopyrightStatus.PD_DATE_VERIFY
+        assert pub_1929.determine_copyright_status() == CopyrightStatus.PD_US_REG_NO_RENEWAL
 
         # Test 1964 (should use general rule)
         pub_1964 = Publication(
             title="Test Book 1964", pub_date="1964", country_classification=CountryClassification.US
         )
         pub_1964.set_registration_match(reg_match)
-        assert pub_1964.determine_copyright_status() == CopyrightStatus.PD_DATE_VERIFY
+        assert pub_1964.determine_copyright_status() == CopyrightStatus.PD_US_REG_NO_RENEWAL
 
     def test_us_general_registration_no_renewal(self):
-        """Test general US logic: registration but no renewal -> PD_DATE_VERIFY"""
+        """Test general US logic: registration but no renewal -> PD_US_REG_NO_RENEWAL"""
         pub = Publication(
             title="Test Book",
             author="Test Author",
-            pub_date="1925",  # Outside 1930-1963 range
+            pub_date="1970",  # Outside 1930-1963 range and after 1928
             country_classification=CountryClassification.US,
         )
 
@@ -154,7 +182,7 @@ class TestUSCopyrightStatusDetermination:
         pub.set_registration_match(reg_match)
 
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_DATE_VERIFY
+        assert status == CopyrightStatus.PD_US_REG_NO_RENEWAL
 
     def test_us_general_renewal_no_registration(self):
         """Test general US logic: renewal but no registration -> IN_COPYRIGHT"""
@@ -181,7 +209,7 @@ class TestUSCopyrightStatusDetermination:
         assert status == CopyrightStatus.IN_COPYRIGHT
 
     def test_us_general_no_registration_no_renewal(self):
-        """Test general US logic: no registration and no renewal -> PD_DATE_VERIFY"""
+        """Test general US logic: no registration and no renewal -> PD_US_NO_REG_DATA"""
         pub = Publication(
             title="Test Book",
             author="Test Author",
@@ -191,7 +219,7 @@ class TestUSCopyrightStatusDetermination:
 
         # No matches added
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_DATE_VERIFY
+        assert status == CopyrightStatus.PD_US_NO_REG_DATA
 
     def test_us_general_both_registration_and_renewal(self):
         """Test general US logic: both registration and renewal -> IN_COPYRIGHT"""
@@ -400,7 +428,7 @@ class TestCopyrightStatusEdgeCases:
 
         # Should use general US logic since year is None
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_DATE_VERIFY
+        assert status == CopyrightStatus.PD_US_REG_NO_RENEWAL
 
     def test_invalid_year_information(self):
         """Test publications with invalid year information"""
@@ -425,7 +453,7 @@ class TestCopyrightStatusEdgeCases:
 
         # Should use general US logic since year extraction failed
         status = pub.determine_copyright_status()
-        assert status == CopyrightStatus.PD_DATE_VERIFY
+        assert status == CopyrightStatus.PD_US_REG_NO_RENEWAL
 
     def test_multiple_status_determination_calls(self):
         """Test that multiple calls to determine_copyright_status are consistent"""
@@ -453,8 +481,8 @@ class TestCopyrightStatusEdgeCases:
         status2 = pub.determine_copyright_status()
         status3 = pub.determine_copyright_status()
 
-        assert status1 == status2 == status3 == CopyrightStatus.PD_NO_RENEWAL
-        assert pub.copyright_status == CopyrightStatus.PD_NO_RENEWAL
+        assert status1 == status2 == status3 == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
+        assert pub.copyright_status == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
 
     def test_status_updates_when_matches_change(self):
         """Test that status updates when matches are added after initial determination"""
@@ -467,7 +495,7 @@ class TestCopyrightStatusEdgeCases:
 
         # Initially no matches
         status1 = pub.determine_copyright_status()
-        assert status1 == CopyrightStatus.PD_DATE_VERIFY
+        assert status1 == CopyrightStatus.UNKNOWN_US_1930_1963_NO_DATA
 
         # Add registration match
         reg_match = MatchResult(
@@ -483,7 +511,7 @@ class TestCopyrightStatusEdgeCases:
         pub.set_registration_match(reg_match)
 
         status2 = pub.determine_copyright_status()
-        assert status2 == CopyrightStatus.PD_NO_RENEWAL
+        assert status2 == CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
 
         # Add renewal match
         ren_match = MatchResult(
@@ -499,4 +527,4 @@ class TestCopyrightStatusEdgeCases:
         pub.set_renewal_match(ren_match)
 
         status3 = pub.determine_copyright_status()
-        assert status3 == CopyrightStatus.IN_COPYRIGHT
+        assert status3 == CopyrightStatus.IN_COPYRIGHT_US_1930_1963_RENEWED

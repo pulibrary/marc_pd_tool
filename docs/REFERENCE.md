@@ -16,20 +16,20 @@ pdm run python -m marc_pd_tool [OPTIONS]
 
 ### Output Options
 
-- `--output-filename PATH` - Output base filename without extension (default: auto-generated based on filters)
+- `--output-filename PATH` - Output base filename without extension (default: reports/[auto-generated based on filters])
 - `--output-formats FORMAT [FORMAT ...]` - Output formats to generate (choices: csv, xlsx, xlsx-stacked, json, html; default: json csv)
 - `--single-file` - Export all results to single file instead of separating by status
 
 **Automatic Filename Generation:**
-When using the default output, filenames are automatically generated based on applied filters:
+When using the default output, filenames are automatically generated based on applied filters and saved to the `reports/` directory:
 
-- `matches.csv` - No filters applied
-- `matches_us-only.csv` - US-only filtering enabled
-- `matches_1950-1960.csv` - Year range filtering
-- `matches_us-only_1950-1960.csv` - Combined filters
-- `matches_1955-only.csv` - Single year (min_year = max_year)
-- `matches_after-1945.csv` - Minimum year only
-- `matches_before-1970.csv` - Maximum year only
+- `reports/matches.csv` - No filters applied
+- `reports/matches_us-only.csv` - US-only filtering enabled
+- `reports/matches_1950-1960.csv` - Year range filtering
+- `reports/matches_us-only_1950-1960.csv` - Combined filters
+- `reports/matches_1955-only.csv` - Single year (min_year = max_year)
+- `reports/matches_after-1945.csv` - Minimum year only
+- `reports/matches_before-1970.csv` - Maximum year only
 
 ### Filtering Options
 
@@ -161,14 +161,14 @@ pdm run python -m marc_pd_tool \
 
 ### CSV Output (Default)
 
-The tool generates CSV files with copyright analysis results. By default, separate files are created for each copyright status:
+The tool generates CSV files with copyright analysis results. By default, separate files are created for each copyright status in the `reports/` directory:
 
-- `matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
-- `matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
-- `matches_in_copyright.csv` - Works still under copyright
-- `matches_research_us_status.csv` - Requires additional research
-- `matches_research_us_only_pd.csv` - US public domain status unclear
-- `matches_country_unknown.csv` - Country classification unknown
+- `reports/matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
+- `reports/matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
+- `reports/matches_in_copyright.csv` - Works still under copyright
+- `reports/matches_research_us_status.csv` - Requires additional research
+- `reports/matches_research_us_only_pd.csv` - US public domain status unclear
+- `reports/matches_country_unknown.csv` - Country classification unknown
 
 Each CSV includes:
 
@@ -215,3 +215,31 @@ The XLSX format provides:
 - Registration Similarity Score, Registration Title Score, Registration Author Score, Registration Publisher Score
 - Renewal Title, Renewal Author, Renewal Publisher, Renewal Date
 - Renewal Similarity Score, Renewal Title Score, Renewal Author Score, Renewal Publisher Score
+
+### Processing Summary Output
+
+At the end of processing, the tool displays a comprehensive summary:
+
+```
+================================================================================
+PROCESSING COMPLETE
+================================================================================
+Total records processed: 12,345
+Records skipped (no year): 234     # Only shown when records were skipped
+Registration matches: 8,901
+Renewal matches: 5,678
+Processing time: 123.45 seconds
+Processing rate: 6,000 records/minute
+Output written to: reports/matches_2024-01-15_123456.csv
+================================================================================
+Copyright Status Breakdown:
+  PD_PRE_1928: 1,234 (10.0%)
+  PD_US_1930_1963_NOT_RENEWED: 3,456 (28.0%)
+  PD_US_NO_REG_DATA: 2,345 (19.0%)
+  IN_COPYRIGHT: 4,567 (37.0%)
+  RESEARCH_US_STATUS: 789 (6.4%)
+  Other: 10 (0.1%)
+================================================================================
+```
+
+**Note**: The "Records skipped (no year)" line only appears when records lacking publication year data were excluded from processing (the default behavior when not using `--brute-force-missing-year`).

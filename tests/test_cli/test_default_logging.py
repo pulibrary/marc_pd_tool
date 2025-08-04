@@ -4,7 +4,7 @@
 
 # Standard library imports
 from os.path import join
-import unittest
+from unittest import TestCase
 from unittest.mock import patch
 
 # Local imports
@@ -12,7 +12,7 @@ from marc_pd_tool.cli.main import get_default_log_path
 from marc_pd_tool.cli.main import set_up_logging
 
 
-class TestDefaultLogging(unittest.TestCase):
+class TestDefaultLogging(TestCase):
     """Test the default logging functionality"""
 
     def test_get_default_log_path_format(self):

@@ -15,7 +15,6 @@ import pytest
 # Local imports
 from marc_pd_tool.exporters.json_exporter import save_matches_json
 from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
-from tests.fixtures.publications import sample_publications
 
 
 def export_to_xlsx(publications, xlsx_file, parameters=None):
@@ -30,8 +29,6 @@ def export_to_xlsx(publications, xlsx_file, parameters=None):
     finally:
         if os.path.exists(temp_json):
             os.unlink(temp_json)
-
-
 
 
 class TestXLSXExporter:

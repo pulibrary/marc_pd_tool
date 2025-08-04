@@ -62,6 +62,7 @@ U.S. copyright renewal records from 1950-1991, also digitized by NYPL as part of
    - Use `--brute-force-missing-year` to include records without years (searches entire dataset)
    - Year extraction handles standard formats plus copyright notation (e.g., "c1955")
    - Filtered records are logged with breakdown (no year, out of range, non-US)
+   - Skipped records (due to missing year) are counted and reported in the final summary
 
 #### 1.2 Copyright Registration Data (`CopyrightDataLoader`)
 

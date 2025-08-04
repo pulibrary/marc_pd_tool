@@ -25,6 +25,7 @@
     "publisher": 30,
     "early_exit_title": 95,
     "early_exit_author": 90,
+    "early_exit_publisher": 85,
     "year_tolerance": 1,
     "minimum_combined_score": 40
   },
