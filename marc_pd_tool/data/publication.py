@@ -237,25 +237,34 @@ class Publication:
         """Check if record has a renewal match"""
         return self.renewal_match is not None
 
-    def determine_copyright_status(self) -> CopyrightStatus:
-        """Determine final copyright status based on matches, country, and publication year"""
+    def determine_copyright_status(self, min_year: int | None = None) -> CopyrightStatus:
+        """Determine final copyright status based on matches, country, and publication year
+        
+        Args:
+            min_year: Minimum year for copyright analysis (typically current_year - 96)
+        """
         has_reg = self.has_registration_match()
         has_ren = self.has_renewal_match()
 
+        # Determine the minimum year for renewal requirements
+        # If not provided, default to 1923 (earliest renewal period)
+        if min_year is None:
+            min_year = 1923
+            
         match (self.country_classification, self.year, has_reg, has_ren):
-            # US works 1930-1963 with specific registration/renewal patterns
-            case (CountryClassification.US, year, True, False) if year and 1930 <= year <= 1963:
-                # US works 1930-1963 with registration but no renewal are PD
-                self.copyright_status = CopyrightStatus.PD_US_1930_1963_NOT_RENEWED
-                self.status_rule = CopyrightStatusRule.US_1930_1963_NO_RENEWAL
-            case (CountryClassification.US, year, _, True) if year and 1930 <= year <= 1963:
-                # US works 1930-1963 that were renewed are likely still copyrighted
-                self.copyright_status = CopyrightStatus.IN_COPYRIGHT_US_1930_1963_RENEWED
-                self.status_rule = CopyrightStatusRule.US_1930_1963_RENEWED
-            case (CountryClassification.US, year, False, False) if year and 1930 <= year <= 1963:
-                # US works 1930-1963 with no registration/renewal need verification
-                self.copyright_status = CopyrightStatus.UNKNOWN_US_1930_1963_NO_DATA
-                self.status_rule = CopyrightStatusRule.US_1930_1963_NO_REG_DATA
+            # US works in renewal period (min_year-1977) with specific registration/renewal patterns
+            case (CountryClassification.US, year, True, False) if year and min_year <= year <= 1977:
+                # US works with registration but no renewal are PD
+                self.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+                self.status_rule = CopyrightStatusRule.US_NOT_RENEWED
+            case (CountryClassification.US, year, _, True) if year and min_year <= year <= 1977:
+                # US works that were renewed are likely still copyrighted
+                self.copyright_status = CopyrightStatus.IN_COPYRIGHT_US_RENEWED
+                self.status_rule = CopyrightStatusRule.US_RENEWED
+            case (CountryClassification.US, year, False, False) if year and min_year <= year <= 1977:
+                # US works with no registration/renewal need verification
+                self.copyright_status = CopyrightStatus.UNKNOWN_US_NO_DATA
+                self.status_rule = CopyrightStatusRule.US_NO_REG_DATA_RENEWAL_PERIOD
 
             # General US records for other years
             case (CountryClassification.US, _, True, False):
@@ -286,9 +295,9 @@ class Publication:
                 self.status_rule = CopyrightStatusRule.UNKNOWN_COUNTRY
 
         # Check for special cases based on year
-        if self.year and self.year < 1928:
-            self.copyright_status = CopyrightStatus.PD_PRE_1928
-            self.status_rule = CopyrightStatusRule.US_PRE_1928
+        if self.year and self.year < min_year:
+            self.copyright_status = CopyrightStatus.PD_PRE_MIN_YEAR
+            self.status_rule = CopyrightStatusRule.US_PRE_MIN_YEAR
 
         return self.copyright_status
 

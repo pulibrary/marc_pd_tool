@@ -395,9 +395,13 @@ def log_run_summary(
     # Log copyright status breakdown
     logger.info("Copyright Status Breakdown:")
     for status in [
-        "pd_no_renewal",
-        "pd_date_verify",
+        "pd_pre_min_year",
+        "pd_us_not_renewed",
+        "pd_us_no_reg_data",
+        "pd_us_reg_no_renewal",
+        "unknown_us_no_data",
         "in_copyright",
+        "in_copyright_us_renewed",
         "research_us_status",
         "research_us_only_pd",
         "country_unknown",

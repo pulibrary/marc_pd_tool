@@ -15,14 +15,14 @@ The tool determines copyright status based on:
 
 ### Definitely Public Domain
 
-- **`PD_PRE_1928`**: Published before 1928
+- **`PD_PRE_MIN_YEAR`**: Published before min_year (current year - 96)
 
-  - Rule: `us_pre_1928`
-  - All works published before 1928 are in the public domain
+  - Rule: `us_pre_min_year`
+  - All works published before the minimum year are in the public domain
 
-- **`PD_US_1930_1963_NOT_RENEWED`**: US works 1930-1963 with registration but no renewal
+- **`PD_US_NOT_RENEWED`**: US works (min_year-1977) with registration but no renewal
 
-  - Rule: `us_1930_1963_no_renewal`
+  - Rule: `us_not_renewed`
   - These works required renewal to maintain copyright and weren't renewed
 
 ### Likely Public Domain (Needs Verification)
@@ -32,15 +32,15 @@ The tool determines copyright status based on:
   - Rule: `us_no_reg_data`
   - No evidence of copyright registration found, likely unregistered
 
-- **`PD_US_REG_NO_RENEWAL`**: US work registered but no renewal found (outside 1930-1963)
+- **`PD_US_REG_NO_RENEWAL`**: US work registered but no renewal found (outside renewal period)
 
   - Rule: `us_registered_no_renewal`
-  - Has registration but no renewal; copyright status depends on specific year
+  - Has registration but no renewal; applies to years after 1977
 
 ### Unknown Status
 
-- **`UNKNOWN_US_1930_1963_NO_DATA`**: US 1930-1963 with no registration/renewal data
-  - Rule: `us_1930_1963_no_reg_data`
+- **`UNKNOWN_US_NO_DATA`**: US works (min_year-1977) with no registration/renewal data
+  - Rule: `us_no_reg_data_renewal_period`
   - Critical period where renewal was required; no data means unknown status
 
 ### In Copyright
@@ -50,10 +50,10 @@ The tool determines copyright status based on:
   - Rule: `us_renewal_found` - Renewal record found
   - Rule: `us_registered_and_renewed` - Both registration and renewal found
 
-- **`IN_COPYRIGHT_US_1930_1963_RENEWED`**: US 1930-1963 that was renewed
+- **`IN_COPYRIGHT_US_RENEWED`**: US works (min_year-1977) that were renewed
 
-  - Rule: `us_1930_1963_renewed`
-  - Work from critical period that was properly renewed
+  - Rule: `us_renewed`
+  - Work from renewal period that was properly renewed
 
 ### Non-US Works
 
@@ -77,17 +77,17 @@ The tool determines copyright status based on:
 
 Status rules provide the legal reasoning for each copyright determination:
 
-### US Pre-1928 Rules
+### US Pre-Min Year Rules
 
-- `us_pre_1928`: Published before January 1, 1928 → Always public domain
+- `us_pre_min_year`: Published before current year - 96 → Always public domain
 
-### US 1930-1963 Special Period Rules
+### US Renewal Period Rules (Min Year-1977)
 
-During 1930-1963, US copyright law required renewal for continued protection:
+During the renewal period (currently 1929-1977), US copyright law required renewal for continued protection:
 
-- `us_1930_1963_no_renewal`: Found registration but no renewal → Public domain
-- `us_1930_1963_renewed`: Found both registration and renewal → Still in copyright
-- `us_1930_1963_no_reg_data`: No registration or renewal data found → Unknown status
+- `us_not_renewed`: Found registration but no renewal → Public domain
+- `us_renewed`: Found both registration and renewal → Still in copyright
+- `us_no_reg_data_renewal_period`: No registration or renewal data found → Unknown status
 
 ### General US Rules (Other Years)
 
@@ -110,18 +110,18 @@ During 1930-1963, US copyright law required renewal for continued protection:
 
 ```
 Publication
-├── Year < 1928?
-│   └── YES → PD_PRE_1928 (us_pre_1928)
+├── Year < min_year (current year - 96)?
+│   └── YES → PD_PRE_MIN_YEAR (us_pre_min_year)
 │
 ├── Country = US?
-│   ├── Year 1930-1963?
+│   ├── Year between min_year and 1977?
 │   │   ├── Has Registration?
 │   │   │   ├── Has Renewal?
-│   │   │   │   └── YES → IN_COPYRIGHT_US_1930_1963_RENEWED (us_1930_1963_renewed)
-│   │   │   └── NO → PD_US_1930_1963_NOT_RENEWED (us_1930_1963_no_renewal)
-│   │   └── NO → UNKNOWN_US_1930_1963_NO_DATA (us_1930_1963_no_reg_data)
+│   │   │   │   └── YES → IN_COPYRIGHT_US_RENEWED (us_renewed)
+│   │   │   └── NO → PD_US_NOT_RENEWED (us_not_renewed)
+│   │   └── NO → UNKNOWN_US_NO_DATA (us_no_reg_data_renewal_period)
 │   │
-│   └── Other Years
+│   └── Other Years (after 1977)
 │       ├── Has Renewal? → IN_COPYRIGHT (us_renewal_found or us_registered_and_renewed)
 │       ├── Has Registration Only? → PD_US_REG_NO_RENEWAL (us_registered_no_renewal)
 │       └── No Data? → PD_US_NO_REG_DATA (us_no_reg_data)

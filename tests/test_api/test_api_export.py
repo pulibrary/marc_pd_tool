@@ -36,7 +36,7 @@ class TestAnalysisResultsExport:
             country_code="xxu",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         pub2 = Publication(
             title="Copyrighted Book",
@@ -69,7 +69,7 @@ class TestAnalysisResultsExport:
             "non_us_records": 0,
             "registration_matches": 1,
             "renewal_matches": 0,
-            "pd_no_renewal": 1,
+            "pd_us_not_renewed": 1,
             "in_copyright": 1,
             "research_us_status": 1,
         }
@@ -238,7 +238,7 @@ class TestExportErrorHandling:
 
         # Add a simple test publication
         pub = Publication(title="Test Book", author="Test Author", pub_date="1950", source_id="001")
-        pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         results.add_publication(pub)
 
         return results

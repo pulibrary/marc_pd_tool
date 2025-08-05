@@ -565,18 +565,18 @@ Based on the pattern of matches found, we assign one of six copyright status cat
 
 **For US Publications:**
 
-**Special Rule for US Works Published 1930-1963:**
+**Special Rule for US Works Published Between Min Year (current year - 96) and 1977:**
 
-- **Registration but no renewal found** → `PD_NO_RENEWAL`: Public domain (renewal was required but not done)
-- **Renewal found** → `IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
-- **Neither registration nor renewal found** → `PD_DATE_VERIFY`: No registration found, may be public domain or never registered
+- **Registration but no renewal found** → `PD_US_NOT_RENEWED`: Public domain (renewal was required but not done)
+- **Renewal found** → `IN_COPYRIGHT_US_RENEWED`: The work was renewed and is likely still under copyright protection
+- **Neither registration nor renewal found** → `UNKNOWN_US_NO_DATA`: No registration found, status unknown
 
-**For US Works from Other Years:**
+**For US Works from Other Years (after 1977):**
 
-- **Registration but no renewal found** → `PD_DATE_VERIFY`: The work was registered but we found no renewal, suggesting it may be public domain (verify renewal deadline)
+- **Registration but no renewal found** → `PD_US_REG_NO_RENEWAL`: The work was registered but no renewal found (applies to post-1977 works)
 - **Renewal found** → `IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
 - **Both registration and renewal found** → `IN_COPYRIGHT`: The work followed the full copyright process
-- **Neither found** → `PD_DATE_VERIFY`: No registration found, may be public domain or never registered
+- **Neither found** → `PD_US_NO_REG_DATA`: No registration found, likely never registered
 
 **For Non-US Publications:**
 
@@ -602,9 +602,11 @@ The tool provides data matches only. Legal interpretation of copyright status re
 
 ### What the Status Categories Mean
 
-**PD_NO_RENEWAL**: These works are in the public domain. This applies specifically to US works published 1930-1963 that were registered for copyright but not renewed within the required 28-year period.
+**PD_US_NOT_RENEWED**: These works are in the public domain. This applies specifically to US works published between min_year (current year - 96) and 1977 that were registered for copyright but not renewed within the required 28-year period.
 
-**PD_DATE_VERIFY**: These works show patterns suggesting they may be in the public domain, but date verification is needed. For pre-1978 works, check if renewal was required and whether the 28-year deadline was met.
+**PD_US_REG_NO_RENEWAL**: These works were registered but show no renewal. For works after 1977, different rules apply.
+
+**UNKNOWN_US_NO_DATA**: These works from the renewal period (min_year-1977) have no registration or renewal data found, making their status uncertain.
 
 **IN_COPYRIGHT**: These works show evidence of copyright renewal or other indicators suggesting they may still be under copyright protection. Assume these are copyrighted unless proven otherwise.
 
@@ -636,8 +638,8 @@ The tool produces output files with analysis results. The default CSV format has
 
 ```csv
 ID,Title,Author,Year,Publisher,Country,Status,Match Summary,Warning,Registration Source ID,Renewal Entry ID
-99123456,The Great Novel,Smith John,1955,Great Books Inc,US,PD_DATE_VERIFY,"Reg: 83%, Ren: None",,R456789,
-99234567,American Classic,Brown Alice,1947,US Publishers,US,PD_NO_RENEWAL,"Reg: 88%, Ren: None",,R789123,
+99123456,The Great Novel,Smith John,1955,Great Books Inc,US,PD_US_NOT_RENEWED,"Reg: 83%, Ren: None",,R456789,
+99234567,American Classic,Brown Alice,1947,US Publishers,US,PD_US_NOT_RENEWED,"Reg: 88%, Ren: None",,R789123,
 99789012,Complete Works,Jones Mary,1960,Academic Press,Non-US,RESEARCH_US_STATUS,"Reg: None, Ren: 82%",,b3ce7263-9e8b-5f9e-b1a0-190723af8d29
 99345678,Mystery Work,Author Unknown,1950,,Unknown,COUNTRY_UNKNOWN,"Reg: None, Ren: None","No publisher, Unknown country",,
 99111222,Collected Poems,Common Author,1965,Popular Publishers,US,IN_COPYRIGHT,"Reg: 65%, Ren: 67%",Generic title,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947

@@ -45,7 +45,7 @@ class TestJSONExporter:
             pub1 = data["records"][0]
             assert pub1["marc"]["id"] == "123"
             assert pub1["marc"]["original"]["title"] == "Test Book One"
-            assert pub1["analysis"]["status"] == "PD_NO_RENEWAL"
+            assert pub1["analysis"]["status"] == "PD_US_NOT_RENEWED"
             assert "matches" in pub1
             assert pub1["matches"]["registration"]["found"] is True
             assert pub1["matches"]["registration"]["id"] == "REG123"

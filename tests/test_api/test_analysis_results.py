@@ -37,8 +37,8 @@ class TestAnalysisResults:
         assert results.statistics["registration_matches"] == 0
         assert results.statistics["renewal_matches"] == 0
         assert results.statistics["no_matches"] == 0
-        assert results.statistics["pd_no_renewal"] == 0
-        assert results.statistics["pd_date_verify"] == 0
+        assert results.statistics["pd_us_not_renewed"] == 0
+        assert results.statistics["pd_pre_min_year"] == 0
         assert results.statistics["in_copyright"] == 0
         assert results.statistics["research_us_status"] == 0
         assert results.statistics["research_us_only_pd"] == 0
@@ -51,14 +51,14 @@ class TestAnalysisResults:
         # US publication with registration match
         pub1 = PublicationBuilder.basic_us_publication()
         pub1 = PublicationBuilder.with_registration_match(pub1)
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         results.add_publication(pub1)
 
         assert len(results.publications) == 1
         assert results.statistics["total_records"] == 1
         assert results.statistics["us_records"] == 1
         assert results.statistics["registration_matches"] == 1
-        assert results.statistics["pd_no_renewal"] == 1
+        assert results.statistics["pd_us_not_renewed"] == 1
 
         # Non-US publication with renewal match
         pub2 = PublicationBuilder.basic_us_publication(
@@ -108,7 +108,7 @@ class TestAnalysisResults:
             pub = PublicationBuilder.basic_us_publication(source_id=f"test-{i}")
             if i % 2 == 0:
                 pub = PublicationBuilder.with_registration_match(pub)
-                pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+                pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
             else:
                 pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
             batch.append(pub)
@@ -123,7 +123,7 @@ class TestAnalysisResults:
         assert results.statistics["total_records"] == 5
         assert results.statistics["us_records"] == 5
         assert results.statistics["registration_matches"] == 3
-        assert results.statistics["pd_no_renewal"] == 3
+        assert results.statistics["pd_us_not_renewed"] == 3
         assert results.statistics["research_us_status"] == 2
 
     def test_statistics_for_all_statuses(self):
@@ -132,8 +132,8 @@ class TestAnalysisResults:
 
         # Test each copyright status
         statuses = [
-            CopyrightStatus.PD_NO_RENEWAL,
-            CopyrightStatus.PD_DATE_VERIFY,
+            CopyrightStatus.PD_US_NOT_RENEWED,
+            CopyrightStatus.PD_PRE_MIN_YEAR,
             CopyrightStatus.IN_COPYRIGHT,
             CopyrightStatus.RESEARCH_US_STATUS,
             CopyrightStatus.RESEARCH_US_ONLY_PD,
@@ -146,8 +146,8 @@ class TestAnalysisResults:
             results.add_publication(pub)
 
         # Check all status counters
-        assert results.statistics["pd_no_renewal"] == 1
-        assert results.statistics["pd_date_verify"] == 1
+        assert results.statistics["pd_us_not_renewed"] == 1
+        assert results.statistics["pd_pre_min_year"] == 1
         assert results.statistics["in_copyright"] == 1
         assert results.statistics["research_us_status"] == 1
         assert results.statistics["research_us_only_pd"] == 1

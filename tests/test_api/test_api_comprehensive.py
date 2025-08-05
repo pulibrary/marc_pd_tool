@@ -125,7 +125,7 @@ class TestMarcCopyrightAnalyzerMissingCoverage:
         # Create test results
         results = AnalysisResults()
         pub = Publication(title="Test Book", author="Test Author", pub_date="1950", source_id="001")
-        pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         results.publications = [pub]
         results.add_publication(pub)
 

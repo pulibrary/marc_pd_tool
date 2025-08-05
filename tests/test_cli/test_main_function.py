@@ -24,8 +24,8 @@ def create_mock_statistics(total=100, reg_matches=10, ren_matches=5):
         "non_us_records": 0,
         "unknown_country": 0,
         "no_matches": total - reg_matches - ren_matches,
-        "pd_no_renewal": 25,
-        "pd_date_verify": 10,
+        "pd_us_not_renewed": 25,
+        "pd_us_not_renewed": 10,
         "in_copyright": 30,
         "research_us_status": 30,
         "research_us_only_pd": 5,
@@ -284,8 +284,8 @@ class TestLogRunSummary:
             "total_records": 1000,
             "registration_matches": 200,
             "renewal_matches": 150,
-            "pd_no_renewal": 100,
-            "pd_date_verify": 50,
+            "pd_us_not_renewed": 100,
+            "pd_us_not_renewed": 50,
             "in_copyright": 150,
             "research_us_status": 600,
             "research_us_only_pd": 50,
@@ -326,7 +326,7 @@ class TestLogRunSummary:
             "total_records": 100,
             "registration_matches": 10,
             "renewal_matches": 5,
-            "pd_no_renewal": 25,
+            "pd_us_not_renewed": 25,
             "in_copyright": 30,
             # Missing some status fields
         }
@@ -341,7 +341,7 @@ class TestLogRunSummary:
 
             # Check that present fields are logged
             info_calls = [call.args[0] for call in mock_logger.info.call_args_list if call.args]
-            assert any("PD_NO_RENEWAL: 25" in call for call in info_calls)
+            assert any("PD_US_NOT_RENEWED: 25" in call for call in info_calls)
             assert any("IN_COPYRIGHT: 30" in call for call in info_calls)
 
 

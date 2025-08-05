@@ -18,9 +18,9 @@ class CopyrightStatus(Enum):
     """Final copyright status classification based on registration/renewal patterns"""
 
     # Definitely public domain
-    PD_PRE_1928 = "PD_PRE_1928"  # Published before 1928
-    PD_US_1930_1963_NOT_RENEWED = (
-        "PD_US_1930_1963_NOT_RENEWED"  # US 1930-1963 with registration but no renewal
+    PD_PRE_MIN_YEAR = "PD_PRE_MIN_YEAR"  # Published before min_year (current_year - 96)
+    PD_US_NOT_RENEWED = (
+        "PD_US_NOT_RENEWED"  # US works with registration but no renewal (min_year-1977)
     )
 
     # Likely public domain but needs verification
@@ -30,14 +30,14 @@ class CopyrightStatus(Enum):
     )
 
     # Unknown/needs research
-    UNKNOWN_US_1930_1963_NO_DATA = (
-        "UNKNOWN_US_1930_1963_NO_DATA"  # US 1930-1963 with no reg/renewal data
+    UNKNOWN_US_NO_DATA = (
+        "UNKNOWN_US_NO_DATA"  # US works in renewal period with no reg/renewal data
     )
 
     # In copyright
     IN_COPYRIGHT = "IN_COPYRIGHT"  # Has renewal or other evidence of copyright
-    IN_COPYRIGHT_US_1930_1963_RENEWED = (
-        "IN_COPYRIGHT_US_1930_1963_RENEWED"  # US 1930-1963 that was renewed
+    IN_COPYRIGHT_US_RENEWED = (
+        "IN_COPYRIGHT_US_RENEWED"  # US works in renewal period that were renewed
     )
 
     # Non-US works
@@ -47,9 +47,6 @@ class CopyrightStatus(Enum):
     # Unknown country
     COUNTRY_UNKNOWN = "COUNTRY_UNKNOWN"  # Country of publication unknown
 
-    # Legacy status for backward compatibility (deprecated)
-    PD_DATE_VERIFY = "PD_DATE_VERIFY"  # Deprecated - use specific statuses above
-    PD_NO_RENEWAL = "PD_NO_RENEWAL"  # Deprecated - use PD_US_1930_1963_NOT_RENEWED
 
 
 class MatchType(Enum):
@@ -67,13 +64,13 @@ class CopyrightStatusRule(Enum):
     based on the combination of country, year, and registration/renewal data.
     """
 
-    # US Pre-1928 - Always public domain
-    US_PRE_1928 = "us_pre_1928"  # Published before 1928 in US
+    # US Pre-min_year - Always public domain
+    US_PRE_MIN_YEAR = "us_pre_min_year"  # Published before min_year (current_year - 96)
 
-    # US 1930-1963 Special Rules
-    US_1930_1963_NO_RENEWAL = "us_1930_1963_no_renewal"  # Registered but not renewed (PD)
-    US_1930_1963_RENEWED = "us_1930_1963_renewed"  # Registered and renewed (in copyright)
-    US_1930_1963_NO_REG_DATA = "us_1930_1963_no_reg_data"  # No registration data found (unknown)
+    # US renewal period rules (min_year through 1977)
+    US_NOT_RENEWED = "us_not_renewed"  # Registered but not renewed (PD)
+    US_RENEWED = "us_renewed"  # Registered and renewed (in copyright)
+    US_NO_REG_DATA_RENEWAL_PERIOD = "us_no_reg_data_renewal_period"  # No registration data found (unknown)
 
     # General US Rules
     US_REGISTERED_NO_RENEWAL = "us_registered_no_renewal"  # Registered but no renewal found
@@ -92,13 +89,13 @@ class CopyrightStatusRule(Enum):
 
 # Human-readable descriptions for status rules
 STATUS_RULE_DESCRIPTIONS = {
-    CopyrightStatusRule.US_PRE_1928: "Published before 1928 (public domain)",
-    CopyrightStatusRule.US_1930_1963_NO_RENEWAL: (
-        "US 1930-1963: Registered but not renewed (public domain)"
+    CopyrightStatusRule.US_PRE_MIN_YEAR: "Published before current year - 96 (public domain)",
+    CopyrightStatusRule.US_NOT_RENEWED: (
+        "US renewal period: Registered but not renewed (public domain)"
     ),
-    CopyrightStatusRule.US_1930_1963_RENEWED: "US 1930-1963: Registered and renewed (in copyright)",
-    CopyrightStatusRule.US_1930_1963_NO_REG_DATA: (
-        "US 1930-1963: No registration data found (unknown)"
+    CopyrightStatusRule.US_RENEWED: "US renewal period: Registered and renewed (in copyright)",
+    CopyrightStatusRule.US_NO_REG_DATA_RENEWAL_PERIOD: (
+        "US renewal period: No registration data found (unknown)"
     ),
     CopyrightStatusRule.US_REGISTERED_NO_RENEWAL: "US: Registered but no renewal found",
     CopyrightStatusRule.US_RENEWAL_FOUND: "US: Renewal record found (likely in copyright)",

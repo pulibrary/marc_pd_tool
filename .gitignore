@@ -9,6 +9,7 @@ cce-renewals
 *.txt
 *.xlsx
 
+
 # Output files - do not commit results
 publication_matches*.json
 publication_matches*.csv
@@ -16,6 +17,9 @@ matches*.json
 matches*.csv
 *_matches.*
 outputs_for_refining/
+reports/
+logs/
+
 
 # Cache directories - do not commit cached data
 .marcpd_cache/

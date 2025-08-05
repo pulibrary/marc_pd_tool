@@ -75,7 +75,7 @@ class TestXLSXExporter:
             wb = load_workbook(output_path)
 
             # Check sheets exist
-            expected_sheets = ["Summary", "PD No Renewal", "In Copyright", "Research US Status"]
+            expected_sheets = ["Summary", "PD US Not Renewed", "In Copyright", "Research US Status"]
             assert set(wb.sheetnames) == set(expected_sheets)
 
             # Check summary sheet
@@ -85,7 +85,7 @@ class TestXLSXExporter:
             assert summary["B4"].value == 3  # 3 sample publications
 
             # Check data sheets have correct headers
-            pd_sheet = wb["PD No Renewal"]
+            pd_sheet = wb["PD US Not Renewed"]
             assert pd_sheet["A1"].value == "MARC_ID"
             assert pd_sheet["B1"].value == "MARC_Title"
 
@@ -142,7 +142,7 @@ class TestXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            pd_sheet = wb["PD No Renewal"]
+            pd_sheet = wb["PD US Not Renewed"]
 
             # Check numeric types
             year_col = (
@@ -172,7 +172,7 @@ class TestXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            pd_sheet = wb["PD No Renewal"]
+            pd_sheet = wb["PD US Not Renewed"]
 
             # Check some column widths
             assert pd_sheet.column_dimensions["A"].width == 15  # MARC_ID

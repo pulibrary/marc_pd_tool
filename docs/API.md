@@ -46,7 +46,7 @@ results = analyzer.analyze_marc_file('data.marcxml')
 
 # Access results programmatically
 for pub in results.publications:
-    if pub.copyright_status == CopyrightStatus.PD_NO_RENEWAL:
+    if pub.copyright_status == CopyrightStatus.PD_US_NOT_RENEWED:
         print(f"Public domain: {pub.title} ({pub.year})")
 
 # Get statistics
@@ -244,12 +244,16 @@ Enum representing copyright status determinations.
 from marc_pd_tool import CopyrightStatus
 
 # Available statuses
-CopyrightStatus.PD_NO_RENEWAL      # Public domain - no renewal
-CopyrightStatus.PD_DATE_VERIFY     # Possibly public domain - verify dates
-CopyrightStatus.IN_COPYRIGHT       # Likely in copyright
-CopyrightStatus.RESEARCH_US_STATUS # Foreign work - research needed
+CopyrightStatus.PD_PRE_MIN_YEAR     # Published before current year - 96
+CopyrightStatus.PD_US_NOT_RENEWED   # Public domain - not renewed (min_year-1977)
+CopyrightStatus.PD_US_REG_NO_RENEWAL # Registered but no renewal (post-1977)
+CopyrightStatus.PD_US_NO_REG_DATA   # No registration data found
+CopyrightStatus.UNKNOWN_US_NO_DATA  # Renewal period work with no data
+CopyrightStatus.IN_COPYRIGHT        # Likely in copyright
+CopyrightStatus.IN_COPYRIGHT_US_RENEWED # Renewed during renewal period
+CopyrightStatus.RESEARCH_US_STATUS  # Foreign work - research needed
 CopyrightStatus.RESEARCH_US_ONLY_PD # Foreign work - may be PD in US only
-CopyrightStatus.COUNTRY_UNKNOWN    # Cannot determine - country unknown
+CopyrightStatus.COUNTRY_UNKNOWN     # Cannot determine - country unknown
 ```
 
 ### AnalysisResults

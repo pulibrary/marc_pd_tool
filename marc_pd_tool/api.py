@@ -87,9 +87,13 @@ class AnalysisResults:
             "registration_matches": 0,
             "renewal_matches": 0,
             "no_matches": 0,
-            "pd_no_renewal": 0,
-            "pd_date_verify": 0,
+            "pd_pre_min_year": 0,
+            "pd_us_not_renewed": 0,
+            "pd_us_no_reg_data": 0,
+            "pd_us_reg_no_renewal": 0,
+            "unknown_us_no_data": 0,
             "in_copyright": 0,
+            "in_copyright_us_renewed": 0,
             "research_us_status": 0,
             "research_us_only_pd": 0,
             "country_unknown": 0,
@@ -328,7 +332,7 @@ class MarcCopyrightAnalyzer:
         >>> analyzer = MarcCopyrightAnalyzer()
         >>> analyzer.analyze_marc_file('data.marcxml', output_path='results.csv')
         >>> results = analyzer.get_results()
-        >>> print(f"Found {results.statistics['pd_no_renewal']} public domain works")
+        >>> print(f"Found {results.statistics['pd_us_not_renewed']} public domain works")
     """
 
     def __init__(

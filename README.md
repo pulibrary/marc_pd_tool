@@ -59,7 +59,7 @@ The tool compares MARC bibliographic records against U.S. copyright registration
 1. **Enhanced Word-Based Matching**: Compares titles using word overlap with stemming, authors/publishers using fuzzy matching, against both registration (1923-1977) and renewal (1950-1991) datasets
 1. **Generic Title Detection**: Adjusts scoring for generic titles like "collected works" to improve accuracy (English titles only)
 1. **Dynamic Scoring**: Adapts match weighting based on available data and title genericness
-1. **Status Determination**: Assigns one of six copyright status categories based on match patterns, including definitive public domain determination for US works published 1930-1963
+1. **Status Determination**: Assigns copyright status categories based on match patterns, including definitive public domain determination for US works published between min_year (current year - 96) and 1977
 
 For detailed information about the analysis algorithm, matching criteria, and copyright law logic, see [`docs/ALGORITHM.md`](docs/ALGORITHM.md). For technical details on the complete processing pipeline, see [`docs/PROCESSING_PIPELINE.md`](docs/PROCESSING_PIPELINE.md).
 
@@ -142,11 +142,15 @@ The tool supports multiple output formats that can be generated in a single run.
 
 The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status:
 
-- `reports/matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
-- `matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
+- `reports/matches_pd_us_not_renewed.csv` - Works in public domain due to non-renewal (min_year-1977)
+- `matches_pd_us_reg_no_renewal.csv` - Registered but no renewal found (post-1977)
+- `matches_pd_pre_min_year.csv` - Published before current year - 96
 - `matches_in_copyright.csv` - Works still under copyright
-- `matches_research_us_status.csv` - Requires additional research
-- `matches_research_us_only_pd.csv` - US public domain status unclear
+- `matches_in_copyright_us_renewed.csv` - Renewal period works that were renewed
+- `matches_unknown_us_no_data.csv` - Renewal period works with no data
+- `matches_research_us_status.csv` - Foreign works with US activity
+- `matches_research_us_only_pd.csv` - Foreign works possibly PD in US only
+- `matches_country_unknown.csv` - Cannot determine without country
 - `matches_country_unknown.csv` - Country classification unknown
 
 Each CSV includes these columns:

@@ -224,7 +224,7 @@ class TestMarcCopyrightAnalyzerProper:
 
         # Add some publications to results
         pub1 = PublicationBuilder.basic_us_publication()
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         pub2 = PublicationBuilder.basic_us_publication()
         pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT

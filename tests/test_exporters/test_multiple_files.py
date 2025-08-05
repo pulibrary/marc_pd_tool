@@ -67,7 +67,7 @@ class TestCSVMultipleFiles:
             source_id="test_001",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         pub2 = Publication(
             title="In Copyright Book",
@@ -99,7 +99,7 @@ class TestCSVMultipleFiles:
             # Check that separate files were created
             base_name, ext = splitext(temp_file)
 
-            pd_file = f"{base_name}_pd_no_renewal{ext}"
+            pd_file = f"{base_name}_pd_us_not_renewed{ext}"
             ic_file = f"{base_name}_in_copyright{ext}"
             research_file = f"{base_name}_research_us_status{ext}"
 
@@ -197,7 +197,7 @@ class TestCSVMultipleFiles:
             source_id="test_001",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         pub2 = Publication(
             title="Book 2",

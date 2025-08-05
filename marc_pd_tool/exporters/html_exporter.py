@@ -77,9 +77,13 @@ class HTMLExporter(BaseJSONExporter):
     def _status_to_display_name(self, status: str) -> str:
         """Convert status to human-readable display name"""
         status_names = {
-            "PD_NO_RENEWAL": "PD No Renewal",
-            "PD_DATE_VERIFY": "PD Date Verify",
+            "PD_PRE_MIN_YEAR": "PD Pre Min Year",
+            "PD_US_NOT_RENEWED": "PD US Not Renewed",
+            "PD_US_REG_NO_RENEWAL": "PD US Reg No Renewal",
+            "PD_US_NO_REG_DATA": "PD US No Reg Data",
+            "UNKNOWN_US_NO_DATA": "Unknown US No Data",
             "IN_COPYRIGHT": "In Copyright",
+            "IN_COPYRIGHT_US_RENEWED": "In Copyright US Renewed",
             "RESEARCH_US_STATUS": "Research US Status",
             "RESEARCH_US_ONLY_PD": "Research US Only PD",
             "COUNTRY_UNKNOWN": "Country Unknown",
@@ -215,6 +219,31 @@ nav a:hover {
 .metadata-label {
     font-weight: bold;
     color: #666;
+}
+
+/* General table styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-family: Arial, sans-serif;
+}
+
+table th,
+table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+table th {
+    background: #366092;
+    color: white;
+    font-weight: bold;
+}
+
+table tr:nth-child(even) {
+    background-color: #f9f9f9;
 }
 
 /* Stacked comparison table */

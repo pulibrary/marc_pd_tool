@@ -73,7 +73,7 @@ class TestStackedXLSXExporter:
             PublicationBuilder.basic_us_publication(source_id="2"),
             PublicationBuilder.basic_us_publication(source_id="3"),
         ]
-        pubs[0].copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pubs[0].copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         pubs[1].copyright_status = CopyrightStatus.IN_COPYRIGHT
         pubs[2].copyright_status = CopyrightStatus.RESEARCH_US_STATUS
 
@@ -106,7 +106,7 @@ class TestStackedXLSXExporter:
             PublicationBuilder.basic_us_publication(source_id="ic1"),
             PublicationBuilder.basic_us_publication(source_id="rs1"),
         ]
-        pubs[0].copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pubs[0].copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         pubs[1].copyright_status = CopyrightStatus.IN_COPYRIGHT
         pubs[2].copyright_status = CopyrightStatus.RESEARCH_US_STATUS
 
@@ -128,7 +128,7 @@ class TestStackedXLSXExporter:
 
             # Should have Summary plus status sheets
             assert "Summary" in wb.sheetnames
-            assert "PD No Renewal" in wb.sheetnames
+            assert "PD US Not Renewed" in wb.sheetnames
             assert "In Copyright" in wb.sheetnames
             assert "Research US Status" in wb.sheetnames
 
@@ -138,7 +138,7 @@ class TestStackedXLSXExporter:
             PublicationBuilder.basic_us_publication(source_id="1"),
             PublicationBuilder.basic_us_publication(source_id="2"),
         ]
-        pubs[0].copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pubs[0].copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         pubs[1].copyright_status = CopyrightStatus.IN_COPYRIGHT
 
         with TemporaryDirectory() as temp_dir:
@@ -173,7 +173,7 @@ class TestStackedXLSXExporter:
         pub = PublicationBuilder.with_registration_match(
             pub, source_id="REG123", similarity_score=95.0, match_type=MatchType.SIMILARITY
         )
-        pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         with TemporaryDirectory() as temp_dir:
             json_path = str(Path(temp_dir) / "test.json")
@@ -189,7 +189,7 @@ class TestStackedXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            sheet = wb["PD No Renewal"]
+            sheet = wb["PD US Not Renewed"]
 
             # Should have headers
             assert sheet["A1"].value is not None
@@ -240,7 +240,7 @@ class TestStackedXLSXExporter:
         pub = PublicationBuilder.basic_us_publication()
         pub.original_title = "Café société"
         pub.original_author = "José Müller"
-        pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         with TemporaryDirectory() as temp_dir:
             json_path = str(Path(temp_dir) / "unicode.json")
@@ -256,7 +256,7 @@ class TestStackedXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            sheet = wb["PD No Renewal"]
+            sheet = wb["PD US Not Renewed"]
 
             # Look for unicode text
             found_title = False

@@ -139,7 +139,7 @@ class PublicationBuilder:
             # Vary the matches and statuses
             if i % 3 == 0:
                 pub = PublicationBuilder.with_registration_match(pub)
-                pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+                pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
             elif i % 3 == 1:
                 pub = PublicationBuilder.with_renewal_match(pub)
                 pub.copyright_status = CopyrightStatus.IN_COPYRIGHT
@@ -164,7 +164,7 @@ def sample_publications():
 
     Returns:
         List containing:
-        - Publication with registration match (PD_NO_RENEWAL)
+        - Publication with registration match (PD_US_NOT_RENEWED)
         - Publication with renewal match (IN_COPYRIGHT)
         - Publication with no matches (RESEARCH_US_STATUS)
     """
@@ -184,7 +184,7 @@ def sample_publications():
         lccn="50012345",
     )
     pub1 = PublicationBuilder.with_registration_match(pub1)
-    pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+    pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
     pubs.append(pub1)
 
     # Publication with renewal match

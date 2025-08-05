@@ -81,19 +81,30 @@ Input Files → Loading → Indexing → Matching → Analysis → Output Files
 
 ### Copyright Status Categories
 
-**PD_NO_RENEWAL** - Public domain due to non-renewal
+**PD_US_NOT_RENEWED** - Public domain due to non-renewal
 
-- US works published 1930-1963 that were registered but not renewed
+- US works published between min_year (current year - 96) and 1977 that were registered but not renewed
 - These are definitively in the public domain
 
-**PD_DATE_VERIFY** - Potentially public domain, needs date verification
+**PD_US_REG_NO_RENEWAL** - Registered but no renewal found (post-1977)
 
-- Works that may be public domain based on publication date
-- Verify the specific copyright requirements for the publication year
+- Works registered after 1977 with no renewal found
+- Different rules apply for these years
 
-**IN_COPYRIGHT** - Likely still under copyright
+**PD_PRE_MIN_YEAR** - Published before minimum year
+
+- Works published before current year - 96
+- Always in the public domain due to age
+
+**UNKNOWN_US_NO_DATA** - Status unknown for renewal period works
+
+- Works from the renewal period (min_year-1977) with no registration or renewal data
+- Status cannot be determined without more information
+
+**IN_COPYRIGHT** / **IN_COPYRIGHT_US_RENEWED** - Likely still under copyright
 
 - Works that show evidence of renewal or other copyright protection
+- IN_COPYRIGHT_US_RENEWED specifically for renewal period works that were renewed
 - Assume copyrighted unless proven otherwise
 
 **RESEARCH_US_STATUS** - Foreign work with US copyright activity
@@ -127,12 +138,14 @@ Shows match results in a clear format:
 
 Copyright status codes:
 
-- `PD_NO_RENEWAL` - Public domain, not renewed (1930-1963 US works)
-- `PD_DATE_VERIFY` - Likely public domain based on date
-- `IN_COPYRIGHT` - Still protected by copyright
+- `PD_US_NOT_RENEWED` - Public domain, not renewed (min_year-1977 US works)
+- `PD_US_REG_NO_RENEWAL` - Registered but no renewal (post-1977 works)
+- `PD_PRE_MIN_YEAR` - Published before current year - 96
+- `IN_COPYRIGHT` / `IN_COPYRIGHT_US_RENEWED` - Still protected by copyright
 - `RESEARCH_US_STATUS` - Foreign work with US registration
+- `UNKNOWN_US_NO_DATA` - Renewal period work with no data
 - `RESEARCH_US_ONLY_PD` - Foreign work, likely PD in US only
-- `COUNTRY_UNKNOWN` - Cannot determine country of publication
+- `COUNTRY_UNKNOWN` - Cannot determine status without country
 
 **Warning Column**
 

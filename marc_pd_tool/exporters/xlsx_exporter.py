@@ -49,9 +49,13 @@ class XLSXExporter(BaseJSONExporter):
 
     # Status colors
     STATUS_COLORS = {
-        "PD_DATE_VERIFY": "D4E6F1",
-        "PD_NO_RENEWAL": "D5F4E6",
+        "PD_PRE_MIN_YEAR": "E8F5E9",
+        "PD_US_NOT_RENEWED": "D5F4E6",
+        "PD_US_REG_NO_RENEWAL": "D4E6F1",
+        "PD_US_NO_REG_DATA": "E3F2FD",
+        "UNKNOWN_US_NO_DATA": "FFF9C4",
         "IN_COPYRIGHT": "FADBD8",
+        "IN_COPYRIGHT_US_RENEWED": "FFCDD2",
         "RESEARCH_US_STATUS": "FCF3CF",
         "RESEARCH_US_ONLY_PD": "E8DAEF",
         "COUNTRY_UNKNOWN": "E5E7E9",
@@ -59,9 +63,13 @@ class XLSXExporter(BaseJSONExporter):
 
     # Tab name mapping
     STATUS_TAB_NAMES = {
-        "PD_DATE_VERIFY": "PD Date Verify",
-        "PD_NO_RENEWAL": "PD No Renewal",
+        "PD_PRE_MIN_YEAR": "PD Pre Min Year",
+        "PD_US_NOT_RENEWED": "PD US Not Renewed",
+        "PD_US_REG_NO_RENEWAL": "PD US Reg No Renewal",
+        "PD_US_NO_REG_DATA": "PD US No Reg Data",
+        "UNKNOWN_US_NO_DATA": "Unknown US No Data",
         "IN_COPYRIGHT": "In Copyright",
+        "IN_COPYRIGHT_US_RENEWED": "In Copyright US Renewed",
         "RESEARCH_US_STATUS": "Research US Status",
         "RESEARCH_US_ONLY_PD": "Research US Only PD",
         "COUNTRY_UNKNOWN": "Country Unknown",
@@ -92,9 +100,13 @@ class XLSXExporter(BaseJSONExporter):
 
             # Create a sheet for each status
             status_order = [
-                "PD_NO_RENEWAL",
-                "PD_DATE_VERIFY",
+                "PD_PRE_MIN_YEAR",
+                "PD_US_NOT_RENEWED",
+                "PD_US_REG_NO_RENEWAL",
+                "PD_US_NO_REG_DATA",
+                "UNKNOWN_US_NO_DATA",
                 "IN_COPYRIGHT",
+                "IN_COPYRIGHT_US_RENEWED",
                 "RESEARCH_US_STATUS",
                 "RESEARCH_US_ONLY_PD",
                 "COUNTRY_UNKNOWN",

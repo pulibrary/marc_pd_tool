@@ -23,8 +23,8 @@ def create_mock_analyzer():
         "non_us_records": 0,
         "unknown_country": 0,
         "no_matches": 85,
-        "pd_no_renewal": 25,
-        "pd_date_verify": 10,
+        "pd_us_not_renewed": 25,
+        "pd_us_not_renewed": 10,
         "in_copyright": 30,
         "research_us_status": 30,
         "research_us_only_pd": 5,
@@ -204,8 +204,8 @@ class TestLogRunSummaryFunction:
             "total_records": 1000,
             "registration_matches": 200,
             "renewal_matches": 150,
-            "pd_no_renewal": 100,
-            "pd_date_verify": 50,
+            "pd_us_not_renewed": 100,
+            "pd_pre_min_year": 50,
             "in_copyright": 150,
             "research_us_status": 600,
             "research_us_only_pd": 50,
@@ -239,8 +239,7 @@ class TestLogRunSummaryFunction:
 
             # Check copyright status breakdown
             assert any("Copyright Status Breakdown:" in call for call in info_calls)
-            assert any("PD_NO_RENEWAL: 100" in call for call in info_calls)
-            assert any("PD_DATE_VERIFY: 50" in call for call in info_calls)
+            assert any("PD_US_NOT_RENEWED: 100" in call for call in info_calls)
             assert any("IN_COPYRIGHT: 150" in call for call in info_calls)
             assert any("RESEARCH_US_STATUS: 600" in call for call in info_calls)
 

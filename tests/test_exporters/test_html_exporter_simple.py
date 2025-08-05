@@ -62,7 +62,7 @@ class TestHTMLExporterSimple:
 
         # PD publication
         pub1 = PublicationBuilder.basic_us_publication(source_id="pd1")
-        pub1.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         pubs.append(pub1)
 
         # In copyright publication
@@ -107,7 +107,7 @@ class TestHTMLExporterSimple:
             PublicationBuilder.basic_us_publication(source_id="1"),
             PublicationBuilder.basic_us_publication(source_id="2"),
         ]
-        pubs[0].copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pubs[0].copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
         pubs[1].copyright_status = CopyrightStatus.IN_COPYRIGHT
 
         with TemporaryDirectory() as temp_dir:
@@ -124,7 +124,7 @@ class TestHTMLExporterSimple:
             assert (Path(output_dir) / "page_1.html").exists()
 
             # Should NOT create status directories
-            assert not (Path(output_dir) / "pd_no_renewal").exists()
+            assert not (Path(output_dir) / "pd_us_not_renewed").exists()
             assert not (Path(output_dir) / "in_copyright").exists()
             assert not (Path(output_dir) / "all_records").exists()
 
@@ -133,7 +133,7 @@ class TestHTMLExporterSimple:
         pub = PublicationBuilder.basic_us_publication()
         pub.original_title = "Test Book Title"
         pub.original_author = "Test Author"
-        pub.copyright_status = CopyrightStatus.PD_NO_RENEWAL
+        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
 
         with TemporaryDirectory() as temp_dir:
             json_path = str(Path(temp_dir) / "content.json")
@@ -145,7 +145,7 @@ class TestHTMLExporterSimple:
             exporter.export()
 
             # Read a page
-            page_file = Path(output_dir) / "pd_no_renewal" / "page_1.html"
+            page_file = Path(output_dir) / "pd_us_not_renewed" / "page_1.html"
             if page_file.exists():
                 content = page_file.read_text()
                 assert "Test Book Title" in content

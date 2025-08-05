@@ -955,7 +955,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
             stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
 
             # Determine copyright status based on matches and country
-            marc_pub.determine_copyright_status()
+            marc_pub.determine_copyright_status(min_year)
 
             # Calculate sort score for quality-based ordering
             marc_pub.calculate_sort_score()
