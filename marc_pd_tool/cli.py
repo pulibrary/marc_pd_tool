@@ -396,20 +396,33 @@ def log_run_summary(
 
     # Log copyright status breakdown
     logger.info("Copyright Status Breakdown:")
-    for status in [
-        "pd_pre_min_year",
-        "pd_us_not_renewed",
-        "pd_us_no_reg_data",
-        "pd_us_reg_no_renewal",
-        "unknown_us_no_data",
-        "in_copyright",
-        "in_copyright_us_renewed",
-        "research_us_status",
-        "research_us_only_pd",
-        "country_unknown",
-    ]:
-        if status in results_stats:
-            logger.info(f"  {status.upper()}: {results_stats[status]:,}")
+    # Collect all status keys that look like copyright statuses
+    status_keys = [
+        key
+        for key in results_stats.keys()
+        if key.lower()
+        not in {
+            "total_records",
+            "registration_matches",
+            "renewal_matches",
+            "us_publications",
+            "non_us_publications",
+            "unknown_country",
+            "lccn_matches",
+            "skipped_no_year",
+        }
+        and isinstance(results_stats.get(key), int)
+    ]
+    # Sort them for consistent output
+    status_keys.sort()
+
+    # Log each status with its count
+    for status in status_keys:
+        count = results_stats[status]
+        if count > 0:  # Only show statuses that have records
+            # Format the status name nicely (already stored in lowercase)
+            display_name = status.upper()
+            logger.info(f"  {display_name}: {count:,}")
 
 
 def main() -> None:

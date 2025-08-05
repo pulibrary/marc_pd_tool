@@ -109,17 +109,15 @@ class XLSXExporter(BaseJSONExporter):
             status: The status string (e.g., "US_RENEWED", "FOREIGN_NO_MATCH_GBR")
 
         Returns:
-            A formatted sheet name suitable for Excel
+            A sheet name suitable for Excel (max 31 chars)
         """
-        # Excel sheet names can't exceed 31 characters
-        # Replace underscores with spaces and title case
-        formatted = status.replace("_", " ").title()
+        # Excel sheet names have a hard limit of 31 characters
+        # Just use the status string as-is, but truncate if necessary
+        if len(status) > 31:
+            # Truncate at 31 characters exactly
+            return status[:31]
 
-        # Truncate if necessary (leave room for potential numbering)
-        if len(formatted) > 28:
-            formatted = formatted[:28] + "..."
-
-        return formatted
+        return status
 
     def export(self) -> None:
         """Export records to XLSX file"""

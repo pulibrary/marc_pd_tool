@@ -191,7 +191,7 @@ class TestStackedXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            sheet = wb["Us Registered Not Renewed"]
+            sheet = wb["US_REGISTERED_NOT_RENEWED"]
 
             # Should have headers
             assert sheet["A1"].value is not None
@@ -222,7 +222,7 @@ class TestStackedXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            sheet = wb["Us Renewed"]
+            sheet = wb["US_RENEWED"]
 
             # Look for match IDs in the sheet
             found_reg = False
@@ -258,7 +258,7 @@ class TestStackedXLSXExporter:
             from openpyxl import load_workbook
 
             wb = load_workbook(output_path)
-            sheet = wb["Us Registered Not Renewed"]
+            sheet = wb["US_REGISTERED_NOT_RENEWED"]
 
             # Look for unicode text
             found_title = False
