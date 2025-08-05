@@ -221,13 +221,15 @@ def create_argument_parser() -> ArgumentParser:
         "--min-year",
         type=int,
         default=default_min_year,
-        help=f"Minimum publication year to include (default: {default_min_year})",
+        help=f"Filter: Minimum publication year to analyze (default: {default_min_year}). "
+        f"Note: This is for filtering only, not copyright determination. "
+        f"Works before {datetime.now().year - 96} are always in public domain.",
     )
     parser.add_argument(
         "--max-year",
         type=int,
         default=filtering_config.get("max_year"),
-        help="Maximum publication year to include (default: no limit)",
+        help="Filter: Maximum publication year to analyze (default: no limit)",
     )
     parser.add_argument(
         "--us-only",

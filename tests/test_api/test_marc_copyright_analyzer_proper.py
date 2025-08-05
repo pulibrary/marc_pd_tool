@@ -224,10 +224,10 @@ class TestMarcCopyrightAnalyzerProper:
 
         # Add some publications to results
         pub1 = PublicationBuilder.basic_us_publication()
-        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
 
         pub2 = PublicationBuilder.basic_us_publication()
-        pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub2.copyright_status = CopyrightStatus.US_RENEWED.value
 
         analyzer.results.add_publication(pub1)
         analyzer.results.add_publication(pub2)

@@ -246,7 +246,7 @@ class TestConfidenceScores:
             assert row_dict["Title"] == "Test Book"
             assert row_dict["Author"] == "Test Author"
             assert row_dict["Year"] == "1950"
-            assert row_dict["Status"] == "IN_COPYRIGHT_US_RENEWED"  # US with renewal
+            assert row_dict["Status"] == "US_RENEWED"  # US with renewal
 
             # Check match summary format (should show percentages for non-LCCN matches)
             assert "Reg: 86%" in row_dict["Match Summary"]  # 85.5 rounds to 86

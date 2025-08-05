@@ -45,7 +45,7 @@ class PublicationBuilder:
         pub = Publication(**defaults)
 
         # Set fields that aren't in constructor
-        pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+        pub.copyright_status = CopyrightStatus.US_NO_MATCH.value
         pub.generic_title_detected = False
         pub.generic_detection_reason = ""
         pub.registration_generic_title = False
@@ -139,13 +139,13 @@ class PublicationBuilder:
             # Vary the matches and statuses
             if i % 3 == 0:
                 pub = PublicationBuilder.with_registration_match(pub)
-                pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+                pub.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
             elif i % 3 == 1:
                 pub = PublicationBuilder.with_renewal_match(pub)
-                pub.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                pub.copyright_status = CopyrightStatus.US_RENEWED.value
             else:
                 # No matches
-                pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+                pub.copyright_status = CopyrightStatus.US_NO_MATCH.value
 
             publications.append(pub)
 
@@ -164,9 +164,9 @@ def sample_publications():
 
     Returns:
         List containing:
-        - Publication with registration match (PD_US_NOT_RENEWED)
-        - Publication with renewal match (IN_COPYRIGHT)
-        - Publication with no matches (RESEARCH_US_STATUS)
+        - Publication with registration match (US_REGISTERED_NOT_RENEWED)
+        - Publication with renewal match (US_RENEWED)
+        - Publication with no matches (FOREIGN_NO_MATCH_xxk)
     """
     # This replaces the duplicate fixtures across multiple test files
     pubs = []
@@ -184,7 +184,7 @@ def sample_publications():
         lccn="50012345",
     )
     pub1 = PublicationBuilder.with_registration_match(pub1)
-    pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+    pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
     pubs.append(pub1)
 
     # Publication with renewal match
@@ -200,7 +200,7 @@ def sample_publications():
         lccn="",
     )
     pub2 = PublicationBuilder.with_renewal_match(pub2, matched_publisher="")
-    pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+    pub2.copyright_status = CopyrightStatus.US_RENEWED.value
     pubs.append(pub2)
 
     # Publication with no matches
@@ -217,7 +217,8 @@ def sample_publications():
         country_code="xxk",
         country_classification=CountryClassification.NON_US,
     )
-    pub3.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+    # Non-US publication should have foreign status
+    pub3.copyright_status = f"{CopyrightStatus.FOREIGN_NO_MATCH.value}_xxk"
     pubs.append(pub3)
 
     return pubs

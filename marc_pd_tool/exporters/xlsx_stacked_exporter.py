@@ -76,6 +76,25 @@ class StackedXLSXExporter(BaseJSONExporter):
         "COUNTRY_UNKNOWN": "Country Unknown",
     }
 
+    def _format_status_as_sheet_name(self, status: str) -> str:
+        """Format a status string as a valid Excel sheet name
+
+        Args:
+            status: The status string (e.g., "US_RENEWED", "FOREIGN_NO_MATCH_GBR")
+
+        Returns:
+            A formatted sheet name suitable for Excel
+        """
+        # Excel sheet names can't exceed 31 characters
+        # Replace underscores with spaces and title case
+        formatted = status.replace("_", " ").title()
+
+        # Truncate if necessary (leave room for potential numbering)
+        if len(formatted) > 28:
+            formatted = formatted[:28] + "..."
+
+        return formatted
+
     def export(self) -> None:
         """Export records to stacked XLSX file"""
         wb = Workbook()
@@ -100,22 +119,15 @@ class StackedXLSXExporter(BaseJSONExporter):
                 by_status[status] = self.sort_by_quality(by_status[status])
 
             # Create a sheet for each status
-            status_order = [
-                "PD_PRE_MIN_YEAR",
-                "PD_US_NOT_RENEWED",
-                "PD_US_REG_NO_RENEWAL",
-                "PD_US_NO_REG_DATA",
-                "UNKNOWN_US_NO_DATA",
-                "IN_COPYRIGHT",
-                "IN_COPYRIGHT_US_RENEWED",
-                "RESEARCH_US_STATUS",
-                "RESEARCH_US_ONLY_PD",
-                "COUNTRY_UNKNOWN",
-            ]
+            # Sort statuses to ensure consistent order
+            statuses = sorted(by_status.keys())
 
-            for status in status_order:
-                if status in by_status and by_status[status]:
-                    sheet_name = self.STATUS_TAB_NAMES.get(status, status)
+            for status in statuses:
+                if by_status[status]:
+                    # Get sheet name from mapping or generate from status
+                    sheet_name = self.STATUS_TAB_NAMES.get(
+                        status, self._format_status_as_sheet_name(status)
+                    )
                     self._create_stacked_sheet(wb, sheet_name, by_status[status])
 
         # Save the workbook

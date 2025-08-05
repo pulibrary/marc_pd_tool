@@ -561,34 +561,51 @@ Before applying similarity scoring, the system detects generic titles that would
 
 ### 6. Copyright Status Determination
 
-Based on the pattern of matches found, we assign one of six copyright status categories:
+Based on the pattern of matches found, we assign one of several copyright status categories:
 
 **For US Publications:**
 
-**Special Rule for US Works Published Between Min Year (current year - 96) and 1977:**
+**Works Published Before Min Year (current year - 96):**
 
-- **Registration but no renewal found** → `PD_US_NOT_RENEWED`: Public domain (renewal was required but not done)
-- **Renewal found** → `IN_COPYRIGHT_US_RENEWED`: The work was renewed and is likely still under copyright protection
-- **Neither registration nor renewal found** → `UNKNOWN_US_NO_DATA`: No registration found, status unknown
+- **Any pattern** → `US_PRE_{YEAR}` (e.g., `US_PRE_1929`): Public domain due to age (copyright expired)
 
-**For US Works from Other Years (after 1977):**
+**US Works Published Between Min Year and 1977 (Renewal Period):**
 
-- **Registration but no renewal found** → `PD_US_REG_NO_RENEWAL`: The work was registered but no renewal found (applies to post-1977 works)
-- **Renewal found** → `IN_COPYRIGHT`: The work was renewed and is likely still under copyright protection
-- **Both registration and renewal found** → `IN_COPYRIGHT`: The work followed the full copyright process
-- **Neither found** → `PD_US_NO_REG_DATA`: No registration found, likely never registered
+- **Registration but no renewal found** → `US_REGISTERED_NOT_RENEWED`: Public domain (renewal was required but not done)
+- **Renewal found (with or without registration)** → `US_RENEWED`: Still under copyright (was properly renewed)
+- **No registration and no renewal** → `US_NO_MATCH`: Status uncertain - no federal copyright data found
+
+**For All Other US Works (including post-1977 and records without year):**
+
+*After Renewal Period (1978-1991, within our data range):*
+
+- **Registration found but no renewal** → `US_REGISTERED_NOT_RENEWED`: Status uncertain (renewals not required after 1977)
+- **Renewal found** → `US_RENEWED`: Still under copyright
+- **No matches** → `US_NO_MATCH`: Status uncertain - no federal copyright data found
+
+*Beyond Our Data Range (after 1991):*
+
+- **Any pattern** → `OUT_OF_DATA_RANGE_{YEAR}` (e.g., `OUT_OF_DATA_RANGE_1991`): Cannot analyze - beyond available data
 
 **For Non-US Publications:**
 
-- **Any US registration/renewal found** → `RESEARCH_US_STATUS`: The foreign work has some US copyright history requiring research
-- **No US registration/renewal found** → `RESEARCH_US_ONLY_PD`: The foreign work may be public domain in the US only
+- **Before Copyright Expiration Year** → `FOREIGN_PRE_{YEAR}_{COUNTRY}` (e.g., `FOREIGN_PRE_1929_GBR`)
+- **Within Copyright Term**:
+  - **Any renewal found** → `FOREIGN_RENEWED_{COUNTRY}` (e.g., `FOREIGN_RENEWED_FRA`)
+  - **Registration but no renewal** → `FOREIGN_REGISTERED_NOT_RENEWED_{COUNTRY}`
+  - **No matches found** → `FOREIGN_NO_MATCH_{COUNTRY}`
 
 **For Publications with Unknown Country:**
 
-- **Any match pattern** → `COUNTRY_UNKNOWN`: Cannot determine copyright status without knowing country of publication. This occurs when:
-  - MARC field 008 is too short (less than 18 characters)
-  - Country code positions 15-17 are empty or blank
-  - Record lacks reliable country information
+- **Any renewal found** → `COUNTRY_UNKNOWN_RENEWED`
+- **Registration but no renewal** → `COUNTRY_UNKNOWN_REGISTERED_NOT_RENEWED`
+- **No matches** → `COUNTRY_UNKNOWN_NO_MATCH`
+
+Unknown country occurs when:
+
+- MARC field 008 is too short (less than 18 characters)
+- Country code positions 15-17 are empty or blank
+- Record lacks reliable country information
 
 **Legal Interpretation**:
 
@@ -602,19 +619,36 @@ The tool provides data matches only. Legal interpretation of copyright status re
 
 ### What the Status Categories Mean
 
-**PD_US_NOT_RENEWED**: These works are in the public domain. This applies specifically to US works published between min_year (current year - 96) and 1977 that were registered for copyright but not renewed within the required 28-year period.
+### Dynamic Status Values
 
-**PD_US_REG_NO_RENEWAL**: These works were registered but show no renewal. For works after 1977, different rules apply.
+The tool now generates dynamic status values that include relevant year and country information:
 
-**UNKNOWN_US_NO_DATA**: These works from the renewal period (min_year-1977) have no registration or renewal data found, making their status uncertain.
+**US Works:**
 
-**IN_COPYRIGHT**: These works show evidence of copyright renewal or other indicators suggesting they may still be under copyright protection. Assume these are copyrighted unless proven otherwise.
+- `US_PRE_{YEAR}` (e.g., `US_PRE_1929`): Public domain due to age - published before copyright expiration year
+- `US_REGISTERED_NOT_RENEWED`: Works that were registered but not renewed (public domain for 1923-1977 publications)
+- `US_RENEWED`: Works that were renewed and remain under copyright
+- `US_NO_MATCH`: No registration or renewal found in the copyright records
+- `OUT_OF_DATA_RANGE_{YEAR}` (e.g., `OUT_OF_DATA_RANGE_1991`): Published after our data coverage ends
 
-**RESEARCH_US_STATUS**: Foreign works with some US copyright registration. The copyright status depends on complex factors including publication date, registration timing, and international copyright treaties.
+**Foreign Works:**
 
-**RESEARCH_US_ONLY_PD**: Foreign works with no US copyright registration found. These may be public domain in the US due to lack of compliance with US copyright formalities, but may still be copyrighted in their country of origin.
+- `FOREIGN_PRE_{YEAR}_{COUNTRY}` (e.g., `FOREIGN_PRE_1929_GBR`): Pre-copyright expiration foreign works
+- `FOREIGN_RENEWED_{COUNTRY}` (e.g., `FOREIGN_RENEWED_FRA`): Foreign work with US renewal
+- `FOREIGN_REGISTERED_NOT_RENEWED_{COUNTRY}`: Foreign work with US registration but no renewal
+- `FOREIGN_NO_MATCH_{COUNTRY}`: Foreign work with no US copyright activity
 
-**COUNTRY_UNKNOWN**: Records where copyright status cannot be determined due to missing or invalid country information in the MARC record. These require manual investigation to determine the country of publication before copyright analysis can proceed.
+**Unknown Country:**
+
+- `COUNTRY_UNKNOWN_RENEWED`: Unknown country with renewal found
+- `COUNTRY_UNKNOWN_REGISTERED_NOT_RENEWED`: Unknown country with registration but no renewal
+- `COUNTRY_UNKNOWN_NO_MATCH`: Unknown country with no matches
+
+### Important Notes:
+
+- **Copyright Expiration Year**: Always calculated as current_year - 96 (not configurable)
+- **Min/Max Year Options**: The `--min-year` and `--max-year` CLI options are for filtering which records to process, NOT for determining copyright status
+- **Data Coverage**: Our data covers registrations 1923-1977 and renewals 1950-1991
 
 ### Using the Results
 
@@ -638,11 +672,12 @@ The tool produces output files with analysis results. The default CSV format has
 
 ```csv
 ID,Title,Author,Year,Publisher,Country,Status,Match Summary,Warning,Registration Source ID,Renewal Entry ID
-99123456,The Great Novel,Smith John,1955,Great Books Inc,US,PD_US_NOT_RENEWED,"Reg: 83%, Ren: None",,R456789,
-99234567,American Classic,Brown Alice,1947,US Publishers,US,PD_US_NOT_RENEWED,"Reg: 88%, Ren: None",,R789123,
-99789012,Complete Works,Jones Mary,1960,Academic Press,Non-US,RESEARCH_US_STATUS,"Reg: None, Ren: 82%",,b3ce7263-9e8b-5f9e-b1a0-190723af8d29
-99345678,Mystery Work,Author Unknown,1950,,Unknown,COUNTRY_UNKNOWN,"Reg: None, Ren: None","No publisher, Unknown country",,
-99111222,Collected Poems,Common Author,1965,Popular Publishers,US,IN_COPYRIGHT,"Reg: 65%, Ren: 67%",Generic title,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947
+99123456,The Great Novel,Smith John,1955,Great Books Inc,US,US_REGISTERED_NOT_RENEWED,"Reg: 83%, Ren: None",,R456789,
+99234567,American Classic,Brown Alice,1947,US Publishers,US,US_REGISTERED_NOT_RENEWED,"Reg: 88%, Ren: None",,R789123,
+99789012,Complete Works,Jones Mary,1960,Academic Press,Non-US,FOREIGN_RENEWED_GBR,"Reg: None, Ren: 82%",,b3ce7263-9e8b-5f9e-b1a0-190723af8d29
+99345678,Mystery Work,Author Unknown,1950,,Unknown,COUNTRY_UNKNOWN_NO_MATCH,"Reg: None, Ren: None","No publisher, Unknown country",,
+99111222,Collected Poems,Common Author,1965,Popular Publishers,US,US_RENEWED,"Reg: 65%, Ren: 67%",Generic title,R111111,d6a7cb69-27b6-5f04-9ab6-53813a4d8947
+99333444,Old Book,Historic Author,1925,Old Press,US,US_PRE_1929,"Reg: None, Ren: None",Pre-copyright expiration,,
 ```
 
 **For detailed analysis**, use the JSON or XLSX_ANALYSIS formats which include:

@@ -157,11 +157,10 @@ class AnalysisResults:
         if not has_any_match:
             self.statistics["no_matches"] = self.statistics.get("no_matches", 0) + 1
 
-        # Copyright status
+        # Copyright status - dynamically track any status
         if hasattr(pub, "copyright_status") and pub.copyright_status:
-            status_key = pub.copyright_status.value.lower()
-            if status_key in self.statistics:
-                self.statistics[status_key] += 1
+            status_key = pub.copyright_status.lower()
+            self.statistics[status_key] = self.statistics.get(status_key, 0) + 1
 
     def load_all_publications(self) -> None:
         """Load all publications from stored pickle files"""

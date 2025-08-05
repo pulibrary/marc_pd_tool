@@ -11,140 +11,141 @@ The tool determines copyright status based on:
 1. **Registration status** (found in copyright registration data)
 1. **Renewal status** (found in copyright renewal data)
 
-## Copyright Statuses
+## Key Concepts
 
-### Definitely Public Domain
+- **Copyright Expiration Year**: Always calculated as current_year - 96 (e.g., in 2025, works before 1929 have expired copyrights)
+- **Renewal Period**: Years between copyright_expiration_year and 1977, when renewal was required
+- **Data Coverage**: Registration data covers 1923-1977, renewal data covers 1950-1991
+- **Dynamic Status Values**: Status names now include year and country information
 
-- **`PD_PRE_MIN_YEAR`**: Published before min_year (current year - 96)
+## Copyright Status Categories
 
-  - Rule: `us_pre_min_year`
-  - All works published before the minimum year are in the public domain
+### US Publications
 
-- **`PD_US_NOT_RENEWED`**: US works (min_year-1977) with registration but no renewal
+#### Pre-Copyright Expiration
 
-  - Rule: `us_not_renewed`
-  - These works required renewal to maintain copyright and weren't renewed
+- **`US_PRE_{YEAR}`** (e.g., `US_PRE_1929`)
+  - Rule: `US_PRE_COPYRIGHT_EXPIRATION`
+  - Works published before copyright_expiration_year
+  - Always in public domain due to age
 
-### Likely Public Domain (Needs Verification)
+#### Within Renewal Period (copyright_expiration_year-1977)
 
-- **`PD_US_NO_REG_DATA`**: US work with no registration data found
+- **`US_REGISTERED_NOT_RENEWED`**
 
-  - Rule: `us_no_reg_data`
-  - No evidence of copyright registration found, likely unregistered
+  - Rule: `US_RENEWAL_PERIOD_NOT_RENEWED`
+  - Registration found but no renewal
+  - Public domain (renewal was required but not done)
 
-- **`PD_US_REG_NO_RENEWAL`**: US work registered but no renewal found (outside renewal period)
+- **`US_RENEWED`**
 
-  - Rule: `us_registered_no_renewal`
-  - Has registration but no renewal; applies to years after 1977
+  - Rule: `US_RENEWAL_PERIOD_RENEWED`
+  - Renewal found (with or without registration)
+  - Still under copyright (was properly renewed)
 
-### Unknown Status
+- **`US_NO_MATCH`**
 
-- **`UNKNOWN_US_NO_DATA`**: US works (min_year-1977) with no registration/renewal data
-  - Rule: `us_no_reg_data_renewal_period`
-  - Critical period where renewal was required; no data means unknown status
+  - Rule: `US_RENEWAL_PERIOD_NO_MATCH`
+  - No registration or renewal found
+  - Status uncertain
 
-### In Copyright
+#### After Renewal Period (1978-1991)
 
-- **`IN_COPYRIGHT`**: Has renewal or other evidence of copyright
+- **`US_REGISTERED_NOT_RENEWED`**
 
-  - Rule: `us_renewal_found` - Renewal record found
-  - Rule: `us_registered_and_renewed` - Both registration and renewal found
+  - Rule: `US_REGISTERED_NO_RENEWAL`
+  - Registration but no renewal
+  - Status uncertain (renewals not required after 1977)
 
-- **`IN_COPYRIGHT_US_RENEWED`**: US works (min_year-1977) that were renewed
+- **`US_RENEWED`**
 
-  - Rule: `us_renewed`
-  - Work from renewal period that was properly renewed
+  - Rule: `US_RENEWAL_FOUND` or `US_BOTH_REG_AND_RENEWAL`
+  - Renewal found
+  - Still under copyright
 
-### Non-US Works
+- **`US_NO_MATCH`**
 
-- **`RESEARCH_US_STATUS`**: Non-US work with US copyright activity
+  - Rule: `US_NO_MATCH`
+  - No matches found
+  - Status uncertain
 
-  - Rule: `foreign_us_activity`
-  - Foreign work that was registered/renewed in US; complex copyright status
+#### Beyond Data Range (after 1991)
 
-- **`RESEARCH_US_ONLY_PD`**: Non-US work with no US copyright activity
+- **`OUT_OF_DATA_RANGE_{YEAR}`** (e.g., `OUT_OF_DATA_RANGE_1991`)
+  - Rule: `OUT_OF_DATA_RANGE`
+  - Published after our data coverage ends
+  - Cannot analyze
 
-  - Rule: `foreign_no_us_activity`
-  - May be PD in US but needs research for country of origin
+### Non-US Publications
 
-### Other
+#### Pre-Copyright Expiration
 
-- **`COUNTRY_UNKNOWN`**: Country of publication unknown
-  - Rule: `unknown_country`
-  - Cannot determine copyright status without knowing country
+- **`FOREIGN_PRE_{YEAR}_{COUNTRY}`** (e.g., `FOREIGN_PRE_1929_GBR`)
+  - Rule: `FOREIGN_PRE_COPYRIGHT_EXPIRATION`
+  - Foreign works published before copyright_expiration_year
+  - Complex status (depends on country and treaties)
 
-## Status Rules
+#### Within Copyright Term
 
-Status rules provide the legal reasoning for each copyright determination:
+- **`FOREIGN_RENEWED_{COUNTRY}`** (e.g., `FOREIGN_RENEWED_FRA`)
 
-### US Pre-Min Year Rules
+  - Rule: `FOREIGN_RENEWED`
+  - Foreign work with US renewal found
+  - Has US copyright protection
 
-- `us_pre_min_year`: Published before current year - 96 → Always public domain
+- **`FOREIGN_REGISTERED_NOT_RENEWED_{COUNTRY}`**
 
-### US Renewal Period Rules (Min Year-1977)
+  - Rule: `FOREIGN_REGISTERED_NOT_RENEWED`
+  - Foreign work with US registration but no renewal
+  - Complex status (depends on publication year and treaties)
 
-During the renewal period (currently 1929-1977), US copyright law required renewal for continued protection:
+- **`FOREIGN_NO_MATCH_{COUNTRY}`**
 
-- `us_not_renewed`: Found registration but no renewal → Public domain
-- `us_renewed`: Found both registration and renewal → Still in copyright
-- `us_no_reg_data_renewal_period`: No registration or renewal data found → Unknown status
+  - Rule: `FOREIGN_NO_MATCH`
+  - Foreign work with no US copyright activity
+  - May be public domain in US (no US formalities)
 
-### General US Rules (Other Years)
+### Unknown Country Publications
 
-- `us_registered_no_renewal`: Registration found but no renewal (needs year-specific analysis)
-- `us_renewal_found`: Renewal record found (likely still in copyright)
-- `us_no_reg_data`: No registration or renewal data (likely never registered)
-- `us_registered_and_renewed`: Both registration and renewal found (in copyright)
+- **`COUNTRY_UNKNOWN_RENEWED`**
 
-### Foreign Work Rules
+  - Rule: `COUNTRY_UNKNOWN_RENEWED`
+  - Renewal found but country unknown
+  - Cannot determine full status
 
-- `foreign_us_activity`: Non-US work with US registration/renewal activity
-- `foreign_no_us_activity`: Non-US work with no US copyright records
+- **`COUNTRY_UNKNOWN_REGISTERED_NOT_RENEWED`**
 
-### Special Cases
+  - Rule: `COUNTRY_UNKNOWN_REGISTERED`
+  - Registration but no renewal, country unknown
+  - Cannot determine full status
 
-- `unknown_country`: Cannot determine country of publication
-- `missing_year`: No publication year available (appended to other rules)
+- **`COUNTRY_UNKNOWN_NO_MATCH`**
 
-## Decision Tree
+  - Rule: `COUNTRY_UNKNOWN_NO_MATCH`
+  - No matches, country unknown
+  - Cannot determine status without country
 
-```
-Publication
-├── Year < min_year (current year - 96)?
-│   └── YES → PD_PRE_MIN_YEAR (us_pre_min_year)
-│
-├── Country = US?
-│   ├── Year between min_year and 1977?
-│   │   ├── Has Registration?
-│   │   │   ├── Has Renewal?
-│   │   │   │   └── YES → IN_COPYRIGHT_US_RENEWED (us_renewed)
-│   │   │   └── NO → PD_US_NOT_RENEWED (us_not_renewed)
-│   │   └── NO → UNKNOWN_US_NO_DATA (us_no_reg_data_renewal_period)
-│   │
-│   └── Other Years (after 1977)
-│       ├── Has Renewal? → IN_COPYRIGHT (us_renewal_found or us_registered_and_renewed)
-│       ├── Has Registration Only? → PD_US_REG_NO_RENEWAL (us_registered_no_renewal)
-│       └── No Data? → PD_US_NO_REG_DATA (us_no_reg_data)
-│
-├── Country = Non-US?
-│   ├── Has US Activity? → RESEARCH_US_STATUS (foreign_us_activity)
-│   └── No US Activity? → RESEARCH_US_ONLY_PD (foreign_no_us_activity)
-│
-└── Country = Unknown?
-    └── COUNTRY_UNKNOWN (unknown_country)
-```
+Unknown country occurs when:
 
-## Export Format
+- MARC field 008 is too short (less than 18 characters)
+- Country code positions 15-17 are empty or blank
+- Record lacks reliable country information
 
-In all export formats, copyright status information includes:
+## Legal Interpretation
 
-- `status`: The copyright status enum value
-- `status_rule`: The rule that was applied
-- `status_reason`: Human-readable explanation (in some formats)
+The tool provides data matches only. Legal interpretation of copyright status requires:
+
+- Understanding publication dates and copyright terms
+- Checking renewal requirements for the specific publication year
+- Considering international copyright treaties
+- Analyzing special cases (government documents, etc.)
 
 ## Important Notes
 
-1. **Conservative Approach**: When in doubt, the tool assumes works may be in copyright
-1. **US-Centric**: This tool focuses on US copyright status; foreign works need additional research
-1. **Missing Year Modifier**: If no year can be extracted, "\_missing_year" is appended to the rule
-1. **Data Limitations**: Status is based only on available registration/renewal data
+1. **Min/Max Year Filtering**: The `--min-year` and `--max-year` options filter which records to process but do NOT affect copyright determination
+
+1. **Copyright Expiration**: Always based on current_year - 96, not configurable
+
+1. **Country Codes**: Foreign status values include the 3-letter MARC country code when available
+
+1. **Data Limitations**: Our analysis is limited by available data (registrations 1923-1977, renewals 1950-1991)

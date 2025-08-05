@@ -51,38 +51,39 @@ class TestAnalysisResults:
         # US publication with registration match
         pub1 = PublicationBuilder.basic_us_publication()
         pub1 = PublicationBuilder.with_registration_match(pub1)
-        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
         results.add_publication(pub1)
 
         assert len(results.publications) == 1
         assert results.statistics["total_records"] == 1
         assert results.statistics["us_records"] == 1
         assert results.statistics["registration_matches"] == 1
-        assert results.statistics["pd_us_not_renewed"] == 1
+        assert results.statistics["us_registered_not_renewed"] == 1
 
         # Non-US publication with renewal match
         pub2 = PublicationBuilder.basic_us_publication(
             country_code="xxk", country_classification=CountryClassification.NON_US
         )
         pub2 = PublicationBuilder.with_renewal_match(pub2)
-        pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub2.copyright_status = CopyrightStatus.US_RENEWED.value
         results.add_publication(pub2)
 
         assert len(results.publications) == 2
         assert results.statistics["total_records"] == 2
         assert results.statistics["non_us_records"] == 1
         assert results.statistics["renewal_matches"] == 1
-        assert results.statistics["in_copyright"] == 1
+        assert results.statistics["us_renewed"] == 1
 
         # Publication with no matches
         pub3 = PublicationBuilder.basic_us_publication()
-        pub3.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+        # Non-US publication should have foreign status
+        pub3.copyright_status = f"{CopyrightStatus.FOREIGN_NO_MATCH.value}_xxk"
         results.add_publication(pub3)
 
         assert len(results.publications) == 3
         assert results.statistics["total_records"] == 3
         assert results.statistics["no_matches"] == 1
-        assert results.statistics["research_us_status"] == 1
+        assert results.statistics["foreign_no_match_xxk"] == 1
 
     def test_add_result_file_tracking(self):
         """Test that result file paths are tracked correctly"""
@@ -108,9 +109,9 @@ class TestAnalysisResults:
             pub = PublicationBuilder.basic_us_publication(source_id=f"test-{i}")
             if i % 2 == 0:
                 pub = PublicationBuilder.with_registration_match(pub)
-                pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+                pub.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
             else:
-                pub.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+                pub.copyright_status = CopyrightStatus.US_NO_MATCH.value
             batch.append(pub)
 
         # Update statistics from batch
@@ -123,8 +124,8 @@ class TestAnalysisResults:
         assert results.statistics["total_records"] == 5
         assert results.statistics["us_records"] == 5
         assert results.statistics["registration_matches"] == 3
-        assert results.statistics["pd_us_not_renewed"] == 3
-        assert results.statistics["research_us_status"] == 2
+        assert results.statistics["us_registered_not_renewed"] == 3
+        assert results.statistics["us_no_match"] == 2
 
     def test_statistics_for_all_statuses(self):
         """Test that all copyright statuses are tracked correctly"""
@@ -132,12 +133,12 @@ class TestAnalysisResults:
 
         # Test each copyright status
         statuses = [
-            CopyrightStatus.PD_US_NOT_RENEWED,
-            CopyrightStatus.PD_PRE_MIN_YEAR,
-            CopyrightStatus.IN_COPYRIGHT,
-            CopyrightStatus.RESEARCH_US_STATUS,
-            CopyrightStatus.RESEARCH_US_ONLY_PD,
-            CopyrightStatus.COUNTRY_UNKNOWN,
+            CopyrightStatus.US_REGISTERED_NOT_RENEWED.value,
+            CopyrightStatus.US_NO_MATCH.value,
+            CopyrightStatus.US_RENEWED.value,
+            CopyrightStatus.US_NO_MATCH.value,
+            CopyrightStatus.US_NO_MATCH.value,
+            CopyrightStatus.COUNTRY_UNKNOWN_NO_MATCH.value,
         ]
 
         for i, status in enumerate(statuses):
@@ -145,13 +146,11 @@ class TestAnalysisResults:
             pub.copyright_status = status
             results.add_publication(pub)
 
-        # Check all status counters
-        assert results.statistics["pd_us_not_renewed"] == 1
-        assert results.statistics["pd_pre_min_year"] == 1
-        assert results.statistics["in_copyright"] == 1
-        assert results.statistics["research_us_status"] == 1
-        assert results.statistics["research_us_only_pd"] == 1
-        assert results.statistics["country_unknown"] == 1
+        # Check all status counters with new status values
+        assert results.statistics["us_registered_not_renewed"] == 1
+        assert results.statistics["us_no_match"] == 3  # 3 instances of US_NO_MATCH
+        assert results.statistics["us_renewed"] == 1
+        assert results.statistics["country_unknown_no_match"] == 1
 
     def test_country_classification_tracking(self):
         """Test that country classifications are tracked correctly"""
