@@ -67,7 +67,7 @@ class TestCSVMultipleFiles:
             source_id="test_001",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
 
         pub2 = Publication(
             title="In Copyright Book",
@@ -76,7 +76,7 @@ class TestCSVMultipleFiles:
             source_id="test_002",
             country_classification=CountryClassification.US,
         )
-        pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub2.copyright_status = CopyrightStatus.US_RENEWED.value
 
         pub3 = Publication(
             title="Research Book",
@@ -85,7 +85,7 @@ class TestCSVMultipleFiles:
             source_id="test_003",
             country_classification=CountryClassification.US,
         )
-        pub3.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+        pub3.copyright_status = CopyrightStatus.US_NO_MATCH.value
 
         publications = [pub1, pub2, pub3]
 
@@ -99,9 +99,10 @@ class TestCSVMultipleFiles:
             # Check that separate files were created
             base_name, ext = splitext(temp_file)
 
-            pd_file = f"{base_name}_pd_us_not_renewed{ext}"
-            ic_file = f"{base_name}_in_copyright{ext}"
-            research_file = f"{base_name}_research_us_status{ext}"
+            # File names based on new status values
+            pd_file = f"{base_name}_us_registered_not_renewed{ext}"
+            ic_file = f"{base_name}_us_renewed{ext}"
+            research_file = f"{base_name}_us_no_match{ext}"
 
             assert exists(pd_file), f"PD file should exist: {pd_file}"
             assert exists(ic_file), f"In Copyright file should exist: {ic_file}"
@@ -197,7 +198,7 @@ class TestCSVMultipleFiles:
             source_id="test_001",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
 
         pub2 = Publication(
             title="Book 2",
@@ -206,7 +207,7 @@ class TestCSVMultipleFiles:
             source_id="test_002",
             country_classification=CountryClassification.US,
         )
-        pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub2.copyright_status = CopyrightStatus.US_RENEWED.value
 
         publications = [pub1, pub2]
 

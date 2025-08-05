@@ -48,33 +48,68 @@ class StackedXLSXExporter(BaseJSONExporter):
         bottom=Side(style="thin"),
     )
 
-    # Status colors
-    STATUS_COLORS = {
-        "PD_PRE_MIN_YEAR": "E8F5E9",
-        "PD_US_NOT_RENEWED": "D5F4E6",
-        "PD_US_REG_NO_RENEWAL": "D4E6F1",
-        "PD_US_NO_REG_DATA": "E3F2FD",
-        "UNKNOWN_US_NO_DATA": "FFF9C4",
-        "IN_COPYRIGHT": "FADBD8",
-        "IN_COPYRIGHT_US_RENEWED": "FFCDD2",
-        "RESEARCH_US_STATUS": "FCF3CF",
-        "RESEARCH_US_ONLY_PD": "E8DAEF",
-        "COUNTRY_UNKNOWN": "E5E7E9",
-    }
+    # Status colors - removed hardcoded mapping, now handled dynamically
 
-    # Tab name mapping
-    STATUS_TAB_NAMES = {
-        "PD_PRE_MIN_YEAR": "PD Pre Min Year",
-        "PD_US_NOT_RENEWED": "PD US Not Renewed",
-        "PD_US_REG_NO_RENEWAL": "PD US Reg No Renewal",
-        "PD_US_NO_REG_DATA": "PD US No Reg Data",
-        "UNKNOWN_US_NO_DATA": "Unknown US No Data",
-        "IN_COPYRIGHT": "In Copyright",
-        "IN_COPYRIGHT_US_RENEWED": "In Copyright US Renewed",
-        "RESEARCH_US_STATUS": "Research US Status",
-        "RESEARCH_US_ONLY_PD": "Research US Only PD",
-        "COUNTRY_UNKNOWN": "Country Unknown",
-    }
+    def _format_status_as_sheet_name(self, status: str) -> str:
+        """Format a status string as a valid Excel sheet name
+
+        Args:
+            status: The status string (e.g., "US_RENEWED", "FOREIGN_NO_MATCH_GBR")
+
+        Returns:
+            A sheet name suitable for Excel (max 31 chars)
+        """
+        # Excel sheet names have a hard limit of 31 characters
+        # Just use the status string as-is, but truncate if necessary
+        if len(status) > 31:
+            # Truncate at 31 characters exactly
+            return status[:31]
+
+        return status
+
+    def _get_default_status_color(self, status: str) -> str:
+        """Get a default color for a status based on its pattern
+
+        Args:
+            status: The copyright status string
+
+        Returns:
+            A hex color string (without #)
+        """
+        status_upper = status.upper()
+
+        # Pre-copyright expiration (public domain)
+        if "_PRE_" in status_upper:
+            return "E8F5E9"  # Light green
+
+        # US statuses
+        elif status_upper.startswith("US_"):
+            if "RENEWED" in status_upper:
+                return "FFCDD2"  # Light red (in copyright)
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                return "D5F4E6"  # Medium green (public domain)
+            elif "NO_MATCH" in status_upper:
+                return "E3F2FD"  # Light blue (uncertain)
+
+        # Foreign statuses
+        elif status_upper.startswith("FOREIGN_"):
+            if "RENEWED" in status_upper:
+                return "FADBD8"  # Pink (likely in copyright)
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                return "FCF3CF"  # Light yellow (research needed)
+            elif "NO_MATCH" in status_upper:
+                return "E8DAEF"  # Light purple (research needed)
+
+        # Unknown country
+        elif "COUNTRY_UNKNOWN" in status_upper:
+            return "E5E7E9"  # Light gray
+
+        # Out of data range
+        elif "OUT_OF_DATA_RANGE" in status_upper:
+            return "FFF9C4"  # Light yellow (cannot analyze)
+
+        # Default
+        return "FFFFFF"  # White
 
     def export(self) -> None:
         """Export records to stacked XLSX file"""
@@ -100,22 +135,13 @@ class StackedXLSXExporter(BaseJSONExporter):
                 by_status[status] = self.sort_by_quality(by_status[status])
 
             # Create a sheet for each status
-            status_order = [
-                "PD_PRE_MIN_YEAR",
-                "PD_US_NOT_RENEWED",
-                "PD_US_REG_NO_RENEWAL",
-                "PD_US_NO_REG_DATA",
-                "UNKNOWN_US_NO_DATA",
-                "IN_COPYRIGHT",
-                "IN_COPYRIGHT_US_RENEWED",
-                "RESEARCH_US_STATUS",
-                "RESEARCH_US_ONLY_PD",
-                "COUNTRY_UNKNOWN",
-            ]
+            # Sort statuses to ensure consistent order
+            statuses = sorted(by_status.keys())
 
-            for status in status_order:
-                if status in by_status and by_status[status]:
-                    sheet_name = self.STATUS_TAB_NAMES.get(status, status)
+            for status in statuses:
+                if by_status[status]:
+                    # Generate sheet name from status
+                    sheet_name = self._format_status_as_sheet_name(status)
                     self._create_stacked_sheet(wb, sheet_name, by_status[status])
 
         # Save the workbook
@@ -149,7 +175,7 @@ class StackedXLSXExporter(BaseJSONExporter):
         status_counts = metadata.get("status_counts", {})
         if isinstance(status_counts, dict):
             for status, count in status_counts.items():
-                display_name = self.STATUS_TAB_NAMES.get(status, status)
+                display_name = self._format_status_as_sheet_name(status)
                 ws[f"A{row}"] = display_name
                 ws[f"B{row}"] = count
                 row += 1

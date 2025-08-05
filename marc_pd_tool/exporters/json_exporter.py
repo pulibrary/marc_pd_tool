@@ -67,7 +67,7 @@ def _create_metadata(
     # Count by status
     status_counts: dict[str, int] = {}
     for pub in publications:
-        s = pub.copyright_status.value
+        s = pub.copyright_status
         status_counts[s] = status_counts.get(s, 0) + 1
     metadata["status_counts"] = status_counts
 
@@ -112,7 +112,7 @@ def _publication_to_dict(pub: Publication) -> JSONDict:
             "country_classification": pub.country_classification.value,
         },
         "analysis": {
-            "copyright_status": pub.copyright_status.value,
+            "copyright_status": pub.copyright_status,
             "generic_title_detected": pub.generic_title_detected,
             "generic_detection_reason": pub.generic_detection_reason,
             "registration_generic_title": pub.registration_generic_title,
@@ -250,7 +250,7 @@ def _publication_to_comprehensive_dict(pub: Publication) -> JSONDict:
 
     # Analysis results
     analysis = {
-        "status": pub.copyright_status.value,
+        "status": pub.copyright_status,
         "status_rule": pub.status_rule.value if pub.status_rule else "",
         "sort_score": pub.sort_score,
         "data_completeness": pub.data_completeness,

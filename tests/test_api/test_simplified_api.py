@@ -114,7 +114,7 @@ class TestMarcCopyrightAnalyzerAPI:
 
         # Add some test data to results
         pub = PublicationBuilder.basic_us_publication()
-        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
         analyzer.results.add_publication(pub)
 
         results = analyzer.get_results()
@@ -122,7 +122,7 @@ class TestMarcCopyrightAnalyzerAPI:
         assert results == analyzer.results
         assert len(results.publications) == 1
         assert results.statistics["total_records"] == 1
-        assert results.statistics["pd_us_not_renewed"] == 1
+        assert results.statistics["us_registered_not_renewed"] == 1
 
     def test_results_isolation(self):
         """Test that results are isolated between analyses"""

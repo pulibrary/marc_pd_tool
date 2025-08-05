@@ -19,16 +19,19 @@ matches*.csv
 outputs_for_refining/
 reports/
 logs/
-
-
-# Cache directories - do not commit cached data
-.marcpd_cache/
-*_cache/
+truth_data/
 
 # Misc
 notes.md
 .tool-versions
 projects/
+
+# Cache directories - do not commit cached data
+.marcpd_cache/
+*_cache/
+
+
+
 
 # Python
 __pycache__/

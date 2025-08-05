@@ -143,7 +143,7 @@ class Publication:
         self.renewal_generic_title = False
 
         # Final status
-        self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
+        self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN_NO_MATCH.value
         self.status_rule: CopyrightStatusRule | None = None  # Rule explaining copyright status
         self.sort_score: float = 0.0  # Score for sorting by match quality
         self.data_completeness: list[str] = []  # Data quality issues
@@ -237,69 +237,116 @@ class Publication:
         """Check if record has a renewal match"""
         return self.renewal_match is not None
 
-    def determine_copyright_status(self, min_year: int | None = None) -> CopyrightStatus:
+    def determine_copyright_status(
+        self, copyright_expiration_year: int | None = None, max_data_year: int | None = None
+    ) -> str:
         """Determine final copyright status based on matches, country, and publication year
 
         Args:
-            min_year: Minimum year for copyright analysis (typically current_year - 96)
+            copyright_expiration_year: Year before which works expire (typically current_year - 96)
+            max_data_year: Maximum year of available copyright/renewal data (e.g., 1991)
+
+        Returns:
+            String status that may be dynamically generated (e.g., "US_PRE_1929")
         """
         has_reg = self.has_registration_match()
         has_ren = self.has_renewal_match()
 
-        # Determine the minimum year for renewal requirements
-        # If not provided, default to 1923 (earliest renewal period)
-        if min_year is None:
-            min_year = 1923
+        # Set defaults if not provided
+        if copyright_expiration_year is None:
+            # Standard library imports
+            from datetime import datetime
 
+            copyright_expiration_year = datetime.now().year - 96
+
+        if max_data_year is None:
+            max_data_year = 1991  # Default based on current data
+
+        # Check for pre-copyright expiration
+        if self.year and self.year < copyright_expiration_year:
+            if self.country_classification == CountryClassification.US:
+                self.copyright_status = f"US_PRE_{copyright_expiration_year}"
+                self.status_rule = CopyrightStatusRule.US_PRE_COPYRIGHT_EXPIRATION
+            elif self.country_classification == CountryClassification.NON_US:
+                country_suffix = f"_{self.country_code}" if self.country_code else ""
+                self.copyright_status = f"FOREIGN_PRE_{copyright_expiration_year}{country_suffix}"
+                self.status_rule = CopyrightStatusRule.FOREIGN_PRE_COPYRIGHT_EXPIRATION
+            else:
+                self.copyright_status = f"COUNTRY_UNKNOWN_PRE_{copyright_expiration_year}"
+                self.status_rule = CopyrightStatusRule.US_PRE_COPYRIGHT_EXPIRATION
+            return self.copyright_status
+
+        # Check if beyond our data range
+        if self.year and self.year > max_data_year:
+            self.copyright_status = f"OUT_OF_DATA_RANGE_{max_data_year}"
+            self.status_rule = CopyrightStatusRule.OUT_OF_DATA_RANGE
+            return self.copyright_status
+
+        # Main status determination logic
         match (self.country_classification, self.year, has_reg, has_ren):
-            # US works in renewal period (min_year-1977) with specific registration/renewal patterns
-            case (CountryClassification.US, year, True, False) if year and min_year <= year <= 1977:
-                # US works with registration but no renewal are PD
-                self.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
-                self.status_rule = CopyrightStatusRule.US_NOT_RENEWED
-            case (CountryClassification.US, year, _, True) if year and min_year <= year <= 1977:
-                # US works that were renewed are likely still copyrighted
-                self.copyright_status = CopyrightStatus.IN_COPYRIGHT_US_RENEWED
-                self.status_rule = CopyrightStatusRule.US_RENEWED
-            case (CountryClassification.US, year, False, False) if (
-                year and min_year <= year <= 1977
+            # US works in renewal period (copyright_expiration_year-1977)
+            case (CountryClassification.US, year, True, False) if (
+                year and copyright_expiration_year <= year <= 1977
             ):
-                # US works with no registration/renewal need verification
-                self.copyright_status = CopyrightStatus.UNKNOWN_US_NO_DATA
-                self.status_rule = CopyrightStatusRule.US_NO_REG_DATA_RENEWAL_PERIOD
+                self.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
+                self.status_rule = CopyrightStatusRule.US_RENEWAL_PERIOD_NOT_RENEWED
+            case (CountryClassification.US, year, _, True) if (
+                year and copyright_expiration_year <= year <= 1977
+            ):
+                self.copyright_status = CopyrightStatus.US_RENEWED.value
+                self.status_rule = CopyrightStatusRule.US_RENEWAL_PERIOD_RENEWED
+            case (CountryClassification.US, year, False, False) if (
+                year and copyright_expiration_year <= year <= 1977
+            ):
+                self.copyright_status = CopyrightStatus.US_NO_MATCH.value
+                self.status_rule = CopyrightStatusRule.US_RENEWAL_PERIOD_NO_MATCH
 
-            # General US records for other years
+            # US records without year or outside renewal period
             case (CountryClassification.US, _, True, False):
-                self.copyright_status = CopyrightStatus.PD_US_REG_NO_RENEWAL
+                self.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
                 self.status_rule = CopyrightStatusRule.US_REGISTERED_NO_RENEWAL
             case (CountryClassification.US, _, False, True):
-                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
+                self.copyright_status = CopyrightStatus.US_RENEWED.value
                 self.status_rule = CopyrightStatusRule.US_RENEWAL_FOUND
-            case (CountryClassification.US, _, False, False):
-                self.copyright_status = CopyrightStatus.PD_US_NO_REG_DATA
-                self.status_rule = CopyrightStatusRule.US_NO_REG_DATA
             case (CountryClassification.US, _, True, True):
-                self.copyright_status = CopyrightStatus.IN_COPYRIGHT
-                self.status_rule = CopyrightStatusRule.US_REGISTERED_AND_RENEWED
+                self.copyright_status = CopyrightStatus.US_RENEWED.value
+                self.status_rule = CopyrightStatusRule.US_BOTH_REG_AND_RENEWAL
+            case (CountryClassification.US, _, False, False):
+                self.copyright_status = CopyrightStatus.US_NO_MATCH.value
+                self.status_rule = CopyrightStatusRule.US_NO_MATCH
 
-            # Non-US records
-            case (CountryClassification.NON_US, _, _, _) if has_reg or has_ren:
-                self.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
-                self.status_rule = CopyrightStatusRule.FOREIGN_US_ACTIVITY
+            # Non-US records with country code
             case (CountryClassification.NON_US, _, _, _):
-                self.copyright_status = CopyrightStatus.RESEARCH_US_ONLY_PD
-                self.status_rule = CopyrightStatusRule.FOREIGN_NO_US_ACTIVITY
+                country_suffix = f"_{self.country_code}" if self.country_code else ""
+                if has_ren:
+                    self.copyright_status = (
+                        f"{CopyrightStatus.FOREIGN_RENEWED.value}{country_suffix}"
+                    )
+                    self.status_rule = CopyrightStatusRule.FOREIGN_RENEWED
+                elif has_reg:
+                    self.copyright_status = (
+                        f"{CopyrightStatus.FOREIGN_REGISTERED_NOT_RENEWED.value}{country_suffix}"
+                    )
+                    self.status_rule = CopyrightStatusRule.FOREIGN_REGISTERED_NOT_RENEWED
+                else:
+                    self.copyright_status = (
+                        f"{CopyrightStatus.FOREIGN_NO_MATCH.value}{country_suffix}"
+                    )
+                    self.status_rule = CopyrightStatusRule.FOREIGN_NO_MATCH
 
             # Unknown country
             case _:
-                # Unknown country - still track matches but can't determine status
-                self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN
-                self.status_rule = CopyrightStatusRule.UNKNOWN_COUNTRY
-
-        # Check for special cases based on year
-        if self.year and self.year < min_year:
-            self.copyright_status = CopyrightStatus.PD_PRE_MIN_YEAR
-            self.status_rule = CopyrightStatusRule.US_PRE_MIN_YEAR
+                if has_ren:
+                    self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN_RENEWED.value
+                    self.status_rule = CopyrightStatusRule.COUNTRY_UNKNOWN_RENEWED
+                elif has_reg:
+                    self.copyright_status = (
+                        CopyrightStatus.COUNTRY_UNKNOWN_REGISTERED_NOT_RENEWED.value
+                    )
+                    self.status_rule = CopyrightStatusRule.COUNTRY_UNKNOWN_REGISTERED
+                else:
+                    self.copyright_status = CopyrightStatus.COUNTRY_UNKNOWN_NO_MATCH.value
+                    self.status_rule = CopyrightStatusRule.COUNTRY_UNKNOWN_NO_MATCH
 
         return self.copyright_status
 
@@ -390,7 +437,7 @@ class Publication:
             "year": self.year,
             "country_code": self.country_code,
             "country_classification": self.country_classification.value,
-            "copyright_status": self.copyright_status.value,
+            "copyright_status": self.copyright_status,
             "full_text": self.full_text,
             "registration_match": (
                 {

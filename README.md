@@ -140,18 +140,26 @@ The tool supports multiple output formats that can be generated in a single run.
 
 ### CSV Output (Default)
 
-The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status:
+The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status. The status values are now dynamic and include relevant year and country information:
 
-- `reports/matches_pd_us_not_renewed.csv` - Works in public domain due to non-renewal (min_year-1977)
-- `matches_pd_us_reg_no_renewal.csv` - Registered but no renewal found (post-1977)
-- `matches_pd_pre_min_year.csv` - Published before current year - 96
-- `matches_in_copyright.csv` - Works still under copyright
-- `matches_in_copyright_us_renewed.csv` - Renewal period works that were renewed
-- `matches_unknown_us_no_data.csv` - Renewal period works with no data
-- `matches_research_us_status.csv` - Foreign works with US activity
-- `matches_research_us_only_pd.csv` - Foreign works possibly PD in US only
-- `matches_country_unknown.csv` - Cannot determine without country
-- `matches_country_unknown.csv` - Country classification unknown
+**US Works:**
+
+- `reports/matches_us_pre_1929.csv` - Works published before copyright expiration (year varies)
+- `reports/matches_us_registered_not_renewed.csv` - Works registered but not renewed
+- `reports/matches_us_renewed.csv` - Works that were renewed
+- `reports/matches_us_no_match.csv` - No registration or renewal found
+
+**Foreign Works:**
+
+- `reports/matches_foreign_pre_1929_gbr.csv` - Pre-expiration foreign works (includes country code)
+- `reports/matches_foreign_renewed_fra.csv` - Foreign works with US renewal
+- `reports/matches_foreign_no_match_deu.csv` - Foreign works with no US activity
+
+**Unknown Country:**
+
+- `reports/matches_country_unknown_no_match.csv` - Country classification unknown
+
+**Note:** The copyright expiration year is always current_year - 96. The `--min-year` option filters which records to process but does NOT affect copyright determination.
 
 Each CSV includes these columns:
 

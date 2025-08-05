@@ -75,6 +75,50 @@ class XLSXExporter(BaseJSONExporter):
         "COUNTRY_UNKNOWN": "Country Unknown",
     }
 
+    def _get_default_status_color(self, status: str) -> str:
+        """Get a default color for a status based on its content
+
+        Args:
+            status: The status string
+
+        Returns:
+            A hex color code
+        """
+        status_lower = status.lower()
+
+        # Green shades for public domain
+        if "registered_not_renewed" in status_lower or "pre_" in status_lower:
+            return "D5F4E6"
+        # Yellow/orange for in copyright
+        elif "renewed" in status_lower:
+            return "FADBD8"
+        # Blue for needs research
+        elif "no_match" in status_lower:
+            return "FCF3CF"
+        # Gray for unknown/foreign
+        elif "foreign" in status_lower or "unknown" in status_lower:
+            return "E5E7E9"
+        # Default light gray
+        else:
+            return "F5F5F5"
+
+    def _format_status_as_sheet_name(self, status: str) -> str:
+        """Format a status string as a valid Excel sheet name
+
+        Args:
+            status: The status string (e.g., "US_RENEWED", "FOREIGN_NO_MATCH_GBR")
+
+        Returns:
+            A sheet name suitable for Excel (max 31 chars)
+        """
+        # Excel sheet names have a hard limit of 31 characters
+        # Just use the status string as-is, but truncate if necessary
+        if len(status) > 31:
+            # Truncate at 31 characters exactly
+            return status[:31]
+
+        return status
+
     def export(self) -> None:
         """Export records to XLSX file"""
         wb = Workbook()
@@ -99,22 +143,15 @@ class XLSXExporter(BaseJSONExporter):
                 by_status[status] = self.sort_by_quality(by_status[status])
 
             # Create a sheet for each status
-            status_order = [
-                "PD_PRE_MIN_YEAR",
-                "PD_US_NOT_RENEWED",
-                "PD_US_REG_NO_RENEWAL",
-                "PD_US_NO_REG_DATA",
-                "UNKNOWN_US_NO_DATA",
-                "IN_COPYRIGHT",
-                "IN_COPYRIGHT_US_RENEWED",
-                "RESEARCH_US_STATUS",
-                "RESEARCH_US_ONLY_PD",
-                "COUNTRY_UNKNOWN",
-            ]
+            # Sort statuses to ensure consistent order
+            statuses = sorted(by_status.keys())
 
-            for status in status_order:
-                if status in by_status and by_status[status]:
-                    sheet_name = self.STATUS_TAB_NAMES.get(status, status)
+            for status in statuses:
+                if by_status[status]:
+                    # Get sheet name from mapping or generate from status
+                    sheet_name = self.STATUS_TAB_NAMES.get(
+                        status, self._format_status_as_sheet_name(status)
+                    )
                     self._create_data_sheet(wb, sheet_name, by_status[status])
 
         # Save the workbook

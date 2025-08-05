@@ -204,12 +204,12 @@ class TestLogRunSummaryFunction:
             "total_records": 1000,
             "registration_matches": 200,
             "renewal_matches": 150,
-            "pd_us_not_renewed": 100,
-            "pd_pre_min_year": 50,
-            "in_copyright": 150,
-            "research_us_status": 600,
-            "research_us_only_pd": 50,
-            "country_unknown": 50,
+            "us_registered_not_renewed": 100,
+            "us_pre_1929": 50,
+            "us_renewed": 150,
+            "foreign_no_match_gbr": 600,
+            "foreign_renewed_fra": 50,
+            "country_unknown_no_match": 50,
         }
 
         mock_args = Mock()
@@ -239,9 +239,10 @@ class TestLogRunSummaryFunction:
 
             # Check copyright status breakdown
             assert any("Copyright Status Breakdown:" in call for call in info_calls)
-            assert any("PD_US_NOT_RENEWED: 100" in call for call in info_calls)
-            assert any("IN_COPYRIGHT: 150" in call for call in info_calls)
-            assert any("RESEARCH_US_STATUS: 600" in call for call in info_calls)
+            # Check that dynamic statuses are logged with proper formatting
+            assert any("US_REGISTERED_NOT_RENEWED: 100" in call for call in info_calls)
+            assert any("US_RENEWED: 150" in call for call in info_calls)
+            assert any("FOREIGN_NO_MATCH_GBR: 600" in call for call in info_calls)
 
     def test_log_run_summary_handles_zero_duration(self):
         """Test log_run_summary with zero duration"""

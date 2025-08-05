@@ -36,7 +36,7 @@ class TestAnalysisResultsExport:
             country_code="xxu",
             country_classification=CountryClassification.US,
         )
-        pub1.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
 
         pub2 = Publication(
             title="Copyrighted Book",
@@ -46,7 +46,7 @@ class TestAnalysisResultsExport:
             country_code="xxu",
             country_classification=CountryClassification.US,
         )
-        pub2.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub2.copyright_status = CopyrightStatus.US_RENEWED.value
 
         pub3 = Publication(
             title="Research Needed",
@@ -56,7 +56,7 @@ class TestAnalysisResultsExport:
             country_code="xxu",
             country_classification=CountryClassification.US,
         )
-        pub3.copyright_status = CopyrightStatus.RESEARCH_US_STATUS
+        pub3.copyright_status = CopyrightStatus.US_NO_MATCH.value
 
         results.add_publication(pub1)
         results.add_publication(pub2)
@@ -206,7 +206,7 @@ class TestAnalysisResultsExport:
             match_type=MatchType.SIMILARITY,
         )
 
-        pub.copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pub.copyright_status = CopyrightStatus.US_RENEWED.value
         results.add_publication(pub)
 
         output_file = tmp_path / "matched.json"
@@ -238,7 +238,7 @@ class TestExportErrorHandling:
 
         # Add a simple test publication
         pub = Publication(title="Test Book", author="Test Author", pub_date="1950", source_id="001")
-        pub.copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
+        pub.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
         results.add_publication(pub)
 
         return results

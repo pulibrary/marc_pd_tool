@@ -22,8 +22,8 @@ class TestSaveMatchesJson:
             PublicationBuilder.basic_us_publication(source_id="test1"),
             PublicationBuilder.basic_us_publication(source_id="test2"),
         ]
-        pubs[0].copyright_status = CopyrightStatus.PD_US_NOT_RENEWED
-        pubs[1].copyright_status = CopyrightStatus.IN_COPYRIGHT
+        pubs[0].copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
+        pubs[1].copyright_status = CopyrightStatus.US_RENEWED.value
 
         with TemporaryDirectory() as temp_dir:
             output_file = str(Path(temp_dir) / "results.json")
@@ -44,9 +44,9 @@ class TestSaveMatchesJson:
             assert data["metadata"]["total_records"] == 2
             assert len(data["records"]) == 2
             assert data["records"][0]["marc"]["id"] == "test1"
-            assert data["records"][0]["analysis"]["status"] == "PD_US_NOT_RENEWED"
+            assert data["records"][0]["analysis"]["status"] == "US_REGISTERED_NOT_RENEWED"
             assert data["records"][1]["marc"]["id"] == "test2"
-            assert data["records"][1]["analysis"]["status"] == "IN_COPYRIGHT"
+            assert data["records"][1]["analysis"]["status"] == "US_RENEWED"
 
     def test_save_matches_json_with_parameters(self):
         """Test JSON export with processing parameters"""

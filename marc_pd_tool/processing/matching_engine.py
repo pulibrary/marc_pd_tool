@@ -3,6 +3,7 @@
 """Data matching engine for comparing MARC records against copyright/renewal data"""
 
 # Standard library imports
+from datetime import datetime
 from logging import Formatter
 from logging import INFO
 from logging import StreamHandler
@@ -955,7 +956,16 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
             stats["total_comparisons"] += len(reg_candidates) + len(ren_candidates)
 
             # Determine copyright status based on matches and country
-            marc_pub.determine_copyright_status(min_year)
+            # Calculate copyright expiration year (always current_year - 96)
+            copyright_expiration_year = datetime.now().year - 96
+
+            # Determine max data year from worker data
+            # Default to 1991 based on current data, but could be determined dynamically
+            max_data_year = 1991
+
+            marc_pub.determine_copyright_status(
+                copyright_expiration_year=copyright_expiration_year, max_data_year=max_data_year
+            )
 
             # Calculate sort score for quality-based ordering
             marc_pub.calculate_sort_score()
@@ -1017,7 +1027,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
             # Add copyright status counts
             for pub in processed_publications:
                 if hasattr(pub, "copyright_status") and pub.copyright_status:
-                    status_key = pub.copyright_status.value.lower()
+                    status_key = pub.copyright_status.lower()
                     if status_key not in detailed_stats:
                         detailed_stats[status_key] = 0
                     detailed_stats[status_key] += 1
