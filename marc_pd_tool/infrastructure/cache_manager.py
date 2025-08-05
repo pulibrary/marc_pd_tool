@@ -575,7 +575,7 @@ class CacheManager:
         cache_subdir = join(self.indexes_cache_dir, year_suffix)
 
         if not exists(cache_subdir):
-            logger.warning(f"Index cache not found at: {cache_subdir}")
+            logger.info(f"Index cache not found at: {cache_subdir}")
             return None
 
         additional_deps = {

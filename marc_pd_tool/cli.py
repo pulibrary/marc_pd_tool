@@ -483,6 +483,9 @@ def main() -> None:
             f"Thresholds: title={args.title_threshold}, author={args.author_threshold}, "
             f"publisher={args.publisher_threshold}, year_tolerance={args.year_tolerance}"
         )
+        logger.info(
+            f"Year range: {args.min_year} to {args.max_year or 'present'}"
+        )
 
         analyzer = MarcCopyrightAnalyzer(
             config_path=args.config,
