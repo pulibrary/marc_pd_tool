@@ -239,7 +239,7 @@ class Publication:
 
     def determine_copyright_status(self, min_year: int | None = None) -> CopyrightStatus:
         """Determine final copyright status based on matches, country, and publication year
-        
+
         Args:
             min_year: Minimum year for copyright analysis (typically current_year - 96)
         """
@@ -250,7 +250,7 @@ class Publication:
         # If not provided, default to 1923 (earliest renewal period)
         if min_year is None:
             min_year = 1923
-            
+
         match (self.country_classification, self.year, has_reg, has_ren):
             # US works in renewal period (min_year-1977) with specific registration/renewal patterns
             case (CountryClassification.US, year, True, False) if year and min_year <= year <= 1977:
@@ -261,7 +261,9 @@ class Publication:
                 # US works that were renewed are likely still copyrighted
                 self.copyright_status = CopyrightStatus.IN_COPYRIGHT_US_RENEWED
                 self.status_rule = CopyrightStatusRule.US_RENEWED
-            case (CountryClassification.US, year, False, False) if year and min_year <= year <= 1977:
+            case (CountryClassification.US, year, False, False) if (
+                year and min_year <= year <= 1977
+            ):
                 # US works with no registration/renewal need verification
                 self.copyright_status = CopyrightStatus.UNKNOWN_US_NO_DATA
                 self.status_rule = CopyrightStatusRule.US_NO_REG_DATA_RENEWAL_PERIOD

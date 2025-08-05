@@ -30,9 +30,7 @@ class CopyrightStatus(Enum):
     )
 
     # Unknown/needs research
-    UNKNOWN_US_NO_DATA = (
-        "UNKNOWN_US_NO_DATA"  # US works in renewal period with no reg/renewal data
-    )
+    UNKNOWN_US_NO_DATA = "UNKNOWN_US_NO_DATA"  # US works in renewal period with no reg/renewal data
 
     # In copyright
     IN_COPYRIGHT = "IN_COPYRIGHT"  # Has renewal or other evidence of copyright
@@ -46,7 +44,6 @@ class CopyrightStatus(Enum):
 
     # Unknown country
     COUNTRY_UNKNOWN = "COUNTRY_UNKNOWN"  # Country of publication unknown
-
 
 
 class MatchType(Enum):
@@ -70,7 +67,9 @@ class CopyrightStatusRule(Enum):
     # US renewal period rules (min_year through 1977)
     US_NOT_RENEWED = "us_not_renewed"  # Registered but not renewed (PD)
     US_RENEWED = "us_renewed"  # Registered and renewed (in copyright)
-    US_NO_REG_DATA_RENEWAL_PERIOD = "us_no_reg_data_renewal_period"  # No registration data found (unknown)
+    US_NO_REG_DATA_RENEWAL_PERIOD = (
+        "us_no_reg_data_renewal_period"  # No registration data found (unknown)
+    )
 
     # General US Rules
     US_REGISTERED_NO_RENEWAL = "us_registered_no_renewal"  # Registered but no renewal found

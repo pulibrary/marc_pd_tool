@@ -34,9 +34,7 @@ class TestDefaultLogging(TestCase):
         """Test setup_logging with default file logging enabled"""
         with patch("marc_pd_tool.cli.FileHandler") as mock_file_handler:
             with patch("marc_pd_tool.cli.StreamHandler") as mock_stream_handler:
-                with patch(
-                    "marc_pd_tool.cli.get_default_log_path", return_value="logs/test.log"
-                ):
+                with patch("marc_pd_tool.cli.get_default_log_path", return_value="logs/test.log"):
                     log_path = set_up_logging(use_default_log=True)
                     self.assertEqual(log_path, "logs/test.log")
                     mock_file_handler.assert_called_once_with("logs/test.log")
