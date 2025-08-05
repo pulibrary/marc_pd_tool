@@ -7,7 +7,7 @@ This module allows the package to be run as a script:
 """
 
 # Local imports
-from marc_pd_tool.cli.main import main
+from marc_pd_tool.cli import main
 
 if __name__ == "__main__":
     main()

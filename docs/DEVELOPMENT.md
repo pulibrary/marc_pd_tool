@@ -417,7 +417,7 @@ analyzer.analyze_ground_truth_scores(pairs)
 
 1. Update `DataMatcher.find_best_match()`
 1. Add new thresholds to `config.json`
-1. Update CLI arguments in `cli/main.py`
+1. Update CLI arguments in `cli.py`
 1. Test with ground truth data
 1. Update `PIPELINE.md` documentation
 1. Ensure changes work with batch pickling

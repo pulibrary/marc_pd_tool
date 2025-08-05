@@ -7,8 +7,8 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.cli.main import log_run_summary
-from marc_pd_tool.cli.main import main
+from marc_pd_tool.cli import log_run_summary
+from marc_pd_tool.cli import main
 
 
 def create_mock_analyzer():
@@ -60,10 +60,10 @@ class TestMainCLI:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.log_run_summary") as mock_summary:
-                        with patch("marc_pd_tool.cli.main.RunIndexManager") as mock_run_index:
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.log_run_summary") as mock_summary:
+                        with patch("marc_pd_tool.cli.RunIndexManager") as mock_run_index:
                             mock_analyzer_class.return_value = create_mock_analyzer()
                             mock_logging.return_value = "/path/to/log.log"
                             mock_run_index.return_value = create_mock_run_index_manager()
@@ -92,11 +92,11 @@ class TestMainCLI:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
-                        with patch("marc_pd_tool.cli.main.RunIndexManager") as mock_run_index:
-                            with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.log_run_summary"):
+                        with patch("marc_pd_tool.cli.RunIndexManager") as mock_run_index:
+                            with patch("marc_pd_tool.cli.logger") as mock_logger:
                                 mock_analyzer_class.return_value = create_mock_analyzer()
                                 mock_logging.return_value = None
                                 mock_run_index.return_value = create_mock_run_index_manager()
@@ -128,11 +128,11 @@ class TestMainCLI:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.log_run_summary") as mock_summary:
-                        with patch("marc_pd_tool.cli.main.RunIndexManager") as mock_run_index:
-                            with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.log_run_summary") as mock_summary:
+                        with patch("marc_pd_tool.cli.RunIndexManager") as mock_run_index:
+                            with patch("marc_pd_tool.cli.logger") as mock_logger:
                                 mock_analyzer = create_mock_analyzer()
                                 mock_analyzer_class.return_value = mock_analyzer
                                 mock_logging.return_value = "/path/to/log.log"
@@ -167,10 +167,10 @@ class TestMainCLI:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.RunIndexManager") as mock_run_index:
-                        with patch("marc_pd_tool.cli.main.logger"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.RunIndexManager") as mock_run_index:
+                        with patch("marc_pd_tool.cli.logger"):
                             mock_analyzer = create_mock_analyzer()
                             # Mock ground truth methods
                             mock_stats = Mock()
@@ -215,7 +215,7 @@ class TestLogRunSummaryFunction:
         mock_args = Mock()
         mock_args.output_formats = ["csv", "json"]
 
-        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
             log_run_summary(10.5, results_stats, "output.csv", mock_args)
 
             # Verify all log lines were called
@@ -250,7 +250,7 @@ class TestLogRunSummaryFunction:
         mock_args = Mock()
         mock_args.output_formats = ["csv"]
 
-        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
             # Should not crash with zero duration
             log_run_summary(0.0, results_stats, "output.csv", mock_args)
 

@@ -10,8 +10,8 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.cli.main import log_run_summary
-from marc_pd_tool.cli.main import main
+from marc_pd_tool.cli import log_run_summary
+from marc_pd_tool.cli import main
 
 
 def create_mock_statistics(total=100, reg_matches=10, ren_matches=5):
@@ -51,10 +51,10 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.log_run_summary") as mock_summary:
-                        with patch("marc_pd_tool.cli.main.RunIndexManager") as mock_run_index:
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.log_run_summary") as mock_summary:
+                        with patch("marc_pd_tool.cli.RunIndexManager") as mock_run_index:
                             # Mock analyzer
                             mock_analyzer = Mock()
                             mock_analyzer_class.return_value = mock_analyzer
@@ -116,9 +116,9 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
+                    with patch("marc_pd_tool.cli.log_run_summary"):
                         # Mock analyzer
                         mock_analyzer = Mock()
                         mock_analyzer_class.return_value = mock_analyzer
@@ -150,9 +150,9 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
+                    with patch("marc_pd_tool.cli.log_run_summary"):
                         # Mock analyzer
                         mock_analyzer = Mock()
                         mock_analyzer_class.return_value = mock_analyzer
@@ -182,10 +182,10 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
-                        with patch("marc_pd_tool.cli.main.cpu_count", return_value=8):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
+                    with patch("marc_pd_tool.cli.log_run_summary"):
+                        with patch("marc_pd_tool.cli.cpu_count", return_value=8):
                             # Mock analyzer
                             mock_analyzer = Mock()
                             mock_analyzer_class.return_value = mock_analyzer
@@ -216,9 +216,9 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging") as mock_logging:
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging") as mock_logging:
+                    with patch("marc_pd_tool.cli.log_run_summary"):
                         # Mock analyzer
                         mock_analyzer = Mock()
                         mock_analyzer_class.return_value = mock_analyzer
@@ -250,9 +250,9 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
+                    with patch("marc_pd_tool.cli.log_run_summary"):
                         # Mock analyzer
                         mock_analyzer = Mock()
                         mock_analyzer_class.return_value = mock_analyzer
@@ -292,7 +292,7 @@ class TestLogRunSummary:
             "country_unknown": 50,
         }
 
-        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
             # Create mock args
             mock_args = Mock()
             log_run_summary(10.5, results_stats, "output.csv", mock_args)
@@ -312,7 +312,7 @@ class TestLogRunSummary:
         """Test log run summary with zero duration"""
         results_stats = {"total_records": 100, "registration_matches": 10, "renewal_matches": 5}
 
-        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
             # Create mock args
             mock_args = Mock()
             log_run_summary(0.0, results_stats, "output.csv", mock_args)
@@ -331,7 +331,7 @@ class TestLogRunSummary:
             # Missing some status fields
         }
 
-        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
             # Create mock args
             mock_args = Mock()
             log_run_summary(5.0, results_stats, "output.csv", mock_args)
@@ -363,8 +363,8 @@ class TestProcessingErrors:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
                     # Mock analyzer error
                     mock_analyzer_class.side_effect = Exception("Processing failed")
 
@@ -389,10 +389,10 @@ class TestProcessingErrors:
         ]
 
         with patch("sys.argv", test_args):
-            with patch("marc_pd_tool.cli.main.MarcCopyrightAnalyzer") as mock_analyzer_class:
-                with patch("marc_pd_tool.cli.main.set_up_logging"):
-                    with patch("marc_pd_tool.cli.main.log_run_summary"):
-                        with patch("marc_pd_tool.cli.main.logger") as mock_logger:
+            with patch("marc_pd_tool.cli.MarcCopyrightAnalyzer") as mock_analyzer_class:
+                with patch("marc_pd_tool.cli.set_up_logging"):
+                    with patch("marc_pd_tool.cli.log_run_summary"):
+                        with patch("marc_pd_tool.cli.logger") as mock_logger:
                             # Mock analyzer
                             mock_analyzer = Mock()
                             mock_analyzer_class.return_value = mock_analyzer

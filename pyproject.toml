@@ -110,7 +110,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "marc_pd_tool.api",
-    "marc_pd_tool.cli.main",
+    "marc_pd_tool.cli",
     "marc_pd_tool.infrastructure.run_index_manager",
     "marc_pd_tool.infrastructure.config_loader",
     "marc_pd_tool.loaders.renewal_loader",

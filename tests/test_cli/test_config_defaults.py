@@ -8,7 +8,7 @@ from typing import Dict
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.cli.main import create_argument_parser
+from marc_pd_tool.cli import create_argument_parser
 
 
 class MockConfigLoader:
@@ -58,7 +58,7 @@ def test_config_defaults_applied():
 
     mock_config = MockConfigLoader(mock_config_dict)
 
-    with patch("marc_pd_tool.cli.main.get_config", return_value=mock_config):
+    with patch("marc_pd_tool.cli.get_config", return_value=mock_config):
         parser = create_argument_parser()
         args = parser.parse_args(["--marcxml", "test.xml"])
 
@@ -96,7 +96,7 @@ def test_cli_overrides_config():
 
     mock_config = MockConfigLoader(mock_config_dict)
 
-    with patch("marc_pd_tool.cli.main.get_config", return_value=mock_config):
+    with patch("marc_pd_tool.cli.get_config", return_value=mock_config):
         parser = create_argument_parser()
         args = parser.parse_args(
             [
@@ -132,7 +132,7 @@ def test_boolean_flag_negation():
 
     mock_config = MockConfigLoader(mock_config_dict)
 
-    with patch("marc_pd_tool.cli.main.get_config", return_value=mock_config):
+    with patch("marc_pd_tool.cli.get_config", return_value=mock_config):
         parser = create_argument_parser()
 
         # Test enabling flags that default to False
@@ -163,7 +163,7 @@ def test_partial_config():
 
     mock_config = MockConfigLoader(mock_config_dict)
 
-    with patch("marc_pd_tool.cli.main.get_config", return_value=mock_config):
+    with patch("marc_pd_tool.cli.get_config", return_value=mock_config):
         parser = create_argument_parser()
         args = parser.parse_args(["--marcxml", "test.xml"])
 
@@ -186,7 +186,7 @@ def test_none_values_in_config():
 
     mock_config = MockConfigLoader(mock_config_dict)
 
-    with patch("marc_pd_tool.cli.main.get_config", return_value=mock_config):
+    with patch("marc_pd_tool.cli.get_config", return_value=mock_config):
         parser = create_argument_parser()
         args = parser.parse_args(["--marcxml", "test.xml"])
 

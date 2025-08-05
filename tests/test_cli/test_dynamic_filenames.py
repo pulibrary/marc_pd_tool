@@ -10,7 +10,7 @@ from pytest import fixture
 
 # Local imports
 # Local imports - import CLI functions from new location
-from marc_pd_tool.cli.main import generate_output_filename
+from marc_pd_tool.cli import generate_output_filename
 
 
 class TestDynamicFilenames:
