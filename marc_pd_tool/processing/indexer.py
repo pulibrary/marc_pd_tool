@@ -1,4 +1,4 @@
-# marc_pd_tool/processing/word_indexer.py
+# marc_pd_tool/processing/indexer.py
 
 """Publication indexer for fast lookup using multiple indexing strategies"""
 

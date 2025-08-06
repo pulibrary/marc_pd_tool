@@ -1,4 +1,4 @@
-# marc_pd_tool/tests/test_processing/test_similarity_properties.py
+# tests/test_processing/test_similarity_properties.py
 
 """Property-based tests for similarity scoring functions
 

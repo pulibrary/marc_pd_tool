@@ -78,14 +78,14 @@ class AnalysisOptions(TypedDict, total=False):
     num_processes: int
     batch_size: int
     brute_force_missing_year: bool
-    formats: list[str]  # ['csv', 'json', 'xlsx', 'xlsx-stacked', 'html']
+    formats: list[str]  # ['csv', 'json', 'xlsx', 'html']
     single_file: bool
 
 
 class ExportOptions(TypedDict, total=False):
     """Options for export_results API method"""
 
-    formats: list[str]  # ['csv', 'json', 'xlsx', 'xlsx-stacked', 'html']
+    formats: list[str]  # ['csv', 'json', 'xlsx', 'html']
     single_file: bool
 
 

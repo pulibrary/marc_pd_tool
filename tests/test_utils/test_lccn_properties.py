@@ -1,4 +1,4 @@
-# marc_pd_tool/tests/test_utils/test_lccn_properties.py
+# tests/test_utils/test_lccn_properties.py
 
 """Property-based tests for LCCN normalization and extraction functions
 

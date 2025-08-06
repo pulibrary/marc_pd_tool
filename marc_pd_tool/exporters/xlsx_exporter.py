@@ -47,58 +47,57 @@ class XLSXExporter(BaseJSONExporter):
     MEDIUM_SCORE_FILL = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
     LOW_SCORE_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
 
-    # Status colors
-    STATUS_COLORS = {
-        "PD_PRE_MIN_YEAR": "E8F5E9",
-        "PD_US_NOT_RENEWED": "D5F4E6",
-        "PD_US_REG_NO_RENEWAL": "D4E6F1",
-        "PD_US_NO_REG_DATA": "E3F2FD",
-        "UNKNOWN_US_NO_DATA": "FFF9C4",
-        "IN_COPYRIGHT": "FADBD8",
-        "IN_COPYRIGHT_US_RENEWED": "FFCDD2",
-        "RESEARCH_US_STATUS": "FCF3CF",
-        "RESEARCH_US_ONLY_PD": "E8DAEF",
-        "COUNTRY_UNKNOWN": "E5E7E9",
-    }
-
-    # Tab name mapping
-    STATUS_TAB_NAMES = {
-        "PD_PRE_MIN_YEAR": "PD Pre Min Year",
-        "PD_US_NOT_RENEWED": "PD US Not Renewed",
-        "PD_US_REG_NO_RENEWAL": "PD US Reg No Renewal",
-        "PD_US_NO_REG_DATA": "PD US No Reg Data",
-        "UNKNOWN_US_NO_DATA": "Unknown US No Data",
-        "IN_COPYRIGHT": "In Copyright",
-        "IN_COPYRIGHT_US_RENEWED": "In Copyright US Renewed",
-        "RESEARCH_US_STATUS": "Research US Status",
-        "RESEARCH_US_ONLY_PD": "Research US Only PD",
-        "COUNTRY_UNKNOWN": "Country Unknown",
-    }
-
     def _get_default_status_color(self, status: str) -> str:
-        """Get a default color for a status based on its content
+        """Get a default color for a status based on its content patterns
 
         Args:
-            status: The status string
+            status: The status string (e.g., "US_PRE_1929", "FOREIGN_RENEWED_FRA")
 
         Returns:
             A hex color code
         """
-        status_lower = status.lower()
+        status_upper = status.upper()
 
-        # Green shades for public domain
-        if "registered_not_renewed" in status_lower or "pre_" in status_lower:
-            return "D5F4E6"
-        # Yellow/orange for in copyright
-        elif "renewed" in status_lower:
-            return "FADBD8"
-        # Blue for needs research
-        elif "no_match" in status_lower:
-            return "FCF3CF"
-        # Gray for unknown/foreign
-        elif "foreign" in status_lower or "unknown" in status_lower:
-            return "E5E7E9"
-        # Default light gray
+        # US statuses - various shades of green for PD, red for copyright
+        if status_upper.startswith("US_"):
+            if "PRE_" in status_upper:  # US_PRE_1929, etc.
+                return "E8F5E9"  # Light green - oldest PD
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                return "D5F4E6"  # Green - PD due to non-renewal
+            elif "NO_RENEWAL" in status_upper or "REG_NO_RENEWAL" in status_upper:
+                return "D4E6F1"  # Light blue-green - PD
+            elif "RENEWED" in status_upper:
+                return "FFCDD2"  # Light red - still in copyright
+            elif "NO_MATCH" in status_upper or "NO_REG" in status_upper:
+                return "E3F2FD"  # Light blue - unknown status
+            else:
+                return "FCF3CF"  # Light yellow - needs research
+
+        # Foreign statuses - purples and pinks
+        elif status_upper.startswith("FOREIGN_"):
+            if "PRE_" in status_upper:
+                return "E8DAEF"  # Light purple - likely PD
+            elif "RENEWED" in status_upper:
+                return "FADBD8"  # Light pink - may be in copyright
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                return "F3E5F5"  # Very light purple
+            else:
+                return "FCF3CF"  # Light yellow - needs research
+
+        # Unknown country - grays
+        elif "UNKNOWN" in status_upper:
+            if "RENEWED" in status_upper:
+                return "FFCDD2"  # Light red - likely in copyright
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                return "E0E0E0"  # Medium gray
+            else:
+                return "E5E7E9"  # Light gray
+
+        # Out of data range - yellow
+        elif "OUT_OF_DATA_RANGE" in status_upper:
+            return "FFF9C4"  # Very light yellow
+
+        # Default light gray for unrecognized patterns
         else:
             return "F5F5F5"
 
@@ -111,13 +110,45 @@ class XLSXExporter(BaseJSONExporter):
         Returns:
             A sheet name suitable for Excel (max 31 chars)
         """
-        # Excel sheet names have a hard limit of 31 characters
-        # Just use the status string as-is, but truncate if necessary
-        if len(status) > 31:
-            # Truncate at 31 characters exactly
-            return status[:31]
+        # Common replacements to shorten and make readable
+        replacements = {
+            "REGISTERED_NOT_RENEWED": "Reg Not Renewed",
+            "REGISTERED": "Reg",
+            "FOREIGN": "For",
+            "COUNTRY_UNKNOWN": "Unknown",
+            "OUT_OF_DATA_RANGE": "Out Range",
+            "NO_MATCH": "No Match",
+            "RENEWED": "Renewed",
+            "PRE_": "Pre ",
+        }
 
-        return status
+        formatted = status
+        for old, new in replacements.items():
+            formatted = formatted.replace(old, new)
+
+        # Replace underscores with spaces
+        formatted = formatted.replace("_", " ")
+
+        # Title case but keep country codes uppercase
+        parts = formatted.split()
+        formatted_parts = []
+        for part in parts:
+            # Keep 3-letter country codes uppercase
+            if len(part) == 3 and part.isalpha() and part.isupper():
+                formatted_parts.append(part)
+            else:
+                formatted_parts.append(part.title())
+        formatted = " ".join(formatted_parts)
+
+        # Excel sheet names have a hard limit of 31 characters
+        if len(formatted) > 31:
+            # Try to truncate intelligently at word boundary
+            if len(formatted) > 28:
+                formatted = formatted[:28] + "..."
+            else:
+                formatted = formatted[:31]
+
+        return formatted
 
     def export(self) -> None:
         """Export records to XLSX file"""
@@ -148,10 +179,8 @@ class XLSXExporter(BaseJSONExporter):
 
             for status in statuses:
                 if by_status[status]:
-                    # Get sheet name from mapping or generate from status
-                    sheet_name = self.STATUS_TAB_NAMES.get(
-                        status, self._format_status_as_sheet_name(status)
-                    )
+                    # Generate sheet name from status
+                    sheet_name = self._format_status_as_sheet_name(status)
                     self._create_data_sheet(wb, sheet_name, by_status[status])
 
         # Save the workbook
@@ -177,22 +206,152 @@ class XLSXExporter(BaseJSONExporter):
         ws["A5"] = "Tool Version:"
         ws["B5"] = metadata.get("tool_version", "Unknown")
 
-        # Status counts
-        ws["A7"] = "Status Breakdown:"
+        # Processing parameters section
+        ws["A7"] = "Processing Parameters:"
         ws["A7"].font = Font(bold=True)
 
-        row = 8
+        parameters = metadata.get("parameters", {})
+        param_row = 8
+        if isinstance(parameters, dict):
+            param_info = [
+                ("Title Threshold:", parameters.get("title_threshold", "Unknown")),
+                ("Author Threshold:", parameters.get("author_threshold", "Unknown")),
+                ("Publisher Threshold:", parameters.get("publisher_threshold", "Unknown")),
+                ("Year Tolerance:", parameters.get("year_tolerance", "Unknown")),
+                ("Early Exit Title:", parameters.get("early_exit_title", "Unknown")),
+                ("Early Exit Author:", parameters.get("early_exit_author", "Unknown")),
+                ("Early Exit Publisher:", parameters.get("early_exit_publisher", "Unknown")),
+            ]
+
+            for param_name, param_value in param_info:
+                ws[f"A{param_row}"] = param_name
+                ws[f"B{param_row}"] = str(param_value)
+                param_row += 1
+
+        # Status breakdown with explanations
+        status_row = param_row + 2
+        ws[f"A{status_row}"] = "Status Breakdown:"
+        ws[f"A{status_row}"].font = Font(bold=True)
+        status_row += 1
+
+        # Headers for status table
+        ws[f"A{status_row}"] = "Status"
+        ws[f"B{status_row}"] = "Count"
+        ws[f"C{status_row}"] = "Percentage"
+        ws[f"D{status_row}"] = "Explanation"
+
+        # Style headers
+        for col in ["A", "B", "C", "D"]:
+            cell = ws[f"{col}{status_row}"]
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.alignment = Alignment(horizontal="center")
+
+        status_row += 1
+
+        # Status explanations mapping (same as CSV exporter)
+        explanations = {
+            "US_PRE_": "Published before copyright expiration year - public domain due to age",
+            "US_REGISTERED_NOT_RENEWED": (
+                "Registered 1923-1977 but not renewed - entered public domain"
+            ),
+            "US_RENEWED": "Registered and renewed - still under copyright protection",
+            "US_NO_MATCH": "No registration or renewal found - copyright status uncertain",
+            "FOREIGN_PRE_": (
+                "Foreign work published before copyright expiration - likely public domain"
+            ),
+            "FOREIGN_RENEWED": "Foreign work with US renewal - may be under copyright",
+            "FOREIGN_REGISTERED_NOT_RENEWED": "Foreign work registered but not renewed in US",
+            "FOREIGN_NO_MATCH": "Foreign work with no US records - copyright status uncertain",
+            "COUNTRY_UNKNOWN_RENEWED": "Unknown country with renewal - likely under copyright",
+            "COUNTRY_UNKNOWN_REGISTERED_NOT_RENEWED": "Unknown country registered but not renewed",
+            "COUNTRY_UNKNOWN_NO_MATCH": (
+                "Country of origin unknown - cannot determine copyright pathway"
+            ),
+            "OUT_OF_DATA_RANGE": "Published after our data coverage ends (1991)",
+        }
+
         status_counts = metadata.get("status_counts", {})
-        if isinstance(status_counts, dict):
-            for status, count in status_counts.items():
-                display_name = self.STATUS_TAB_NAMES.get(status, status)
-                ws[f"A{row}"] = display_name
-                ws[f"B{row}"] = count
-                row += 1
+        total_records_val = metadata.get("total_records", 0)
+
+        # Ensure we have proper types
+        if not isinstance(status_counts, dict):
+            return
+
+        total_records = 0
+        if isinstance(total_records_val, (int, float)):
+            total_records = int(total_records_val)
+
+        if total_records > 0:
+            # Sort statuses for consistent output
+            sorted_statuses = sorted(status_counts.keys())
+
+            for status in sorted_statuses:
+                count_val = status_counts[status]
+                if not isinstance(count_val, (int, float)):
+                    continue
+
+                count = int(count_val)
+                if count == 0:
+                    continue
+
+                percentage = (count / total_records * 100) if total_records > 0 else 0
+
+                # Find explanation by pattern matching
+                explanation = ""
+                status_upper = status.upper()
+                for pattern, desc in explanations.items():
+                    if pattern in status_upper or status_upper.startswith(pattern):
+                        explanation = desc
+                        # Add year/country specifics if present
+                        if "_PRE_" in status_upper:
+                            parts = status_upper.split("_")
+                            for part in parts:
+                                if part.isdigit() and len(part) == 4:
+                                    explanation = explanation.replace(
+                                        "copyright expiration year", part
+                                    )
+                        if "FOREIGN_" in status_upper:
+                            # Extract country code (last 3 letters)
+                            parts = status_upper.split("_")
+                            if len(parts[-1]) == 3 and parts[-1].isalpha():
+                                explanation = f"{explanation} ({parts[-1]})"
+                        break
+
+                if not explanation:
+                    explanation = "Status requires further analysis"
+
+                # Write status row
+                display_name = self._format_status_as_sheet_name(status)
+                ws[f"A{status_row}"] = display_name
+                ws[f"B{status_row}"] = count
+                ws[f"C{status_row}"] = f"{percentage:.1f}%"
+                ws[f"D{status_row}"] = explanation
+
+                # Apply status color to the status cell
+                status_color = self._get_default_status_color(status)
+                ws[f"A{status_row}"].fill = PatternFill(
+                    start_color=status_color, end_color=status_color, fill_type="solid"
+                )
+
+                status_row += 1
+
+            # Add total row
+            ws[f"A{status_row}"] = "Total"
+            ws[f"A{status_row}"].font = Font(bold=True)
+            ws[f"B{status_row}"] = total_records
+            ws[f"B{status_row}"].font = Font(bold=True)
+            ws[f"C{status_row}"] = "100.0%"
+            ws[f"C{status_row}"].font = Font(bold=True)
+            ws[f"D{status_row}"] = "Total records analyzed"
+            ws[f"D{status_row}"].font = Font(bold=True)
 
         # Auto-size columns
-        ws.column_dimensions["A"].width = 25
-        ws.column_dimensions["B"].width = 20
+        ws.column_dimensions["A"].width = 30
+        ws.column_dimensions["B"].width = 15
+        ws.column_dimensions["C"].width = 15
+        ws.column_dimensions["D"].width = 60
 
     def _create_data_sheet(self, wb: Workbook, sheet_name: str, records: JSONList) -> None:
         """Create a data sheet with records"""
@@ -338,8 +497,15 @@ class XLSXExporter(BaseJSONExporter):
             cell.alignment = self.DATA_ALIGNMENT
             cell.border = self.BORDER
 
+            # Apply status coloring (column 7)
+            if col_num == 7 and value:  # Status column
+                status_color = self._get_default_status_color(str(value))
+                cell.fill = PatternFill(
+                    start_color=status_color, end_color=status_color, fill_type="solid"
+                )
+
             # Apply score coloring
-            if col_num in [9, 15] and value and value != "LCCN":  # Score columns
+            elif col_num in [9, 15] and value and value != "LCCN":  # Score columns
                 try:
                     score_val = float(str(value).rstrip("%"))
                     if score_val >= 90:

@@ -1,4 +1,4 @@
-# marc_pd_tool/tests/test_processing/test_word_properties.py
+# tests/test_processing/test_processing_properties.py
 
 """Property-based tests for word processing functions
 

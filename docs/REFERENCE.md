@@ -17,7 +17,7 @@ pdm run python -m marc_pd_tool [OPTIONS]
 ### Output Options
 
 - `--output-filename PATH` - Output base filename without extension (default: reports/[auto-generated based on filters])
-- `--output-formats FORMAT [FORMAT ...]` - Output formats to generate (choices: csv, xlsx, xlsx-stacked, json, html; default: json csv)
+- `--output-formats FORMAT [FORMAT ...]` - Output formats to generate (choices: csv, xlsx, json, html; default: json csv)
 - `--single-file` - Export all results to single file instead of separating by status
 
 **Automatic Filename Generation:**
@@ -161,14 +161,34 @@ pdm run python -m marc_pd_tool \
 
 ### CSV Output (Default)
 
-The tool generates CSV files with copyright analysis results. By default, separate files are created for each copyright status in the `reports/` directory:
+The tool generates CSV files with copyright analysis results. By default, records are organized into a structured folder in the `reports/` directory:
 
-- `reports/matches_pd_no_renewal.csv` - Works in public domain due to non-renewal
-- `reports/matches_pd_date_verify.csv` - Potentially public domain (needs date verification)
-- `reports/matches_in_copyright.csv` - Works still under copyright
-- `reports/matches_research_us_status.csv` - Requires additional research
-- `reports/matches_research_us_only_pd.csv` - US public domain status unclear
-- `reports/matches_country_unknown.csv` - Country classification unknown
+**Folder Structure (default multi-file mode):**
+
+- `reports/matches_csv/` - Main folder containing all CSV files
+
+  - `_summary.csv` - Overview with status counts, percentages, and explanations
+
+  **US Works:**
+
+  - `us_pre_1929.csv` - US works published before copyright expiration
+  - `us_registered_not_renewed.csv` - US works registered but not renewed
+  - `us_renewed.csv` - US works that were renewed
+  - `us_no_match.csv` - US works with no registration or renewal found
+
+  **Foreign Works (grouped by status, all countries together):**
+
+  - `foreign_pre_1929.csv` - Foreign works before copyright expiration (includes Country_Code column)
+  - `foreign_registered_not_renewed.csv` - Foreign works registered but not renewed (includes Country_Code column)
+  - `foreign_renewed.csv` - Foreign works that were renewed (includes Country_Code column)
+  - `foreign_no_match.csv` - Foreign works with no US copyright activity (includes Country_Code column)
+
+  **Unknown Country:**
+
+  - `country_unknown_no_match.csv` - Works with unknown country classification
+
+**Single File Mode:**
+Use `--single-file` to create one CSV file with all records instead of the organized folder structure.
 
 Each CSV includes:
 

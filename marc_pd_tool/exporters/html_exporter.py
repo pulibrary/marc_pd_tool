@@ -16,7 +16,7 @@ class HTMLExporter(BaseJSONExporter):
     """Generate static HTML pages from JSON data
 
     Creates a directory structure with paginated HTML files showing
-    records in a stacked comparison format similar to XLSX stacked.
+    records in a stacked comparison format for detailed analysis.
     """
 
     __slots__ = ("items_per_page",)

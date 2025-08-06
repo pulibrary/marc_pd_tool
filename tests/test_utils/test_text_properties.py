@@ -1,4 +1,4 @@
-# marc_pd_tool/tests/test_utils/test_text_properties.py
+# tests/test_utils/test_text_properties.py
 
 """Property-based tests for text normalization and processing functions
 

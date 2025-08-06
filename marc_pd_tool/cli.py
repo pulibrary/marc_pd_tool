@@ -1,3 +1,5 @@
+# marc_pd_tool/cli.py
+
 """
 MARC Publication Data Comparison Tool - CLI Module
 
@@ -141,7 +143,7 @@ def create_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--output-formats",
         nargs="+",
-        choices=["csv", "xlsx", "xlsx-stacked", "json", "html"],
+        choices=["csv", "xlsx", "json", "html"],
         default=["json", "csv"],
         help="Output formats to generate (space-separated). JSON is always generated first. Default: json csv",
     )
@@ -530,10 +532,9 @@ def main() -> None:
             # Analyze scores
             analyzer.analyze_ground_truth_scores(ground_truth_pairs)
 
-            # Export results
-            # For ground truth, use the first format specified
+            # Export results in all requested formats
             analyzer.export_ground_truth_analysis(
-                output_filename, output_format=args.output_formats[0]
+                output_filename, output_formats=args.output_formats
             )
 
             # Update run info for ground truth mode

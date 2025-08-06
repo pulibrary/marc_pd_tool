@@ -1,3 +1,5 @@
+# marc_pd_tool/__main__.py
+
 #!/usr/bin/env python3
 """
 MARC Copyright Analysis Tool - Main Entry Point

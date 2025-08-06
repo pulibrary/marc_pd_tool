@@ -1,4 +1,4 @@
-# tests/test_processing/test_wordbased_indexer.py
+# tests/test_processing/test_indexer.py
 
 """Tests for word-based indexing system"""
 

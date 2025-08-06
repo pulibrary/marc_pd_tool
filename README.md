@@ -115,7 +115,7 @@ pdm run python -m marc_pd_tool \
 
 - `--us-only` - Process only US publications (50-70% faster)
 - `--min-year`, `--max-year` - Filter by publication year
-- `--output-formats` - Choose output formats: `csv`, `xlsx`, `xlsx-stacked`, `json`, `html` (space-separated, default: json csv)
+- `--output-formats` - Choose output formats: `csv`, `xlsx`, `json`, `html` (space-separated, default: json csv)
 - `--debug` - Enable verbose logging
 
 For complete command line reference, see [`docs/REFERENCE.md`](docs/REFERENCE.md).
@@ -140,24 +140,56 @@ The tool supports multiple output formats that can be generated in a single run.
 
 ### CSV Output (Default)
 
-The tool generates CSV files with copyright analysis results for each MARC record. By default, separate files are created for each copyright status. The status values are now dynamic and include relevant year and country information:
+The tool generates CSV files with copyright analysis results for each MARC record. By default, records are organized into a structured folder with separate files for each copyright status and a summary file with explanations.
+
+**Folder Structure:**
+
+When using multi-file mode (default), the tool creates a `{basename}_csv/` folder containing:
+
+- `_summary.csv` - Overview with status counts, percentages, and explanations
 
 **US Works:**
 
-- `reports/matches_us_pre_1929.csv` - Works published before copyright expiration (year varies)
-- `reports/matches_us_registered_not_renewed.csv` - Works registered but not renewed
-- `reports/matches_us_renewed.csv` - Works that were renewed
-- `reports/matches_us_no_match.csv` - No registration or renewal found
+- `us_pre_1929.csv` - US works published before copyright expiration
+- `us_registered_not_renewed.csv` - US works registered but not renewed
+- `us_renewed.csv` - US works that were renewed
+- `us_no_match.csv` - US works with no registration or renewal found
 
-**Foreign Works:**
+**Foreign Works (grouped by status, all countries together):**
 
-- `reports/matches_foreign_pre_1929_gbr.csv` - Pre-expiration foreign works (includes country code)
-- `reports/matches_foreign_renewed_fra.csv` - Foreign works with US renewal
-- `reports/matches_foreign_no_match_deu.csv` - Foreign works with no US activity
+- `foreign_pre_1929.csv` - Foreign works before copyright expiration (includes Country_Code column)
+- `foreign_registered_not_renewed.csv` - Foreign works registered but not renewed (includes Country_Code column)
+- `foreign_renewed.csv` - Foreign works that were renewed (includes Country_Code column)
+- `foreign_no_match.csv` - Foreign works with no US copyright activity (includes Country_Code column)
 
 **Unknown Country:**
 
-- `reports/matches_country_unknown_no_match.csv` - Country classification unknown
+- `country_unknown_no_match.csv` - Works with unknown country classification
+
+**Dynamic Status Values:**
+
+The status values include relevant year and country information:
+
+**US Works:**
+
+- `US_PRE_{YEAR}` - Works published before copyright expiration
+- `US_REGISTERED_NOT_RENEWED` - Works registered but not renewed
+- `US_RENEWED` - Works that were renewed
+- `US_NO_MATCH` - No registration or renewal found
+
+**Foreign Works:**
+
+- `FOREIGN_PRE_{YEAR}_{COUNTRY}` - Pre-expiration foreign works
+- `FOREIGN_RENEWED_{COUNTRY}` - Foreign works with US renewal
+- `FOREIGN_NO_MATCH_{COUNTRY}` - Foreign works with no US activity
+
+**Unknown Country:**
+
+- `COUNTRY_UNKNOWN_NO_MATCH` - Country classification unknown
+
+**Single File Mode:**
+
+Use `--single-file` to create a single CSV with all records instead of the organized folder structure.
 
 **Note:** The copyright expiration year is always current_year - 96. The `--min-year` option filters which records to process but does NOT affect copyright determination.
 
@@ -190,9 +222,10 @@ pdm run python -m marc_pd_tool \
 The XLSX format provides:
 
 - **Single file output** with multiple tabs organized by copyright status
-- **Summary tab** with processing statistics and parameters used
-- **Same simplified columns** as CSV format
-- **Professional formatting** - colored headers, auto-filters, frozen headers
+- **Dynamic tab support** - automatically creates tabs for any status values encountered
+- **Summary tab** with processing statistics, parameters, and status explanations
+- **Smart formatting** - color-coded status tabs and score highlighting
+- **Professional appearance** - headers, auto-sizing, frozen panes
 - **Better for manual review** than multiple CSV files
 
 ### JSON Output
@@ -230,8 +263,8 @@ pdm run python -m marc_pd_tool \
 This will generate:
 
 - `matches.json` - Master data file with all information
-- `matches_*.csv` - CSV files by copyright status
-- `matches.xlsx` - Tabbed Excel file
+- `matches_csv/` - Organized CSV folder with status-specific files and summary
+- `matches.xlsx` - Tabbed Excel file with dynamic status support
 - `matches_html/` - Static HTML pages with visual comparison
 
 ### HTML Output

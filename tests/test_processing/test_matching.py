@@ -1,4 +1,4 @@
-# tests/test_processing/test_wordbased_matching.py
+# tests/test_processing/test_matching.py
 
 """Tests for word-based matching implementation"""
 

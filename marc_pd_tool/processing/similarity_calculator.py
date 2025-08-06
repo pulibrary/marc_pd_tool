@@ -1,4 +1,4 @@
-# marc_pd_tool/processing/word_similarity_calculator.py
+# marc_pd_tool/processing/similarity_calculator.py
 
 """Similarity calculator for matching titles, authors, and publishers using appropriate algorithms"""
 
