@@ -441,15 +441,25 @@ def log_run_summary(
             # FOREIGN_RENEWED_FR -> FOREIGN_RENEWED
             # FOREIGN_PRE_1929_GB -> FOREIGN_PRE_1929
             # FOREIGN_NO_MATCH_DE -> FOREIGN_NO_MATCH
-            parts = status_upper.split("_")
-            if len(parts) >= 3:
-                # Check if the last part looks like a country code (2-3 chars, all letters)
-                last_part = parts[-1]
-                if len(last_part) in [2, 3] and last_part.isalpha():
-                    status_type = "_".join(parts[:-1])
+            # Determine the base status type by looking for known patterns
+            # This consolidates all foreign statuses regardless of country code validity
+            if "RENEWED" in status_upper and "NOT" not in status_upper:
+                status_type = "FOREIGN_RENEWED"
+            elif "REGISTERED_NOT_RENEWED" in status_upper:
+                status_type = "FOREIGN_REGISTERED_NOT_RENEWED"
+            elif "NO_MATCH" in status_upper:
+                status_type = "FOREIGN_NO_MATCH"
+            elif "PRE_" in status_upper:
+                # Extract the PRE_YEAR part (e.g., FOREIGN_PRE_1929)
+                parts = status_upper.split("_")
+                for i, part in enumerate(parts):
+                    if part == "PRE" and i + 1 < len(parts) and parts[i + 1].isdigit():
+                        status_type = f"FOREIGN_PRE_{parts[i+1]}"
+                        break
                 else:
-                    status_type = status_upper
+                    status_type = "FOREIGN_PRE"
             else:
+                # Unknown foreign status pattern - use as is
                 status_type = status_upper
 
             if status_type not in foreign_statuses:

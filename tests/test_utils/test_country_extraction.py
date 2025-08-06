@@ -216,9 +216,9 @@ class TestCountryExtractionEdgeCases:
     def test_numeric_country_codes(self):
         """Test handling of numeric or mixed alphanumeric country codes"""
         test_cases = [
-            ("123456789012345123", "123", CountryClassification.NON_US),
-            ("12345678901234512a", "12a", CountryClassification.NON_US),
-            ("123456789012345a1b", "a1b", CountryClassification.NON_US),
+            ("123456789012345123", "123", CountryClassification.UNKNOWN),
+            ("12345678901234512a", "12a", CountryClassification.UNKNOWN),
+            ("123456789012345a1b", "a1b", CountryClassification.UNKNOWN),
         ]
 
         for field_008, expected_code, expected_classification in test_cases:
@@ -231,10 +231,10 @@ class TestCountryExtractionEdgeCases:
     def test_special_characters_in_country_code(self):
         """Test handling of special characters in country code positions"""
         test_cases = [
-            ("123456789012345-xx", "-xx", CountryClassification.NON_US),
-            ("123456789012345xx-", "xx-", CountryClassification.NON_US),
-            ("123456789012345x.x", "x.x", CountryClassification.NON_US),
-            ("123456789012345|||", "|||", CountryClassification.NON_US),
+            ("123456789012345-xx", "-xx", CountryClassification.UNKNOWN),
+            ("123456789012345xx-", "xx-", CountryClassification.UNKNOWN),
+            ("123456789012345x.x", "x.x", CountryClassification.UNKNOWN),
+            ("123456789012345|||", "|||", CountryClassification.UNKNOWN),
         ]
 
         for field_008, expected_code, expected_classification in test_cases:
@@ -296,25 +296,25 @@ class TestCountryClassificationBoundaryConditions:
     def test_non_us_codes_classification(self):
         """Test that various non-US codes are classified correctly"""
         non_us_codes = [
-            "abc",
-            "xyz",
-            "123",
-            "fr ",
-            "enk",
-            "gw ",
-            "it ",
-            "ja ",
-            "au ",
-            "ca ",
-            "br ",
-            "ru ",
-            "ch ",
-            "in ",
-            "mx ",
-            "uk ",
+            ("abc", CountryClassification.NON_US),
+            ("xyz", CountryClassification.NON_US),
+            ("123", CountryClassification.UNKNOWN),  # Numeric - malformed
+            ("fr ", CountryClassification.NON_US),
+            ("enk", CountryClassification.NON_US),
+            ("gw ", CountryClassification.NON_US),
+            ("it ", CountryClassification.NON_US),
+            ("ja ", CountryClassification.NON_US),
+            ("au ", CountryClassification.NON_US),
+            ("ca ", CountryClassification.NON_US),
+            ("br ", CountryClassification.NON_US),
+            ("ru ", CountryClassification.NON_US),
+            ("ch ", CountryClassification.NON_US),
+            ("in ", CountryClassification.NON_US),
+            ("mx ", CountryClassification.NON_US),
+            ("uk ", CountryClassification.NON_US),
         ]
 
-        for non_us_code in non_us_codes:
+        for non_us_code, expected_classification in non_us_codes:
             # Skip if it happens to be a US code
             if non_us_code.strip().lower() in US_COUNTRY_CODES:
                 continue
@@ -323,8 +323,8 @@ class TestCountryClassificationBoundaryConditions:
             code, classification = extract_country_from_marc_008(field_008)
 
             assert (
-                classification == CountryClassification.NON_US
-            ), f"Code '{non_us_code}' should be classified as NON_US"
+                classification == expected_classification
+            ), f"Code '{non_us_code}' should be classified as {expected_classification}"
 
     def test_empty_or_whitespace_codes(self):
         """Test that empty or whitespace-only codes return UNKNOWN"""

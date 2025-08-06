@@ -3,9 +3,12 @@
 """MARC data processing utilities and constants"""
 
 # Standard library imports
+from logging import getLogger
 
 # Local imports
 from marc_pd_tool.data.enums import CountryClassification
+
+logger = getLogger(__name__)
 
 # Official MARC country codes for US (from Library of Congress)
 US_COUNTRY_CODES = {
@@ -63,6 +66,44 @@ US_COUNTRY_CODES = {
 }
 
 
+def _repair_country_code(country_code: str) -> str:
+    """Attempt to repair common malformed country codes
+
+    Args:
+        country_code: Raw country code from MARC 008 field
+
+    Returns:
+        Repaired country code, or original if no repair possible
+    """
+    if not country_code:
+        return country_code
+
+    # Common repairs for encoding issues
+    # Only repair patterns that clearly indicate missing data
+    repairs = {
+        # Mixed pipe and space patterns indicate missing data - treat as empty
+        "| |": "",
+        "|| ": "",
+        " ||": "",
+        # Common encoding corruption patterns could go here
+        # Add more as patterns are discovered
+    }
+
+    # Note: "|||" is preserved as-is since it might be a valid malformed code
+    # rather than indicating missing data
+
+    # Check for exact match repairs
+    if country_code in repairs:
+        repaired = repairs[country_code]
+        if repaired != country_code:
+            logger.debug(f"Repaired country code '{country_code}' -> '{repaired}'")
+        return repaired
+
+    # Return the country code as-is - let the classification logic handle it
+    # This preserves malformed codes for analysis while classifying them as UNKNOWN
+    return country_code
+
+
 def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassification]:
     """Extract country code from MARC 008 field and classify as US/Non-US
 
@@ -81,7 +122,30 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
     if not country_code:
         return "", CountryClassification.UNKNOWN
 
-    # Check against official US codes
+    # Attempt to repair common malformed country codes
+    original_code = country_code
+    country_code = _repair_country_code(country_code)
+
+    # Check if repair resulted in empty code
+    if not country_code:
+        return "", CountryClassification.UNKNOWN
+
+    # Check if this is a valid country code format (1-3 alphabetic characters)
+    is_valid_format = (
+        1 <= len(country_code) <= 3
+        and country_code.isalpha()
+        and not any(
+            c in country_code
+            for c in ["|", "-", "/", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+        )
+    )
+
+    if not is_valid_format:
+        # Malformed code - preserve it but classify as UNKNOWN
+        logger.debug(f"Malformed country code detected: '{country_code}' - classifying as UNKNOWN")
+        return country_code, CountryClassification.UNKNOWN
+
+    # Valid format - check against official US codes
     classification = (
         CountryClassification.US
         if country_code.lower() in US_COUNTRY_CODES

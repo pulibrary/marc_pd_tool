@@ -50,10 +50,16 @@ U.S. copyright renewal records from 1950-1991, also digitized by NYPL as part of
 1. **Country Classification**:
 
    - Extract 3-letter code from MARC 008/15-17
+   - **Malformed Country Code Handling**:
+     - Common invalid patterns with mixed pipe and space patterns (| |, || , ||) indicate missing data and are treated as empty
+     - Malformed codes (|||, -UR, 5CC, etc.) are **preserved** in the data but classified as "Unknown"
+     - Valid country codes (1-3 alphabetic characters without numbers/special chars) are preserved and classified appropriately
+     - This allows pattern analysis of malformed codes while properly categorizing them as data quality issues
+     - Records with unknown country codes still undergo matching and get statuses like COUNTRY_UNKNOWN_RENEWED
    - Map to classification:
      - US codes: xxu, nyu, mau, cau, etc. → "US"
-     - Known non-US codes → "Non-US"
-     - Unknown/missing → "Unknown" (when field 008 is too short, positions 15-17 are empty/blank, or record lacks reliable country information)
+     - Valid non-US codes → "Non-US"
+     - Unknown/missing/invalid → "Unknown" (when field 008 is too short, positions 15-17 are empty/blank/invalid, or record lacks reliable country information)
 
 1. **Year Filtering**:
 
