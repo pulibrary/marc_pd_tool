@@ -237,12 +237,15 @@ class TestLogRunSummaryFunction:
             assert any("records/minute" in call for call in info_calls)
             assert any("Output written to: output.csv" in call for call in info_calls)
 
-            # Check copyright status breakdown
+            # Check copyright status breakdown (new consolidated format)
             assert any("Copyright Status Breakdown:" in call for call in info_calls)
-            # Check that dynamic statuses are logged with proper formatting
-            assert any("US_REGISTERED_NOT_RENEWED: 100" in call for call in info_calls)
-            assert any("US_RENEWED: 150" in call for call in info_calls)
-            assert any("FOREIGN_NO_MATCH_GBR: 600" in call for call in info_calls)
+            # Check that US statuses are logged in grouped format
+            assert any("US Works:" in call for call in info_calls)
+            assert any("US REGISTERED NOT RENEWED: 100" in call for call in info_calls)
+            assert any("US RENEWED: 150" in call for call in info_calls)
+            # Check that foreign statuses are consolidated
+            assert any("Foreign Works:" in call for call in info_calls)
+            assert any("FOREIGN NO MATCH: 600" in call for call in info_calls)
 
     def test_log_run_summary_handles_zero_duration(self):
         """Test log_run_summary with zero duration"""

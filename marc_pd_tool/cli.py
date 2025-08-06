@@ -396,35 +396,100 @@ def log_run_summary(
     logger.info(f"Output written to: {output_file}")
     logger.info("=" * 80)
 
-    # Log copyright status breakdown
+    # Log copyright status breakdown (consolidated view)
     logger.info("Copyright Status Breakdown:")
+
+    # Group detailed statuses into consolidated categories
+    us_statuses = {}
+    foreign_statuses = {}
+    unknown_statuses = {}
+    other_statuses = {}
+
     # Collect all status keys that look like copyright statuses
+    # Exclude metadata keys that aren't actual copyright statuses
+    excluded_keys = {
+        "total_records",
+        "registration_matches",
+        "renewal_matches",
+        "us_publications",
+        "non_us_publications",
+        "unknown_country",
+        "lccn_matches",
+        "skipped_no_year",
+        "us_records",  # This is metadata, not a copyright status
+        "non_us_records",  # This is metadata, not a copyright status
+        "no_matches",  # This is metadata, not a copyright status
+    }
+
     status_keys = [
         key
         for key in results_stats.keys()
-        if key.lower()
-        not in {
-            "total_records",
-            "registration_matches",
-            "renewal_matches",
-            "us_publications",
-            "non_us_publications",
-            "unknown_country",
-            "lccn_matches",
-            "skipped_no_year",
-        }
-        and isinstance(results_stats.get(key), int)
+        if key.lower() not in excluded_keys and isinstance(results_stats.get(key), int)
     ]
-    # Sort them for consistent output
-    status_keys.sort()
 
-    # Log each status with its count
+    # Group statuses by type
     for status in status_keys:
         count = results_stats[status]
-        if count > 0:  # Only show statuses that have records
-            # Format the status name nicely (already stored in lowercase)
-            display_name = status.upper()
-            logger.info(f"  {display_name}: {count:,}")
+        if count == 0:
+            continue
+
+        status_upper = status.upper()
+        if status_upper.startswith("US_"):
+            us_statuses[status] = count
+        elif status_upper.startswith("FOREIGN_"):
+            # Extract status type without country code for grouping
+            # FOREIGN_RENEWED_FR -> FOREIGN_RENEWED
+            # FOREIGN_PRE_1929_GB -> FOREIGN_PRE_1929
+            # FOREIGN_NO_MATCH_DE -> FOREIGN_NO_MATCH
+            parts = status_upper.split("_")
+            if len(parts) >= 3:
+                # Check if the last part looks like a country code (2-3 chars, all letters)
+                last_part = parts[-1]
+                if len(last_part) in [2, 3] and last_part.isalpha():
+                    status_type = "_".join(parts[:-1])
+                else:
+                    status_type = status_upper
+            else:
+                status_type = status_upper
+
+            if status_type not in foreign_statuses:
+                foreign_statuses[status_type] = 0
+            foreign_statuses[status_type] += count
+        elif "UNKNOWN" in status_upper:
+            unknown_statuses[status] = count
+        elif status_upper.startswith("OUT_OF_DATA_RANGE"):
+            other_statuses[status] = count
+        else:
+            # Skip other metadata keys we don't want to show
+            continue
+
+    # Log US statuses
+    if us_statuses:
+        logger.info("  US Works:")
+        for status in sorted(us_statuses.keys()):
+            display_name = status.upper().replace("_", " ")
+            logger.info(f"    {display_name}: {us_statuses[status]:,}")
+
+    # Log foreign statuses (consolidated)
+    if foreign_statuses:
+        logger.info("  Foreign Works:")
+        for status_type in sorted(foreign_statuses.keys()):
+            display_name = status_type.replace("_", " ")
+            logger.info(f"    {display_name}: {foreign_statuses[status_type]:,}")
+
+    # Log unknown country statuses
+    if unknown_statuses:
+        logger.info("  Unknown Country:")
+        for status in sorted(unknown_statuses.keys()):
+            display_name = status.upper().replace("_", " ")
+            logger.info(f"    {display_name}: {unknown_statuses[status]:,}")
+
+    # Log other statuses
+    if other_statuses:
+        logger.info("  Other:")
+        for status in sorted(other_statuses.keys()):
+            display_name = status.upper().replace("_", " ")
+            logger.info(f"    {display_name}: {other_statuses[status]:,}")
 
 
 def main() -> None:

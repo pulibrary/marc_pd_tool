@@ -339,10 +339,10 @@ class TestLogRunSummary:
             # Should handle missing fields gracefully
             assert mock_logger.info.call_count > 5
 
-            # Check that present fields are logged
+            # Check that present fields are logged (new consolidated format)
             info_calls = [call.args[0] for call in mock_logger.info.call_args_list if call.args]
-            assert any("US_REGISTERED_NOT_RENEWED: 25" in call for call in info_calls)
-            assert any("US_RENEWED: 30" in call for call in info_calls)
+            assert any("US REGISTERED NOT RENEWED: 25" in call for call in info_calls)
+            assert any("US RENEWED: 30" in call for call in info_calls)
 
 
 class TestProcessingErrors:
