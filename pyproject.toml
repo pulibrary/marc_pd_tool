@@ -34,6 +34,7 @@ dev = [
     "autoflake>=2.3.1",
     "hypothesis>=6.136.6",
     "pytest-cov>=6.2.1",
+    "vulture>=2.14",
 ]
 
 [build-system]
@@ -178,9 +179,15 @@ exclude_lines = [
     "except ImportError",
 ]
 
+[tool.vulture]
+min_confidence = 90
+paths = ["marc_pd_tool", "tests"]
+sort_by_size = true
+
 [tool.pdm.scripts]
 black = { cmd = "black ." }
 isort = { cmd = "isort ." }
+vulture = { cmd = "vulture" }
 mdformat = { cmd = "mdformat . --exclude projects/*" }
 mypy = { cmd = "mypy --pretty --no-incremental --warn-unused-configs" }
 autoflake = { cmd = "autoflake . -i -r --remove-unused-variables --remove-all-unused-imports --ignore-pass-after-docstring --exclude ./.venv/*,./_scripts/*" }

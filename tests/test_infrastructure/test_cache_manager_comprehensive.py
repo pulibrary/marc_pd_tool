@@ -154,18 +154,6 @@ class TestCacheManagerYearRangeOperations:
 class TestCacheManagerIndexOperations:
     """Test index caching operations"""
 
-    def test_cache_indexes_comprehensive(self, tmp_path):
-        """Test comprehensive index caching"""
-        CacheManager(str(tmp_path))
-
-        # Skip this test - can't pickle Mock objects and creating real DataIndexer is complex
-        pytest.skip("Can't pickle Mock objects - would need real DataIndexer instances")
-
-    def test_get_cached_indexes_missing_renewal(self, tmp_path):
-        """Test getting indexes when renewal index is missing"""
-        # Skip this test - can't pickle Mock objects
-        pytest.skip("Can't pickle Mock objects - would need real DataIndexer instances")
-
     def test_get_cached_indexes_corrupt_file(self, tmp_path):
         """Test handling corrupt index cache files"""
         cache_mgr = CacheManager(str(tmp_path))
@@ -189,16 +177,6 @@ class TestCacheManagerIndexOperations:
 
 class TestCacheManagerGenericDetector:
     """Test generic title detector caching"""
-
-    def test_cache_generic_detector(self, tmp_path):
-        """Test caching generic title detector"""
-        # Skip this test - can't pickle Mock objects
-        pytest.skip("Can't pickle Mock objects - would need real GenericTitleDetector instance")
-
-    def test_get_cached_generic_detector_stale(self, tmp_path):
-        """Test retrieving stale generic detector cache"""
-        # Skip this test - can't pickle Mock objects
-        pytest.skip("Can't pickle Mock objects - would need real GenericTitleDetector instance")
 
     def test_get_cached_generic_detector_disabled(self, tmp_path):
         """Test generic detector when disabled in config"""

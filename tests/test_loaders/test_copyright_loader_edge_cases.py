@@ -17,11 +17,15 @@ class TestCopyrightLoaderEdgeCases:
 
     def test_extract_year_from_filename(self):
         """Test year extraction from filename"""
-        CopyrightDataLoader("/dummy")
+        loader = CopyrightDataLoader("/dummy")
 
-        # Note: The method seems to not exist or work differently
-        # Skipping this test as it tests an internal method that may not exist
-        pytest.skip("_extract_year_from_filename may not exist in implementation")
+        # Test various filename patterns - note: \b requires word boundaries
+        assert loader._extract_year_from_filename("reg 1950.xml") == "1950"
+        assert loader._extract_year_from_filename("file-2023-data.xml") == "2023"
+        assert loader._extract_year_from_filename("no_year_here.xml") == ""
+        assert loader._extract_year_from_filename("copyright 1923.xml") == "1923"
+        assert loader._extract_year_from_filename("2001-records.xml") == "2001"
+        assert loader._extract_year_from_filename("data.1955.xml") == "1955"
 
     def test_extract_from_file_empty_root(self, tmp_path):
         """Test parsing XML with empty root element"""
