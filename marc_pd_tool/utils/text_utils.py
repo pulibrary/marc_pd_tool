@@ -92,10 +92,9 @@ def normalize_word_splits(text: str) -> str:
         letters = match.group(0).split()
         return "".join(letters)
 
-    # Match 2 or more single letters separated by spaces
-    # (?<!\w) ensures we're at a word boundary before
-    # (?!\w) ensures we're at a word boundary after
-    pattern = r"(?<!\w)(?:[a-z] )+[a-z](?!\w)"
+    # Match 2 or more single letters separated by one or more spaces
+    # Use word boundaries and \s+ to handle multiple spaces
+    pattern = r"\b(?:[a-z]\s+)+[a-z]\b"
 
     return sub(pattern, join_single_letters, text)
 

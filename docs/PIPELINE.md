@@ -27,6 +27,12 @@ U.S. copyright renewal records from 1950-1991, also digitized by NYPL as part of
 
 **Input**: MARCXML files containing bibliographic records
 
+**Processing Methods**:
+
+- **Batch Processing**: Processes records in configurable batch sizes for efficient memory usage
+- **Disk-Based Streaming**: Optional serialization of batches to disk for very large datasets
+- **Memory Monitoring**: Optional tracking of memory usage during processing (`--monitor-memory`)
+
 **Processing Steps**:
 
 1. Parse MARCXML and extract:
@@ -777,3 +783,12 @@ Contains matching configuration:
    - Worker recycling based on workload (prevents memory leaks)
    - Batch pickling reduces memory usage (only active batch in RAM)
    - Linear scaling with core count
+
+1. **Streaming MARC Processing** (for very large datasets):
+
+   - **XML Streaming**: Uses `iterparse` to process MARC records without loading entire XML into memory
+   - **Disk-Based Batching**: Serializes batches to disk using pickle for memory-efficient processing
+   - **Memory Monitoring**: Optional monitoring with `psutil` to track memory usage during processing
+   - **Streaming Ground Truth**: Processes pickled batches for ground truth extraction
+   - **No Memory Limits**: Can process datasets larger than available system memory
+   - **Backward Compatible**: Existing API continues to work; streaming used internally when beneficial

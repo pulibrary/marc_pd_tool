@@ -5,6 +5,7 @@
 # Standard library imports
 from collections import defaultdict
 from logging import getLogger
+from pickle import load
 
 # Local imports
 from marc_pd_tool.data.ground_truth import GroundTruthPair
@@ -117,6 +118,134 @@ class GroundTruthExtractor:
         )
 
         self.logger.info(f"Ground truth extraction complete:")
+        self.logger.info(
+            f"  MARC records with LCCN: {marc_with_lccn:,} ({stats.marc_lccn_coverage:.1f}%)"
+        )
+        self.logger.info(
+            f"  Copyright records with LCCN: {len(copyright_lccn_index):,} ({stats.copyright_lccn_coverage:.1f}%)"
+        )
+        self.logger.info(f"  Registration matches: {registration_matches:,}")
+        self.logger.info(f"  Renewal matches: {renewal_matches:,}")
+        self.logger.info(f"  Total ground truth pairs: {len(ground_truth_pairs):,}")
+        self.logger.info(f"  Unique LCCNs matched: {len(matched_lccns):,}")
+
+        return ground_truth_pairs, stats
+
+    def extract_ground_truth_from_pickles(
+        self,
+        batch_paths: list[str],
+        copyright_publications: list[Publication],
+        renewal_publications: list[Publication] | None = None,
+    ) -> tuple[list[GroundTruthPair], GroundTruthStats]:
+        """Extract ground truth pairs from pickled MARC batch files for streaming mode
+
+        Args:
+            batch_paths: List of paths to pickled MARC batch files
+            copyright_publications: List of copyright registration publications
+            renewal_publications: Optional list of renewal publications
+
+        Returns:
+            Tuple of (ground_truth_pairs, statistics)
+        """
+        if renewal_publications is None:
+            renewal_publications = []
+
+        self.logger.info("Starting streaming ground truth extraction based on LCCN matching")
+
+        # Build LCCN indexes for fast lookup
+        copyright_lccn_index = self._build_lccn_index(copyright_publications)
+        renewal_lccn_index = (
+            self._build_lccn_index(renewal_publications) if renewal_publications else {}
+        )
+
+        self.logger.info(
+            f"Built LCCN indexes: {len(copyright_lccn_index)} copyright, {len(renewal_lccn_index)} renewal"
+        )
+
+        # Extract matching pairs by processing pickled batches one at a time
+        ground_truth_pairs = []
+
+        # Track statistics
+        total_marc_records = 0
+        marc_with_lccn = 0
+        registration_matches = 0
+        renewal_matches = 0
+        matched_lccns = set()
+
+        self.logger.info(
+            f"Processing {len(batch_paths)} pickled batches for ground truth extraction"
+        )
+
+        for i, batch_path in enumerate(batch_paths):
+            self.logger.debug(f"Processing batch {i+1}/{len(batch_paths)}: {batch_path}")
+
+            try:
+                # Load batch from pickle file
+                with open(batch_path, "rb") as f:
+                    marc_batch: list[Publication] = load(f)
+
+                # Process each record in the batch
+                for marc_record in marc_batch:
+                    total_marc_records += 1
+
+                    if not marc_record.normalized_lccn:
+                        continue
+
+                    marc_with_lccn += 1
+                    lccn = marc_record.normalized_lccn
+
+                    # Check for copyright registration matches
+                    if lccn in copyright_lccn_index:
+                        for copyright_record in copyright_lccn_index[lccn]:
+                            try:
+                                pair = GroundTruthPair(
+                                    marc_record=marc_record,
+                                    copyright_record=copyright_record,
+                                    match_type="registration",
+                                    lccn=lccn,
+                                )
+                                ground_truth_pairs.append(pair)
+                                registration_matches += 1
+                                matched_lccns.add(lccn)
+                            except ValueError as e:
+                                self.logger.warning(f"Invalid ground truth pair: {e}")
+
+                    # Check for renewal matches
+                    if lccn in renewal_lccn_index:
+                        for renewal_record in renewal_lccn_index[lccn]:
+                            try:
+                                pair = GroundTruthPair(
+                                    marc_record=marc_record,
+                                    copyright_record=renewal_record,
+                                    match_type="renewal",
+                                    lccn=lccn,
+                                )
+                                ground_truth_pairs.append(pair)
+                                renewal_matches += 1
+                                matched_lccns.add(lccn)
+                            except ValueError as e:
+                                self.logger.warning(f"Invalid ground truth pair: {e}")
+
+                # Clear batch from memory immediately
+                del marc_batch
+
+            except Exception as e:
+                self.logger.error(f"Error processing batch {batch_path}: {e}")
+                continue
+
+        # Compile statistics
+        stats = GroundTruthStats(
+            total_marc_records=total_marc_records,
+            marc_with_lccn=marc_with_lccn,
+            total_copyright_records=len(copyright_publications),
+            copyright_with_lccn=len(copyright_lccn_index),
+            total_renewal_records=len(renewal_publications),
+            registration_matches=registration_matches,
+            renewal_matches=renewal_matches,
+            unique_lccns_matched=len(matched_lccns),
+        )
+
+        self.logger.info(f"Streaming ground truth extraction complete:")
         self.logger.info(
             f"  MARC records with LCCN: {marc_with_lccn:,} ({stats.marc_lccn_coverage:.1f}%)"
         )

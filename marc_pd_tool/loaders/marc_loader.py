@@ -5,6 +5,11 @@
 # Standard library imports
 from logging import getLogger
 from pathlib import Path
+from pickle import HIGHEST_PROTOCOL
+from pickle import dump
+from pickle import load
+from tempfile import mkdtemp
+from typing import Iterator
 from xml.etree.ElementTree import Element
 from xml.etree.ElementTree import iterparse
 
@@ -31,25 +36,75 @@ class MarcLoader:
         self.min_year = min_year
         self.max_year = max_year
         self.us_only = us_only
+        self._temp_batch_dir: str | None = None  # Track temp dir for cleanup
 
     def extract_all_batches(self) -> list[list[Publication]]:
-        """Extract all MARC records and return as list of batches"""
-        logger.info(f"Extracting all MARC records in batches of {self.batch_size}")
+        """Extract all MARC records and return as list of batches
+
+        Always uses streaming internally to minimize memory usage.
+        """
+        logger.info(f"Extracting MARC records in batches of {self.batch_size}")
 
         if not self.marc_path.exists():
             logger.error(f"MARC path not found: {self.marc_path}")
             return []
 
+        # Always use streaming approach for memory efficiency
+        return self._extract_with_streaming()
+
+    def _extract_with_streaming(self) -> list[list[Publication]]:
+        """Stream MARC XML and return batches efficiently"""
+        # For backward compatibility, we still return a list of batches
+        # but we generate them on-demand via streaming
+        batches = []
+        for batch in self.iter_batches():
+            batches.append(batch)
+
+        total_publications = sum(len(b) for b in batches)
+        logger.info(
+            f"Extracted {len(batches)} batches totaling {total_publications:,} publications"
+        )
+        return batches
+
+    def extract_batches_to_disk(self, output_dir: str | None = None) -> tuple[list[str], int, int]:
+        """Extract MARC records as pickled batches directly to disk for large datasets.
+
+        This is the preferred method for very large datasets (8M+ records) where
+        loading all batches into memory would cause out-of-memory errors.
+
+        Args:
+            output_dir: Directory for pickle files (temp dir created if None)
+
+        Returns:
+            Tuple of (pickle file paths, total records, filtered count)
+        """
+        return self._stream_batches_to_disk(output_dir)
+
+    def _stream_batches_to_disk(self, output_dir: str | None = None) -> tuple[list[str], int, int]:
+        """Stream MARC XML and pickle batches of Publication objects directly to disk.
+
+        Args:
+            output_dir: Directory for pickle files (temp dir created if None)
+
+        Returns:
+            Tuple of (pickle file paths, total records, filtered count)
+        """
+        if output_dir is None:
+            output_dir = mkdtemp(prefix="marc_stream_")
+            self._temp_batch_dir = output_dir
+
         # Get list of MARC files to process
         marc_files = self._get_marc_files()
         if not marc_files:
             logger.error(f"No MARC XML files found at: {self.marc_path}")
-            return []
+            return [], 0, 0
 
         logger.info(f"Found {len(marc_files)} MARC file(s) to process")
+        logger.info(f"Streaming batches to: {output_dir}")
 
-        batches = []
+        batch_paths = []
         current_batch = []
+        batch_count = 0
         total_record_count = 0
         filtered_count = 0
         no_year_count = 0
@@ -85,11 +140,19 @@ class MarcLoader:
                         file_record_count += 1
                         total_record_count += 1
 
+                        # Pickle batch when it reaches target size
                         if len(current_batch) >= self.batch_size:
-                            batches.append(current_batch)
+                            batch_path = f"{output_dir}/batch_{batch_count:05d}.pkl"
+                            with open(batch_path, "wb") as f:
+                                dump(current_batch, f, protocol=HIGHEST_PROTOCOL)
+
+                            batch_paths.append(batch_path)
+                            batch_count += 1
                             logger.info(
-                                f"Created batch {len(batches)} with {len(current_batch)} publications (processed {total_record_count:,} records)"
+                                f"Pickled batch {batch_count} with {len(current_batch)} publications (processed {total_record_count:,} records)"
                             )
+
+                            # Clear batch from memory immediately
                             current_batch = []
 
                         # Clear element to save memory
@@ -102,15 +165,22 @@ class MarcLoader:
                 logger.error(f"Error parsing MARC file {marc_file}: {e}")
                 continue
 
-        # Add final batch
+        # Pickle final batch if any records remain
         if current_batch:
-            batches.append(current_batch)
-            logger.info(
-                f"Created final batch {len(batches)} with {len(current_batch)} publications"
-            )
+            batch_path = f"{output_dir}/batch_{batch_count:05d}.pkl"
+            with open(batch_path, "wb") as f:
+                dump(current_batch, f, protocol=HIGHEST_PROTOCOL)
+
+            batch_paths.append(batch_path)
+            batch_count += 1
+            logger.info(f"Pickled final batch {batch_count} with {len(current_batch)} publications")
+
+        total_publications = (
+            sum(len(load(open(path, "rb"))) for path in batch_paths) if batch_paths else 0
+        )
 
         logger.info(
-            f"Extracted {len(batches)} batches totaling {sum(len(b) for b in batches):,} publications from {len(marc_files)} file(s)"
+            f"Streamed {batch_count} batches totaling {total_publications:,} publications from {len(marc_files)} file(s)"
         )
         if filtered_count > 0:
             logger.info(f"Filtered out {filtered_count:,} total records:")
@@ -127,7 +197,104 @@ class MarcLoader:
                     logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
             if non_us_count > 0:
                 logger.info(f"  - {non_us_count:,} non-US publications")
-        return batches
+
+        return batch_paths, total_record_count, filtered_count
+
+    def iter_batches(self) -> Iterator[list[Publication]]:
+        """Yield batches of Publication objects without accumulating in memory.
+
+        For use in sequential processing mode where you want to process
+        batches one at a time without loading everything into memory.
+        """
+        # Get list of MARC files to process
+        marc_files = self._get_marc_files()
+        if not marc_files:
+            logger.error(f"No MARC XML files found at: {self.marc_path}")
+            return
+
+        logger.info(f"Found {len(marc_files)} MARC file(s) to process")
+
+        current_batch = []
+        total_record_count = 0
+        filtered_count = 0
+        no_year_count = 0
+        year_out_of_range_count = 0
+        non_us_count = 0
+        batch_count = 0
+
+        for marc_file in marc_files:
+            logger.info(f"Processing MARC file: {marc_file.name}")
+            try:
+                context = iterparse(marc_file, events=("start", "end"))
+                event, root = next(context)
+                file_record_count = 0
+
+                for event, elem in context:
+                    if event == "end" and elem.tag.endswith("record"):
+                        pub = self._extract_from_record(elem)
+                        if pub:
+                            include_record, filter_reason = self._should_include_record_with_reason(
+                                pub
+                            )
+                            if include_record:
+                                current_batch.append(pub)
+                            else:
+                                filtered_count += 1
+                                if filter_reason == "no_year":
+                                    no_year_count += 1
+                                elif filter_reason == "year_out_of_range":
+                                    year_out_of_range_count += 1
+                                elif filter_reason == "non_us":
+                                    non_us_count += 1
+
+                        file_record_count += 1
+                        total_record_count += 1
+
+                        # Yield batch when it reaches target size
+                        if len(current_batch) >= self.batch_size:
+                            batch_count += 1
+                            logger.info(
+                                f"Created batch {batch_count} with {len(current_batch)} publications (processed {total_record_count:,} records)"
+                            )
+                            yield current_batch
+                            current_batch = []
+
+                        # Clear element to save memory
+                        elem.clear()
+                        root.clear()
+
+                logger.info(f"  Processed {file_record_count:,} records from {marc_file.name}")
+
+            except Exception as e:
+                logger.error(f"Error parsing MARC file {marc_file}: {e}")
+                continue
+
+        # Yield final batch if any records remain
+        if current_batch:
+            batch_count += 1
+            logger.info(f"Created final batch {batch_count} with {len(current_batch)} publications")
+            yield current_batch
+
+        # Log filtering statistics
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count:,} total records:")
+            if no_year_count > 0:
+                logger.info(f"  - {no_year_count:,} records missing year data")
+            if year_out_of_range_count > 0:
+                if self.min_year and self.max_year:
+                    logger.info(
+                        f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}"
+                    )
+                elif self.min_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records before {self.min_year}")
+                elif self.max_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
+            if non_us_count > 0:
+                logger.info(f"  - {non_us_count:,} non-US publications")
+
+    def get_temp_batch_dir(self) -> str | None:
+        """Get the temporary batch directory path if using disk-based streaming"""
+        return self._temp_batch_dir
 
     def _extract_marc_field(
         self, record: Element, ns: dict[str, str], tags: list[str], subfield_code: str

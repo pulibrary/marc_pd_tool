@@ -168,6 +168,20 @@ def create_argument_parser() -> ArgumentParser:
         help="Number of processes (default: CPU count - 2)",
     )
 
+    # Memory monitoring options
+    parser.add_argument(
+        "--monitor-memory",
+        action=BooleanOptionalAction,
+        default=False,
+        help="Log memory usage statistics during processing (default: False)",
+    )
+    parser.add_argument(
+        "--memory-log-interval",
+        type=int,
+        default=60,
+        help="Seconds between memory usage logs (default: 60)",
+    )
+
     # Matching thresholds
     parser.add_argument(
         "--title-threshold",
@@ -583,6 +597,15 @@ def main() -> None:
             force_refresh=args.force_refresh,
         )
 
+        # Initialize memory monitor if requested
+        memory_monitor = None
+        if args.monitor_memory:
+            # Local imports
+            from marc_pd_tool.utils.memory_utils import MemoryMonitor
+
+            memory_monitor = MemoryMonitor(log_interval=args.memory_log_interval)
+            logger.info(f"Memory monitoring enabled (interval: {args.memory_log_interval}s)")
+
         # Handle ground truth mode
         if args.ground_truth_mode:
             logger.info("=== GROUND TRUTH EXTRACTION MODE ===")
@@ -641,6 +664,10 @@ def main() -> None:
             "num_processes": args.max_workers,
         }
 
+        # Log memory before processing
+        if memory_monitor:
+            memory_monitor.force_log("before processing")
+
         results = analyzer.analyze_marc_file(
             args.marcxml,
             copyright_dir=args.copyright_dir,
@@ -649,11 +676,19 @@ def main() -> None:
             options=options,
         )
 
+        # Log memory after processing
+        if memory_monitor:
+            memory_monitor.force_log("after processing")
+
         # Get statistics
         stats = results.statistics
 
         # Log summary
         log_run_summary(start_time, stats, output_filename, args)
+
+        # Log final memory summary
+        if memory_monitor:
+            logger.info(memory_monitor.get_final_summary())
 
         # Update run index with final statistics
         run_info["marc_count"] = str(stats["total_records"])
