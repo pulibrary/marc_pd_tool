@@ -3,7 +3,6 @@
 """Tests for copyright status determination algorithm"""
 
 # Standard library imports
-from datetime import datetime
 
 # Local imports
 from marc_pd_tool.data.enums import CopyrightStatus

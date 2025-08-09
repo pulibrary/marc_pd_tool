@@ -141,7 +141,7 @@ class TestCacheBehavior:
         clear_called = False
 
         # Mock the CacheManager class to track clear_all_caches
-        with patch("marc_pd_tool.api.CacheManager") as mock_cache_class:
+        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_class:
             # Create a mock instance
             mock_cache_instance = Mock()
             mock_cache_class.return_value = mock_cache_instance
@@ -188,7 +188,7 @@ class TestCacheBehavior:
         # First analyzer with 1950s range
         analyzer1 = MarcCopyrightAnalyzer(cache_dir=str(cache_dir))
 
-        with patch("marc_pd_tool.api.MarcLoader") as mock_loader_class:
+        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
             mock_loader = Mock()
             mock_loader_class.return_value = mock_loader
             mock_loader.extract_all_batches.return_value = [pubs_1950s]
@@ -211,7 +211,7 @@ class TestCacheBehavior:
         # Second analyzer with 1960s range
         analyzer2 = MarcCopyrightAnalyzer(cache_dir=str(cache_dir))
 
-        with patch("marc_pd_tool.api.MarcLoader") as mock_loader_class2:
+        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class2:
             mock_loader2 = Mock()
             mock_loader_class2.return_value = mock_loader2
             mock_loader2.extract_all_batches.return_value = [pubs_1960s]

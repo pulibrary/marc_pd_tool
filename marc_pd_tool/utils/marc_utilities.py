@@ -123,7 +123,6 @@ def extract_country_from_marc_008(field_008: str) -> tuple[str, CountryClassific
         return "", CountryClassification.UNKNOWN
 
     # Attempt to repair common malformed country codes
-    original_code = country_code
     country_code = _repair_country_code(country_code)
 
     # Check if repair resulted in empty code

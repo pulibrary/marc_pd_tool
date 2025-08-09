@@ -44,42 +44,56 @@ class TestMockWorkflow:
 
         # Mock the internal methods to avoid heavy processing
         with patch.object(analyzer, "_load_and_index_data"):
-            with patch.object(analyzer, "_process_sequentially") as mock_seq:
-                with patch.object(analyzer, "_process_parallel") as mock_par:
-                    # Mock sequential processing to return test publications
-                    def mock_seq_process(*args, **kwargs):
-                        # Add publications to results
-                        for pub in test_pubs:
-                            analyzer.results.add_publication(pub)
-                        return test_pubs
+            with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
+                mock_loader = Mock()
+                mock_loader_class.return_value = mock_loader
+                mock_loader.extract_all_batches.return_value = [test_pubs]
 
-                    mock_seq.side_effect = mock_seq_process
+                with patch.object(analyzer, "_process_sequentially") as mock_seq:
+                    with patch.object(analyzer, "_process_parallel") as mock_par:
+                        # Mock sequential processing to return test publications
+                        def mock_seq_process(*args, **kwargs):
+                            # Add publications to results
+                            for pub in test_pubs:
+                                analyzer.results.add_publication(pub)
+                            return test_pubs
 
-                    # Run analysis with sequential processing
-                    output_path = str(temp_output_dir / "test_results")
-                    results = analyzer.analyze_marc_file(
-                        str(small_marc_file),
-                        output_path=output_path,
-                        options={
-                            "num_processes": 1,  # Force sequential
-                            "formats": ["json", "csv"],
-                            "single_file": True,  # Create single CSV file
-                        },
-                    )
+                        mock_seq.side_effect = mock_seq_process
 
-                    # Verify sequential processing was used
-                    assert mock_seq.called
-                    assert not mock_par.called
+                        # Run analysis with sequential processing
+                        output_path = str(temp_output_dir / "test_results")
+                        results = analyzer.analyze_marc_file(
+                            str(small_marc_file),
+                            output_path=output_path,
+                            options={
+                                "num_processes": 1,  # Force sequential
+                                "formats": ["json", "csv"],
+                                "single_file": True,  # Create single CSV file
+                            },
+                        )
+
+                        # Verify sequential processing was used
+                        assert mock_seq.called
+                        assert not mock_par.called
 
         # Verify results
         assert results.statistics["total_records"] == 2
         assert len(results.publications) == 2
 
         # Verify output files created
-        assert Path(f"{output_path}.json").exists()
-        assert Path(f"{output_path}.csv").exists()
+        json_path = Path(f"{output_path}.json")
+        csv_path = Path(f"{output_path}.csv")
 
-    @patch("marc_pd_tool.api.CacheManager")
+        # Debug what files exist
+        # Standard library imports
+
+        parent_dir = json_path.parent
+        print(f"Files in {parent_dir}: {list(parent_dir.glob('*'))}")
+
+        assert json_path.exists(), f"JSON should exist at {json_path}"
+        assert csv_path.exists(), f"CSV should exist at {csv_path}"
+
+    @patch("marc_pd_tool.api._analyzer.CacheManager")
     def test_caching_workflow(
         self, mock_cache_manager_class, small_marc_file: Path, temp_output_dir: Path
     ):
@@ -119,7 +133,7 @@ class TestMockWorkflow:
         analyzer = MarcCopyrightAnalyzer()
 
         # Mock at the API level to intercept MarcLoader creation
-        with patch("marc_pd_tool.api.MarcLoader") as mock_loader_class:
+        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
             mock_loader = Mock()
             mock_loader_class.return_value = mock_loader
             mock_loader.extract_all_batches.return_value = [pubs_1950s]
@@ -164,8 +178,8 @@ class TestMockWorkflow:
         # Test each export format
         formats_to_test = [
             (["json"], [".json"]),
-            (["csv"], [".json", ".csv"]),  # JSON always created first
-            (["xlsx"], [".json", ".xlsx"]),
+            (["csv"], [".json", ".csv"]),  # CSV requires JSON to exist first
+            (["xlsx"], [".xlsx"]),  # XLSX exports directly, no JSON needed
             (["json", "csv", "xlsx"], [".json", ".csv", ".xlsx"]),
         ]
 

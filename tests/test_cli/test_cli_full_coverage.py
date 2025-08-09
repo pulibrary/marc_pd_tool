@@ -4,20 +4,9 @@
 
 # Standard library imports
 from argparse import Namespace
-from datetime import datetime
-from logging import FileHandler
-from logging import StreamHandler
 from logging import getLogger
-from multiprocessing import cpu_count
-from os import makedirs
-from os.path import dirname
-from os.path import exists
 from os.path import join
-from time import time
 from unittest.mock import MagicMock
-from unittest.mock import Mock
-from unittest.mock import call
-from unittest.mock import mock_open
 from unittest.mock import patch
 
 # Third party imports
@@ -26,10 +15,8 @@ import pytest
 # Local imports
 from marc_pd_tool.cli import create_argument_parser
 from marc_pd_tool.cli import generate_output_filename
-from marc_pd_tool.cli import get_default_log_path
 from marc_pd_tool.cli import log_run_summary
 from marc_pd_tool.cli import main
-from marc_pd_tool.cli import set_up_logging
 
 logger = getLogger(__name__)
 

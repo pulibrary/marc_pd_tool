@@ -7,7 +7,6 @@ from pathlib import Path
 from pickle import load as pickle_load
 from tempfile import NamedTemporaryFile
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports

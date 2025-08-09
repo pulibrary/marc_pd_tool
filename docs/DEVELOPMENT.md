@@ -413,6 +413,25 @@ analyzer.analyze_ground_truth_scores(pairs)
 1. **Memory leaks**: Adjust `maxtasksperchild` dynamically
 1. **Use debug logging**: Shows worker initialization details
 
+### Performance Monitoring
+
+#### Batch Processing Metrics
+
+The system tracks and reports per-batch performance metrics:
+
+- **Records per second (rec/s)**: Calculated using actual batch processing time
+- **Match counts**: Registration and renewal matches found per batch
+- **Processing time**: Each batch tracks its own processing duration
+
+Example log output:
+
+```
+Batch 1/10 complete: 5 reg, 3 ren matches (152.3 rec/s)
+Batch 2/10 complete: 2 reg, 0 ren matches (143.7 rec/s)
+```
+
+The `processing_time` is tracked within each worker process and included in the batch statistics, ensuring accurate per-batch performance metrics regardless of parallel execution order.
+
 ### Modifying Matching Logic
 
 1. Update `DataMatcher.find_best_match()`

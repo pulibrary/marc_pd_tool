@@ -97,7 +97,7 @@ class TestAnalysisResultsExport:
         output_prefix = str(tmp_path / "results")
 
         # Mock the CSV exporter
-        with patch("marc_pd_tool.exporters.csv_exporter.CSVExporter") as mock_csv:
+        with patch("marc_pd_tool.api._results.CSVExporter") as mock_csv:
             mock_exporter = Mock()
             mock_csv.return_value = mock_exporter
 
@@ -113,7 +113,7 @@ class TestAnalysisResultsExport:
         output_file = str(tmp_path / "results.xlsx")
 
         # Mock the XLSX exporter
-        with patch("marc_pd_tool.exporters.xlsx_exporter.XLSXExporter") as mock_xlsx:
+        with patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx:
             mock_exporter = Mock()
             mock_xlsx.return_value = mock_exporter
 
@@ -129,7 +129,7 @@ class TestAnalysisResultsExport:
         output_dir = str(tmp_path / "html_output")
 
         # Mock the HTML exporter
-        with patch("marc_pd_tool.exporters.html_exporter.HTMLExporter") as mock_html:
+        with patch("marc_pd_tool.api._results.HTMLExporter") as mock_html:
             mock_exporter = Mock()
             mock_html.return_value = mock_exporter
 
@@ -146,9 +146,9 @@ class TestAnalysisResultsExport:
 
         # Mock all exporters
         with (
-            patch("marc_pd_tool.exporters.csv_exporter.CSVExporter") as mock_csv,
-            patch("marc_pd_tool.exporters.xlsx_exporter.XLSXExporter") as mock_xlsx,
-            patch("marc_pd_tool.exporters.html_exporter.HTMLExporter") as mock_html,
+            patch("marc_pd_tool.api._results.CSVExporter") as mock_csv,
+            patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx,
+            patch("marc_pd_tool.api._results.HTMLExporter") as mock_html,
             patch.object(sample_results, "export_json") as mock_json,
         ):
 
@@ -255,9 +255,9 @@ class TestExportErrorHandling:
 
         # Mock exporters with one failure
         with (
-            patch("marc_pd_tool.exporters.csv_exporter.CSVExporter") as mock_csv,
-            patch("marc_pd_tool.exporters.xlsx_exporter.XLSXExporter") as mock_xlsx,
-            patch("marc_pd_tool.exporters.html_exporter.HTMLExporter") as mock_html,
+            patch("marc_pd_tool.api._results.CSVExporter") as mock_csv,
+            patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx,
+            patch("marc_pd_tool.api._results.HTMLExporter") as mock_html,
             patch.object(sample_results, "export_json") as mock_json,
         ):
 

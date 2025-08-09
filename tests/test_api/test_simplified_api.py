@@ -38,7 +38,7 @@ class TestMarcCopyrightAnalyzerAPI:
         assert analyzer.cache_dir == "/tmp/test_cache"
         assert analyzer.cache_manager.cache_dir == "/tmp/test_cache"
 
-    @patch("marc_pd_tool.api.CacheManager")
+    @patch("marc_pd_tool.api._analyzer.CacheManager")
     def test_init_with_force_refresh(self, mock_cache_manager):
         """Test initialization with force refresh"""
         mock_cache_instance = MagicMock()
@@ -49,7 +49,7 @@ class TestMarcCopyrightAnalyzerAPI:
         # Verify cache was cleared
         mock_cache_instance.clear_all_caches.assert_called_once()
 
-    @patch("marc_pd_tool.api.get_config")
+    @patch("marc_pd_tool.api._analyzer.get_config")
     def test_init_with_config_path(self, mock_get_config):
         """Test initialization with custom config path"""
         mock_config = Mock()
@@ -98,7 +98,7 @@ class TestMarcCopyrightAnalyzerAPI:
 
             # Mock the load_and_index_data to avoid full execution
             with patch.object(analyzer, "_load_and_index_data") as mock_load:
-                with patch("marc_pd_tool.api.MarcLoader") as mock_loader:
+                with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader:
                     mock_instance = MagicMock()
                     mock_loader.return_value = mock_instance
                     mock_instance.load.return_value = []
