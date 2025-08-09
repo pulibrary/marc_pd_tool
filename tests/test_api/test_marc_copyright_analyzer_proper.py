@@ -41,7 +41,7 @@ class TestMarcCopyrightAnalyzerProper:
             config_data = {"title_threshold": 45, "author_threshold": 35, "year_tolerance": 2}
             config_path.write_text(json.dumps(config_data))
 
-            with patch("marc_pd_tool.api.get_config") as mock_get_config:
+            with patch("marc_pd_tool.api._analyzer.get_config") as mock_get_config:
                 mock_config = Mock()
                 mock_get_config.return_value = mock_config
 
@@ -55,7 +55,7 @@ class TestMarcCopyrightAnalyzerProper:
         """Test analyzer initialization with custom cache directory"""
         custom_cache_dir = "/tmp/custom_cache"
 
-        with patch("marc_pd_tool.api.CacheManager") as mock_cache_manager:
+        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_manager:
             analyzer = MarcCopyrightAnalyzer(cache_dir=custom_cache_dir)
 
             assert analyzer.cache_dir == custom_cache_dir
@@ -63,7 +63,7 @@ class TestMarcCopyrightAnalyzerProper:
 
     def test_initialization_force_refresh(self):
         """Test analyzer initialization with force refresh"""
-        with patch("marc_pd_tool.api.CacheManager") as mock_cache_manager:
+        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_manager:
             mock_manager_instance = Mock()
             mock_cache_manager.return_value = mock_manager_instance
 

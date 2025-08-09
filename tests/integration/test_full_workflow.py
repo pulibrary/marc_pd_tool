@@ -124,7 +124,7 @@ class TestFullWorkflow:
 
         analyzer = MarcCopyrightAnalyzer()
 
-        with patch("marc_pd_tool.api.MarcLoader") as mock_loader_class:
+        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
             mock_loader = Mock()
             mock_loader_class.return_value = mock_loader
             mock_loader.extract_all_batches.return_value = [pubs_1950s]
@@ -236,7 +236,8 @@ class TestFullWorkflow:
 
         # Mock the processing to return our test publications
         with patch.object(analyzer, "_load_and_index_data"):
-            with patch("marc_pd_tool.api.MarcLoader") as mock_loader_class:
+            # Patch MarcLoader at the correct import location for _ground_truth.py
+            with patch("marc_pd_tool.api._ground_truth.MarcLoader") as mock_loader_class:
                 mock_loader = Mock()
                 mock_loader_class.return_value = mock_loader
                 mock_loader.extract_all_batches.return_value = [test_pubs]

@@ -7,9 +7,6 @@ from time import sleep
 from unittest.mock import Mock
 from unittest.mock import patch
 
-# Third party imports
-import pytest
-
 # Local imports
 from marc_pd_tool.utils.memory_utils import MemoryMonitor
 
@@ -95,7 +92,7 @@ class TestMemoryMonitor:
         # Simulate memory usage changes
         for memory_bytes in memory_values:
             mock_memory_info.rss = memory_bytes
-            stats = monitor.get_memory_usage()
+            monitor.get_memory_usage()
 
         # Peak should be 3GB
         final_stats = monitor.get_memory_usage()

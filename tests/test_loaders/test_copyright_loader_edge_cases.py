@@ -5,9 +5,6 @@
 # Standard library imports
 import xml.etree.ElementTree as ET
 
-# Third party imports
-import pytest
-
 # Local imports
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
 

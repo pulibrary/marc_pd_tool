@@ -3,21 +3,14 @@
 """Tests for methods called by parallel workers in api.py"""
 
 # Standard library imports
-from hashlib import md5
-from json import dumps
 from os.path import join
 from pickle import HIGHEST_PROTOCOL
 from pickle import dump
 from tempfile import TemporaryDirectory
-from unittest.mock import MagicMock
 from unittest.mock import Mock
 from unittest.mock import patch
 
-# Third party imports
-import pytest
-
 # Local imports
-from marc_pd_tool.api import AnalysisResults
 from marc_pd_tool.api import MarcCopyrightAnalyzer
 from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.ground_truth import GroundTruthAnalysis

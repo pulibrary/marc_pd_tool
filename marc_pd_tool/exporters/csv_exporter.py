@@ -9,7 +9,6 @@ from pathlib import Path
 # Local imports
 from marc_pd_tool.exporters.base_exporter import BaseJSONExporter
 from marc_pd_tool.utils.types import CSVWriter
-from marc_pd_tool.utils.types import JSONList
 from marc_pd_tool.utils.types import JSONType
 
 
