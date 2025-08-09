@@ -5,7 +5,6 @@
 # Standard library imports
 from argparse import Namespace
 from logging import getLogger
-from os.path import join
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -92,8 +91,8 @@ class TestLogRunSummaryFullCoverage:
             assert any("FOREIGN UNKNOWN PATTERN: 5" in call for call in info_calls)
 
     def test_log_run_summary_other_statuses(self) -> None:
-        """Test logging of OUT_OF_DATA_RANGE statuses"""
-        args = Namespace(output_filename="test.csv")
+        """Test logging of OUT_OF_DATA_RANGE statuses without year filters"""
+        args = Namespace(output_filename="test.csv", min_year=None, max_year=None)
 
         stats = {
             "total_records": 1000,
@@ -107,9 +106,66 @@ class TestLogRunSummaryFullCoverage:
 
             info_calls = [str(call) for call in mock_logger.info.call_args_list]
 
-            # Check Other section
+            # Check Other section - should show plain OUT OF DATA RANGE when no year filters
             assert any("Other:" in call for call in info_calls)
             assert any("OUT OF DATA RANGE 1992: 25" in call for call in info_calls)
+
+    def test_log_run_summary_out_of_range_with_both_years(self) -> None:
+        """Test OUT_OF_DATA_RANGE display with both min and max years"""
+        args = Namespace(output_filename="test.csv", min_year=1923, max_year=1977)
+
+        stats = {
+            "total_records": 1000,
+            "registration_matches": 100,
+            "renewal_matches": 50,
+            "out_of_data_range": 30,
+        }
+
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
+            log_run_summary(1.0, stats, "output.csv", args)
+
+            info_calls = [str(call) for call in mock_logger.info.call_args_list]
+
+            # Should show year range
+            assert any("OUT OF DATA RANGE (< 1923 or > 1977): 30" in call for call in info_calls)
+
+    def test_log_run_summary_out_of_range_with_min_year_only(self) -> None:
+        """Test OUT_OF_DATA_RANGE display with only min year"""
+        args = Namespace(output_filename="test.csv", min_year=1923, max_year=None)
+
+        stats = {
+            "total_records": 1000,
+            "registration_matches": 100,
+            "renewal_matches": 50,
+            "out_of_data_range": 15,
+        }
+
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
+            log_run_summary(1.0, stats, "output.csv", args)
+
+            info_calls = [str(call) for call in mock_logger.info.call_args_list]
+
+            # Should show only min year
+            assert any("OUT OF DATA RANGE (< 1923): 15" in call for call in info_calls)
+
+    def test_log_run_summary_out_of_range_with_max_year_only(self) -> None:
+        """Test OUT_OF_DATA_RANGE display with only max year"""
+        args = Namespace(output_filename="test.csv", min_year=None, max_year=1977)
+
+        stats = {
+            "total_records": 1000,
+            "registration_matches": 100,
+            "renewal_matches": 50,
+            "out_of_data_range": 20,
+        }
+
+        with patch("marc_pd_tool.cli.logger") as mock_logger:
+            log_run_summary(1.0, stats, "output.csv", args)
+
+            info_calls = [str(call) for call in mock_logger.info.call_args_list]
+
+            # Should show only max year
+            assert any("OUT OF DATA RANGE (> 1977): 20" in call for call in info_calls)
 
 
 class TestGenerateOutputFilenameFullCoverage:
@@ -117,6 +173,9 @@ class TestGenerateOutputFilenameFullCoverage:
 
     def test_filename_with_long_extension(self) -> None:
         """Test that long extensions are not removed"""
+        # Standard library imports
+        from re import match
+
         args = Namespace(
             output_filename="test.longext",  # Extension > 4 chars
             us_only=False,
@@ -127,11 +186,15 @@ class TestGenerateOutputFilenameFullCoverage:
 
         result = generate_output_filename(args)
 
-        # Long extension should be preserved
-        assert result == join("reports", "test.longext")
+        # Long extension should be preserved with timestamp
+        pattern = r"^reports/\d{8}_\d{6}_test\.longext$"
+        assert match(pattern, result), f"Expected pattern {pattern}, got {result}"
 
     def test_filename_with_dots_in_path(self) -> None:
         """Test filename with dots in the path"""
+        # Standard library imports
+        from re import match
+
         args = Namespace(
             output_filename="my.project/test.csv",
             us_only=False,
@@ -142,11 +205,15 @@ class TestGenerateOutputFilenameFullCoverage:
 
         result = generate_output_filename(args)
 
-        # Should only remove the last .csv
-        assert result == "my.project/test"
+        # Should only remove the last .csv with timestamp added
+        pattern = r"^my\.project/\d{8}_\d{6}_test$"
+        assert match(pattern, result), f"Expected pattern {pattern}, got {result}"
 
     def test_ground_truth_mode_filename(self) -> None:
         """Test filename generation for ground_truth_mode"""
+        # Standard library imports
+        from re import match
+
         args = Namespace(
             output_filename="matches.csv",  # Default
             ground_truth_mode=True,
@@ -158,8 +225,9 @@ class TestGenerateOutputFilenameFullCoverage:
 
         result = generate_output_filename(args)
 
-        # Should use "ground_truth" instead of "matches"
-        assert result == join("reports", "ground_truth")
+        # Should use "ground_truth" instead of "matches" with timestamp
+        pattern = r"^reports/\d{8}_\d{6}_ground_truth$"
+        assert match(pattern, result), f"Expected pattern {pattern}, got {result}"
 
 
 class TestMainFunctionFullCoverage:
@@ -362,6 +430,9 @@ class TestEdgeCasesFullCoverage:
 
     def test_generate_output_filename_no_directory(self) -> None:
         """Test generate_output_filename when dirname returns empty string"""
+        # Standard library imports
+        from re import match
+
         args = Namespace(
             output_filename="output.csv",  # No directory
             us_only=False,
@@ -373,8 +444,9 @@ class TestEdgeCasesFullCoverage:
         with patch("marc_pd_tool.cli.dirname", return_value=""):
             result = generate_output_filename(args)
 
-            # Should add reports/ directory
-            assert result == join("reports", "output")
+            # Should add reports/ directory with timestamp
+            pattern = r"^reports/\d{8}_\d{6}_output$"
+            assert match(pattern, result), f"Expected pattern {pattern}, got {result}"
 
     def test_log_run_summary_foreign_pre_without_year(self) -> None:
         """Test foreign PRE status without year number"""

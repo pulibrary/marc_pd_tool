@@ -23,6 +23,7 @@ from logging import getLogger
 from multiprocessing import cpu_count
 from os import getcwd
 from os import makedirs
+from os.path import basename
 from os.path import dirname
 from os.path import exists
 from os.path import join
@@ -342,14 +343,29 @@ def create_argument_parser() -> ArgumentParser:
 
 
 def generate_output_filename(args: Namespace) -> str:
-    """Generate descriptive output filename based on filters"""
+    """Generate descriptive output filename based on filters with timestamp prefix"""
+    # Standard library imports
+    from datetime import datetime
+
+    # Generate timestamp prefix
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     if args.output_filename != "matches.csv":
         # User specified a filename - check if it already includes a directory
         base_name = str(args.output_filename)
 
+        # Split into directory and filename
+        dir_part = dirname(base_name)
+        file_part = basename(base_name)
+
+        # Add timestamp to filename part
+        file_part = f"{timestamp}_{file_part}"
+
         # If user didn't specify a directory, add reports/
-        if dirname(base_name) == "":
-            base_name = join("reports", base_name)
+        if dir_part == "":
+            base_name = join("reports", file_part)
+        else:
+            base_name = join(dir_part, file_part)
 
         # Remove any existing extension (more broadly)
         if "." in base_name:
@@ -363,11 +379,12 @@ def generate_output_filename(args: Namespace) -> str:
 
     # Build filename components
     components = [
+        timestamp,  # Add timestamp as first component
         (
             "ground_truth"
             if hasattr(args, "ground_truth_mode") and args.ground_truth_mode
             else "matches"
-        )
+        ),
     ]
 
     if args.us_only:
@@ -512,7 +529,24 @@ def log_run_summary(
     if other_statuses:
         logger.info("  Other:")
         for status in sorted(other_statuses.keys()):
-            display_name = status.upper().replace("_", " ")
+            # Check for out of data range BEFORE transforming
+            if "out_of_data_range" in status.lower():
+                # Get year range from args
+                min_year = getattr(args, "min_year", None)
+                max_year = getattr(args, "max_year", None)
+
+                if min_year is not None and max_year is not None:
+                    display_name = f"OUT OF DATA RANGE (< {min_year} or > {max_year})"
+                elif min_year is not None:
+                    display_name = f"OUT OF DATA RANGE (< {min_year})"
+                elif max_year is not None:
+                    display_name = f"OUT OF DATA RANGE (> {max_year})"
+                else:
+                    # No year filters, use default formatting
+                    display_name = status.upper().replace("_", " ")
+            else:
+                display_name = status.upper().replace("_", " ")
+
             logger.info(f"    {display_name}: {other_statuses[status]:,}")
 
 

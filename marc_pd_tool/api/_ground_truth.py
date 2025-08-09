@@ -151,8 +151,7 @@ class GroundTruthMixin:
             if fmt.lower() == "json":
                 self._export_ground_truth_json(output_path)
             elif fmt.lower() == "csv":
-                # TODO: Implement CSV export for ground truth
-                logger.warning("CSV export for ground truth not yet implemented")
+                self._export_ground_truth_csv(output_path)
             elif fmt.lower() == "xlsx":
                 # TODO: Implement XLSX export for ground truth
                 logger.warning("XLSX export for ground truth not yet implemented")
@@ -222,3 +221,238 @@ class GroundTruthMixin:
             dump(json_data, f, indent=2)
 
         logger.info(f"✓ Exported ground truth analysis to {json_path}")
+
+    def _export_ground_truth_csv(self: GroundTruthAnalyzerProtocol, output_path: str) -> None:
+        """Export comprehensive ground truth CSV with all data versions
+
+        This CSV includes original, normalized, and stemmed versions of all fields
+        for detailed analysis of the matching algorithm.
+        """
+        # Standard library imports
+        import csv
+        from os.path import splitext
+
+        # Local imports
+        from marc_pd_tool.processing.text_processing import LanguageProcessor
+        from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
+        from marc_pd_tool.utils.text_utils import normalize_text_standard
+
+        if not self.results.ground_truth_pairs:
+            logger.warning("No ground truth pairs available for CSV export")
+            return
+
+        # Ensure .csv extension
+        base_path = splitext(output_path)[0]
+        csv_path = f"{base_path}.csv"
+
+        # Create processors for text normalization
+        language_processor = LanguageProcessor()
+        stemmer = MultiLanguageStemmer()
+
+        # Prepare CSV headers
+        headers = [
+            # MARC Record Data
+            "marc_id",
+            "marc_title_original",
+            "marc_title_normalized",
+            "marc_title_stemmed",
+            "marc_author_original",
+            "marc_author_normalized",
+            "marc_author_stemmed",
+            "marc_main_author_original",
+            "marc_main_author_normalized",
+            "marc_main_author_stemmed",
+            "marc_publisher_original",
+            "marc_publisher_normalized",
+            "marc_publisher_stemmed",
+            "marc_year",
+            "marc_lccn",
+            "marc_lccn_normalized",
+            # Copyright/Renewal Data
+            "match_type",  # "registration" or "renewal"
+            "match_title_original",
+            "match_title_normalized",
+            "match_title_stemmed",
+            "match_author_original",
+            "match_author_normalized",
+            "match_author_stemmed",
+            "match_publisher_original",
+            "match_publisher_normalized",
+            "match_publisher_stemmed",
+            "match_year",
+            "match_lccn",
+            "match_lccn_normalized",
+            "match_entry_id",  # For renewals
+            # Matching Scores
+            "title_score",
+            "author_score",
+            "publisher_score",
+            "combined_score",
+            "year_difference",
+            "copyright_status",
+        ]
+
+        # Write CSV
+        with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=headers)
+            writer.writeheader()
+
+            for pair in self.results.ground_truth_pairs:
+                marc = pair.marc_record
+                match = pair.copyright_record
+
+                # Get match result if available
+                match_result = None
+                if marc.registration_match and pair.match_type == "registration":
+                    match_result = marc.registration_match
+                elif marc.renewal_match and pair.match_type == "renewal":
+                    match_result = marc.renewal_match
+
+                # Process MARC text fields
+                marc_title_norm = (
+                    normalize_text_standard(marc.original_title) if marc.original_title else ""
+                )
+                marc_title_words = (
+                    language_processor.remove_stopwords(marc_title_norm) if marc_title_norm else []
+                )
+                marc_title_stem = (
+                    " ".join(stemmer.stem_words(marc_title_words)) if marc_title_words else ""
+                )
+
+                marc_author_norm = (
+                    normalize_text_standard(marc.original_author) if marc.original_author else ""
+                )
+                marc_author_words = (
+                    language_processor.remove_stopwords(marc_author_norm)
+                    if marc_author_norm
+                    else []
+                )
+                marc_author_stem = (
+                    " ".join(stemmer.stem_words(marc_author_words)) if marc_author_words else ""
+                )
+
+                marc_main_author_norm = (
+                    normalize_text_standard(marc.original_main_author)
+                    if marc.original_main_author
+                    else ""
+                )
+                marc_main_author_words = (
+                    language_processor.remove_stopwords(marc_main_author_norm)
+                    if marc_main_author_norm
+                    else []
+                )
+                marc_main_author_stem = (
+                    " ".join(stemmer.stem_words(marc_main_author_words))
+                    if marc_main_author_words
+                    else ""
+                )
+
+                marc_publisher_norm = (
+                    normalize_text_standard(marc.original_publisher)
+                    if marc.original_publisher
+                    else ""
+                )
+                marc_publisher_words = (
+                    language_processor.remove_stopwords(marc_publisher_norm)
+                    if marc_publisher_norm
+                    else []
+                )
+                marc_publisher_stem = (
+                    " ".join(stemmer.stem_words(marc_publisher_words))
+                    if marc_publisher_words
+                    else ""
+                )
+
+                # Process match text fields
+                match_title_norm = (
+                    normalize_text_standard(match.original_title) if match.original_title else ""
+                )
+                match_title_words = (
+                    language_processor.remove_stopwords(match_title_norm)
+                    if match_title_norm
+                    else []
+                )
+                match_title_stem = (
+                    " ".join(stemmer.stem_words(match_title_words)) if match_title_words else ""
+                )
+
+                match_author_norm = (
+                    normalize_text_standard(match.original_author) if match.original_author else ""
+                )
+                match_author_words = (
+                    language_processor.remove_stopwords(match_author_norm)
+                    if match_author_norm
+                    else []
+                )
+                match_author_stem = (
+                    " ".join(stemmer.stem_words(match_author_words)) if match_author_words else ""
+                )
+
+                match_publisher_norm = (
+                    normalize_text_standard(match.original_publisher)
+                    if match.original_publisher
+                    else ""
+                )
+                match_publisher_words = (
+                    language_processor.remove_stopwords(match_publisher_norm)
+                    if match_publisher_norm
+                    else []
+                )
+                match_publisher_stem = (
+                    " ".join(stemmer.stem_words(match_publisher_words))
+                    if match_publisher_words
+                    else ""
+                )
+
+                # Build row
+                row = {
+                    # MARC data
+                    "marc_id": marc.source_id or "",
+                    "marc_title_original": marc.original_title or "",
+                    "marc_title_normalized": marc_title_norm,
+                    "marc_title_stemmed": marc_title_stem,
+                    "marc_author_original": marc.original_author or "",
+                    "marc_author_normalized": marc_author_norm,
+                    "marc_author_stemmed": marc_author_stem,
+                    "marc_main_author_original": marc.original_main_author or "",
+                    "marc_main_author_normalized": marc_main_author_norm,
+                    "marc_main_author_stemmed": marc_main_author_stem,
+                    "marc_publisher_original": marc.original_publisher or "",
+                    "marc_publisher_normalized": marc_publisher_norm,
+                    "marc_publisher_stemmed": marc_publisher_stem,
+                    "marc_year": marc.year or "",
+                    "marc_lccn": marc.lccn or "",
+                    "marc_lccn_normalized": marc.normalized_lccn or "",
+                    # Match data
+                    "match_type": pair.match_type,
+                    "match_title_original": match.original_title or "",
+                    "match_title_normalized": match_title_norm,
+                    "match_title_stemmed": match_title_stem,
+                    "match_author_original": match.original_author or "",
+                    "match_author_normalized": match_author_norm,
+                    "match_author_stemmed": match_author_stem,
+                    "match_publisher_original": match.original_publisher or "",
+                    "match_publisher_normalized": match_publisher_norm,
+                    "match_publisher_stemmed": match_publisher_stem,
+                    "match_year": match.year or "",
+                    "match_lccn": match.lccn or "",
+                    "match_lccn_normalized": match.normalized_lccn or "",
+                    "match_entry_id": "",  # Not available in Publication object
+                    # Scores
+                    "title_score": match_result.title_score if match_result else "",
+                    "author_score": match_result.author_score if match_result else "",
+                    "publisher_score": match_result.publisher_score if match_result else "",
+                    "combined_score": match_result.similarity_score if match_result else "",
+                    "year_difference": match_result.year_difference if match_result else "",
+                    "copyright_status": (
+                        marc.copyright_status.value
+                        if hasattr(marc.copyright_status, "value")
+                        else str(marc.copyright_status) if marc.copyright_status else ""
+                    ),
+                }
+
+                writer.writerow(row)
+
+        logger.info(
+            f"✓ Exported ground truth CSV to {csv_path} ({len(self.results.ground_truth_pairs)} pairs)"
+        )
