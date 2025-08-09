@@ -30,12 +30,14 @@ class MarcLoader:
         min_year: int | None = None,
         max_year: int | None = None,
         us_only: bool = False,
+        max_data_year: int | None = None,
     ) -> None:
         self.marc_path = Path(marc_path)
         self.batch_size = batch_size
         self.min_year = min_year
         self.max_year = max_year
         self.us_only = us_only
+        self.max_data_year = max_data_year  # Maximum year we have data for
         self._temp_batch_dir: str | None = None  # Track temp dir for cleanup
 
     def extract_all_batches(self) -> list[list[Publication]]:
@@ -110,6 +112,7 @@ class MarcLoader:
         no_year_count = 0
         year_out_of_range_count = 0
         non_us_count = 0
+        beyond_data_count = 0
 
         for marc_file in marc_files:
             logger.info(f"Processing MARC file: {marc_file.name}")
@@ -136,6 +139,8 @@ class MarcLoader:
                                     year_out_of_range_count += 1
                                 elif filter_reason == "non_us":
                                     non_us_count += 1
+                                elif filter_reason == "beyond_available_data":
+                                    beyond_data_count += 1
 
                         file_record_count += 1
                         total_record_count += 1
@@ -197,6 +202,10 @@ class MarcLoader:
                     logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
             if non_us_count > 0:
                 logger.info(f"  - {non_us_count:,} non-US publications")
+            if beyond_data_count > 0:
+                logger.info(
+                    f"  - {beyond_data_count:,} records beyond available data (> {self.max_data_year})"
+                )
 
         return batch_paths, total_record_count, filtered_count
 
@@ -220,6 +229,7 @@ class MarcLoader:
         no_year_count = 0
         year_out_of_range_count = 0
         non_us_count = 0
+        beyond_data_count = 0
         batch_count = 0
 
         for marc_file in marc_files:
@@ -246,6 +256,8 @@ class MarcLoader:
                                     year_out_of_range_count += 1
                                 elif filter_reason == "non_us":
                                     non_us_count += 1
+                                elif filter_reason == "beyond_available_data":
+                                    beyond_data_count += 1
 
                         file_record_count += 1
                         total_record_count += 1
@@ -291,6 +303,10 @@ class MarcLoader:
                     logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
             if non_us_count > 0:
                 logger.info(f"  - {non_us_count:,} non-US publications")
+            if beyond_data_count > 0:
+                logger.info(
+                    f"  - {beyond_data_count:,} records beyond available data (> {self.max_data_year})"
+                )
 
     def get_temp_batch_dir(self) -> str | None:
         """Get the temporary batch directory path if using disk-based streaming"""
@@ -523,7 +539,7 @@ class MarcLoader:
 
         Returns:
             tuple of (should_include, filter_reason)
-            filter_reason is one of: 'no_year', 'year_out_of_range', 'non_us', or None
+            filter_reason is one of: 'no_year', 'year_out_of_range', 'non_us', 'beyond_available_data', or None
         """
         # Check US-only filter first (most restrictive)
         if self.us_only and pub.country_classification != CountryClassification.US:
@@ -535,6 +551,11 @@ class MarcLoader:
             if self.min_year is not None or self.max_year is not None:
                 return False, "no_year"
             return True, None  # Include if no year filtering
+
+        # Check if record is beyond our data coverage
+        # This check comes before min/max year to be more specific about why we're filtering
+        if self.max_data_year is not None and pub.year > self.max_data_year:
+            return False, "beyond_available_data"
 
         # Check minimum year
         if self.min_year is not None and pub.year < self.min_year:

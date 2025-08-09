@@ -243,3 +243,35 @@ class RenewalDataLoader(YearFilterableMixin):
 
         except Exception:
             return None
+
+    def get_max_data_year(self) -> int | None:
+        """Scan renewal directory to find the latest year of data available
+
+        Returns:
+            Maximum year found in the renewal data files, or None if no year files found
+        """
+        if not self.renewal_dir.exists():
+            logger.warning(f"Renewal directory does not exist: {self.renewal_dir}")
+            return None
+
+        # Look for year-named TSV files (e.g., "2001-from-db.tsv", "1991.tsv")
+        year_files = []
+        for item in self.renewal_dir.glob("*.tsv"):
+            # Extract year from filename - look for 4-digit year pattern
+            match = search(r"^(\d{4})", item.stem)
+            if match:
+                try:
+                    year = int(match.group(1))
+                    # Sanity check - renewal data should be between 1900 and 2100
+                    if 1900 <= year <= 2100:
+                        year_files.append(year)
+                except ValueError:
+                    continue
+
+        if year_files:
+            max_year = max(year_files)
+            logger.debug(f"Maximum renewal data year detected: {max_year}")
+            return max_year
+
+        logger.warning("No year-named TSV files found in renewal data")
+        return None

@@ -137,13 +137,41 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
         # Load and index copyright/renewal data first
         self._load_and_index_data(options)
 
-        # Create MARC loader
+        # Dynamically determine the maximum year we have data for
+        max_data_year = None
+        try:
+            # Local imports
+            from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
+            from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+
+            copyright_loader = CopyrightDataLoader(self.copyright_dir)
+            renewal_loader = RenewalDataLoader(self.renewal_dir)
+
+            max_copyright_year = copyright_loader.get_max_data_year()
+            max_renewal_year = renewal_loader.get_max_data_year()
+
+            # Use the maximum of both (could be None if directories don't exist)
+            if max_copyright_year is not None and max_renewal_year is not None:
+                max_data_year = max(max_copyright_year, max_renewal_year)
+            elif max_copyright_year is not None:
+                max_data_year = max_copyright_year
+            elif max_renewal_year is not None:
+                max_data_year = max_renewal_year
+
+            if max_data_year:
+                logger.info(f"Maximum data year detected: {max_data_year}")
+                logger.info(f"Records beyond {max_data_year} will be automatically filtered")
+        except Exception as e:
+            logger.warning(f"Could not determine max data year: {e}")
+
+        # Create MARC loader with max_data_year
         marc_loader = MarcLoader(
             marc_path=marc_path,
             batch_size=options.get("batch_size", 1000),
             min_year=options.get("min_year"),
             max_year=options.get("max_year"),
             us_only=options.get("us_only", False),
+            max_data_year=max_data_year,
         )
 
         # Load MARC records

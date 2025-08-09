@@ -253,3 +253,33 @@ class CopyrightDataLoader(YearFilterableMixin):
 
         except Exception:
             return None
+
+    def get_max_data_year(self) -> int | None:
+        """Scan copyright directory to find the latest year of data available
+
+        Returns:
+            Maximum year found in the copyright data directory, or None if no year directories found
+        """
+        if not self.copyright_dir.exists():
+            logger.warning(f"Copyright directory does not exist: {self.copyright_dir}")
+            return None
+
+        # Look for year-named directories (e.g., "1977")
+        year_dirs = []
+        for item in self.copyright_dir.iterdir():
+            if item.is_dir() and item.name.isdigit() and len(item.name) == 4:
+                try:
+                    year = int(item.name)
+                    # Sanity check - copyright data should be between 1900 and 2100
+                    if 1900 <= year <= 2100:
+                        year_dirs.append(year)
+                except ValueError:
+                    continue
+
+        if year_dirs:
+            max_year = max(year_dirs)
+            logger.debug(f"Maximum copyright data year detected: {max_year}")
+            return max_year
+
+        logger.warning("No year directories found in copyright data")
+        return None
