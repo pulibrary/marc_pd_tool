@@ -6,8 +6,6 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-# Third party imports
-
 # Local imports
 from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
 from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader

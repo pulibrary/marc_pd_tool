@@ -69,8 +69,10 @@ class GroundTruthMixin:
 
         # Load MARC data
         logger.info(f"Loading MARC records from {marc_path}")
+        # Use batch_size from config like other modes
+        batch_size = self.config.get_config().get("processing", {}).get("batch_size", 100)
         marc_loader = MarcLoader(
-            marc_path=marc_path, batch_size=1000, min_year=min_year, max_year=max_year
+            marc_path=marc_path, batch_size=batch_size, min_year=min_year, max_year=max_year
         )
 
         # Load copyright and renewal data if not already loaded

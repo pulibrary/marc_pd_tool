@@ -9,8 +9,6 @@ from xml.etree.ElementTree import Element
 from xml.etree.ElementTree import SubElement
 from xml.etree.ElementTree import tostring
 
-# Third party imports
-
 # Local imports
 from marc_pd_tool.loaders.marc_loader import MarcLoader
 

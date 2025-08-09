@@ -84,7 +84,7 @@ class ConfigLoader:
                 "disable_generic_detection": False,
             },
             "processing": {
-                "batch_size": 200,
+                "batch_size": 100,
                 "max_workers": None,
                 "score_everything_mode": False,
                 "brute_force_missing_year": False,

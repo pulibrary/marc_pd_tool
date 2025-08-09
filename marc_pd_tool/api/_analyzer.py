@@ -165,9 +165,13 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
             logger.warning(f"Could not determine max data year: {e}")
 
         # Create MARC loader with max_data_year
+        # Use batch_size from options, which defaults to config.json value
+        batch_size = options.get(
+            "batch_size", self.config.get_config().get("processing", {}).get("batch_size", 100)
+        )
         marc_loader = MarcLoader(
             marc_path=marc_path,
-            batch_size=options.get("batch_size", 1000),
+            batch_size=batch_size,
             min_year=options.get("min_year"),
             max_year=options.get("max_year"),
             us_only=options.get("us_only", False),
@@ -271,7 +275,10 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
         logger.info("=" * 80)
 
         # Get processing parameters
-        batch_size = options.get("batch_size", 200)
+        # Use same batch_size default as loading phase
+        batch_size = options.get(
+            "batch_size", self.config.get_config().get("processing", {}).get("batch_size", 100)
+        )
         num_processes = options.get("num_processes")
         if num_processes is None:
             num_processes = max(1, cpu_count() - 2)
