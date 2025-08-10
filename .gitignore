@@ -19,7 +19,7 @@ matches*.csv
 outputs_for_refining/
 reports/
 logs/
-truth_data/
+ground_truth_data/
 
 # Misc
 notes.md

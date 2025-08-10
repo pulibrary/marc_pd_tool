@@ -165,6 +165,8 @@ class GroundTruthExtractor:
                     has_match = True
 
             if has_match:
+                # Determine copyright status based on matches
+                marc_record.determine_copyright_status()
                 matched_marc_records.append(marc_record)
 
         # Compile statistics
@@ -355,6 +357,8 @@ class GroundTruthExtractor:
                             has_match = True
 
                     if has_match:
+                        # Determine copyright status based on matches
+                        marc_record.determine_copyright_status()
                         matched_marc_records.append(marc_record)
 
                 # Clear batch from memory immediately

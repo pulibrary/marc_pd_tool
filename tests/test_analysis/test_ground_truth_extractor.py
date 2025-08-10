@@ -79,11 +79,15 @@ class TestGroundTruthExtractor:
         extractor = GroundTruthExtractor()
 
         # Create MARC records
+        from marc_pd_tool.data.enums import CountryClassification
         marc1 = Publication("Book 1", author="Author 1", lccn="n78890351")
         marc1.year = 1950
+        marc1.country_classification = CountryClassification.US
         marc2 = Publication("Book 2", author="Author 2", lccn="n79123456")
         marc2.year = 1960
+        marc2.country_classification = CountryClassification.US
         marc3 = Publication("Book 3", author="Author 3")  # No LCCN
+        marc3.country_classification = CountryClassification.UNKNOWN
 
         marc_batches = [[marc1, marc2, marc3]]
 
@@ -126,6 +130,10 @@ class TestGroundTruthExtractor:
         assert stats.marc_with_lccn == 2
         assert stats.registration_matches == 1
         assert stats.renewal_matches == 1
+        
+        # Check that copyright status was determined
+        assert book1.copyright_status is not None
+        assert book2.copyright_status is not None
         assert stats.unique_lccns_matched == 2
 
     def test_extract_ground_truth_pairs_no_renewals(self):
