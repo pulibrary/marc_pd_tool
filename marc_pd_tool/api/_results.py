@@ -10,8 +10,6 @@ from tempfile import NamedTemporaryFile
 from typing import cast
 
 # Local imports
-from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
-from marc_pd_tool.data.ground_truth import GroundTruthPair
 from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.exporters.csv_exporter import CSVExporter
@@ -50,8 +48,9 @@ class AnalysisResults:
             "country_unknown": 0,
             "skipped_no_year": 0,
         }
-        self.ground_truth_analysis: GroundTruthAnalysis | None = None
-        self.ground_truth_pairs: list[GroundTruthPair] | None = None
+        self.ground_truth_pairs: list[Publication] | None = (
+            None  # MARC publications with LCCN matches
+        )
         self.ground_truth_stats: GroundTruthStats | None = None
         self.result_temp_dir: str | None = None  # Temporary directory containing result files
 

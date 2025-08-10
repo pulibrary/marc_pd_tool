@@ -13,8 +13,6 @@ from unittest.mock import patch
 # Local imports
 from marc_pd_tool.api import MarcCopyrightAnalyzer
 from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
-from marc_pd_tool.data.ground_truth import ScoreDistribution
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.utils.types import AnalysisOptions
 from marc_pd_tool.utils.types import JSONDict
@@ -358,46 +356,6 @@ class TestWorkerCalledMethods:
                 call_args = mock_process.call_args[0]
                 assert call_args[0] == batch_files  # batch_paths
                 assert call_args[1] == 1  # num_processes
-
-    def test_export_ground_truth_json_method(self) -> None:
-        """Test _export_ground_truth_json private method"""
-        analyzer = MarcCopyrightAnalyzer()
-
-        # Create minimal ground truth analysis
-        dist = ScoreDistribution(field_name="title", scores=[70.0, 80.0, 90.0])
-
-        analyzer.results.ground_truth_analysis = GroundTruthAnalysis(
-            total_pairs=3,
-            registration_pairs=2,
-            renewal_pairs=1,
-            title_distribution=dist,
-            author_distribution=dist,
-            publisher_distribution=dist,
-            combined_distribution=dist,
-            pairs_by_match_type={"registration": [], "renewal": []},
-        )
-
-        with TemporaryDirectory() as temp_dir:
-            output_file = join(temp_dir, "ground_truth.json")
-
-            analyzer._export_ground_truth_json(output_file)
-
-            # Verify the file was created and has correct structure
-            # Standard library imports
-            import json
-
-            with open(output_file, "r") as f:
-                data = json.load(f)
-
-                assert data["statistics"]["total_pairs"] == 3
-                assert data["statistics"]["registration_pairs"] == 2
-                assert data["statistics"]["renewal_pairs"] == 1
-
-                # Check that distribution properties are included
-                assert "mean" in data["score_distributions"]["title"]
-                assert "median" in data["score_distributions"]["title"]
-                assert "min" in data["score_distributions"]["title"]
-                assert "max" in data["score_distributions"]["title"]
 
     def test_get_statistics_returns_copy(self) -> None:
         """Test get_statistics returns a copy, not reference"""

@@ -167,7 +167,7 @@ def extract_ground_truth(
     min_year: Optional[int] = None,
     max_year: Optional[int] = None,
     lccn_prefix: Optional[str] = None,
-) -> Tuple[List[GroundTruthPair], GroundTruthStats]
+) -> Tuple[List[Publication], GroundTruthStats]
 ```
 
 Extract LCCN-verified ground truth pairs for algorithm validation.
@@ -180,18 +180,7 @@ Extract LCCN-verified ground truth pairs for algorithm validation.
 - `min_year`: Minimum publication year filter
 - `max_year`: Maximum publication year filter
 
-**Returns:** Tuple of (ground_truth_pairs, statistics)
-
-#### analyze_ground_truth_scores()
-
-```python
-def analyze_ground_truth_scores(
-    self,
-    ground_truth_pairs: Optional[List[GroundTruthPair]] = None
-) -> GroundTruthAnalysis
-```
-
-Analyze similarity scores for ground truth pairs without LCCN matching.
+**Returns:** Tuple of (marc_publications_with_lccn_matches, statistics)
 
 #### export_ground_truth_analysis()
 

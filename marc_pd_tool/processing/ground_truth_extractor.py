@@ -8,9 +8,11 @@ from logging import getLogger
 from pickle import load
 
 # Local imports
-from marc_pd_tool.data.ground_truth import GroundTruthPair
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.ground_truth import GroundTruthStats
+from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
 
 logger = getLogger(__name__)
 
@@ -20,13 +22,14 @@ class GroundTruthExtractor:
 
     def __init__(self) -> None:
         self.logger = getLogger(self.__class__.__name__)
+        self.similarity_calculator = SimilarityCalculator()
 
     def extract_ground_truth_pairs(
         self,
         marc_batches: list[list[Publication]],
         copyright_publications: list[Publication],
         renewal_publications: list[Publication] | None = None,
-    ) -> tuple[list[GroundTruthPair], GroundTruthStats]:
+    ) -> tuple[list[Publication], GroundTruthStats]:
         """Extract all LCCN-matched pairs from the datasets
 
         Args:
@@ -35,7 +38,7 @@ class GroundTruthExtractor:
             renewal_publications: Optional list of renewal publications
 
         Returns:
-            Tuple of (ground_truth_pairs, statistics)
+            Tuple of (marc_publications_with_matches, statistics)
         """
         if renewal_publications is None:
             renewal_publications = []
@@ -58,9 +61,10 @@ class GroundTruthExtractor:
         )
 
         # Extract matching pairs
-        ground_truth_pairs = []
+        matched_marc_records = []
 
         # Track statistics
+        total_marc_records = len(marc_records)
         marc_with_lccn = 0
         registration_matches = 0
         renewal_matches = 0
@@ -72,42 +76,100 @@ class GroundTruthExtractor:
 
             marc_with_lccn += 1
             lccn = marc_record.normalized_lccn
+            has_match = False
 
             # Check for copyright registration matches
             if lccn in copyright_lccn_index:
                 for copyright_record in copyright_lccn_index[lccn]:
-                    try:
-                        pair = GroundTruthPair(
-                            marc_record=marc_record,
-                            copyright_record=copyright_record,
-                            match_type="registration",
-                            lccn=lccn,
-                        )
-                        ground_truth_pairs.append(pair)
-                        registration_matches += 1
-                        matched_lccns.add(lccn)
-                    except ValueError as e:
-                        self.logger.warning(f"Invalid ground truth pair: {e}")
+                    # Calculate similarity scores even though we know it's a match
+                    title_score = self.similarity_calculator.calculate_title_similarity(
+                        marc_record.title or "", copyright_record.title or ""
+                    )
+                    author_score = self.similarity_calculator.calculate_author_similarity(
+                        marc_record.author or "", copyright_record.author or ""
+                    )
+                    publisher_score = self.similarity_calculator.calculate_publisher_similarity(
+                        marc_record.publisher or "", copyright_record.publisher or ""
+                    )
+                    combined_score = (title_score + author_score + publisher_score) / 3
+
+                    # Create MatchResult
+                    match_result = MatchResult(
+                        matched_title=copyright_record.title
+                        or copyright_record.original_title
+                        or "",
+                        matched_author=copyright_record.author
+                        or copyright_record.original_author
+                        or "",
+                        similarity_score=combined_score,
+                        title_score=title_score,
+                        author_score=author_score,
+                        publisher_score=publisher_score,
+                        year_difference=abs((marc_record.year or 0) - (copyright_record.year or 0)),
+                        source_id=copyright_record.source_id or "",
+                        source_type="registration",
+                        matched_date=copyright_record.pub_date or "",
+                        matched_publisher=copyright_record.publisher
+                        or copyright_record.original_publisher,
+                        match_type=MatchType.LCCN,
+                        normalized_title=copyright_record.title or "",
+                        normalized_author=copyright_record.author or "",
+                    )
+
+                    # Attach to MARC record
+                    marc_record.registration_match = match_result
+                    registration_matches += 1
+                    matched_lccns.add(lccn)
+                    has_match = True
 
             # Check for renewal matches
             if lccn in renewal_lccn_index:
                 for renewal_record in renewal_lccn_index[lccn]:
-                    try:
-                        pair = GroundTruthPair(
-                            marc_record=marc_record,
-                            copyright_record=renewal_record,
-                            match_type="renewal",
-                            lccn=lccn,
-                        )
-                        ground_truth_pairs.append(pair)
-                        renewal_matches += 1
-                        matched_lccns.add(lccn)
-                    except ValueError as e:
-                        self.logger.warning(f"Invalid ground truth pair: {e}")
+                    # Calculate similarity scores
+                    title_score = self.similarity_calculator.calculate_title_similarity(
+                        marc_record.title or "", renewal_record.title or ""
+                    )
+                    author_score = self.similarity_calculator.calculate_author_similarity(
+                        marc_record.author or "", renewal_record.author or ""
+                    )
+                    publisher_score = self.similarity_calculator.calculate_publisher_similarity(
+                        marc_record.publisher or "", renewal_record.publisher or ""
+                    )
+                    combined_score = (title_score + author_score + publisher_score) / 3
+
+                    # Create MatchResult
+                    match_result = MatchResult(
+                        matched_title=renewal_record.title or renewal_record.original_title or "",
+                        matched_author=renewal_record.author
+                        or renewal_record.original_author
+                        or "",
+                        similarity_score=combined_score,
+                        title_score=title_score,
+                        author_score=author_score,
+                        publisher_score=publisher_score,
+                        year_difference=abs((marc_record.year or 0) - (renewal_record.year or 0)),
+                        source_id=renewal_record.source_id or "",
+                        source_type="renewal",
+                        matched_date=renewal_record.pub_date or "",
+                        matched_publisher=renewal_record.publisher
+                        or renewal_record.original_publisher,
+                        match_type=MatchType.LCCN,
+                        normalized_title=renewal_record.title or "",
+                        normalized_author=renewal_record.author or "",
+                    )
+
+                    # Attach to MARC record
+                    marc_record.renewal_match = match_result
+                    renewal_matches += 1
+                    matched_lccns.add(lccn)
+                    has_match = True
+
+            if has_match:
+                matched_marc_records.append(marc_record)
 
         # Compile statistics
         stats = GroundTruthStats(
-            total_marc_records=len(marc_records),
+            total_marc_records=total_marc_records,
             marc_with_lccn=marc_with_lccn,
             total_copyright_records=len(copyright_publications),
             copyright_with_lccn=len(copyright_lccn_index),
@@ -115,6 +177,7 @@ class GroundTruthExtractor:
             registration_matches=registration_matches,
             renewal_matches=renewal_matches,
             unique_lccns_matched=len(matched_lccns),
+            unique_lccns=len(set(r.normalized_lccn for r in marc_records if r.normalized_lccn)),
         )
 
         self.logger.info(f"Ground truth extraction complete:")
@@ -126,17 +189,17 @@ class GroundTruthExtractor:
         )
         self.logger.info(f"  Registration matches: {registration_matches:,}")
         self.logger.info(f"  Renewal matches: {renewal_matches:,}")
-        self.logger.info(f"  Total ground truth pairs: {len(ground_truth_pairs):,}")
+        self.logger.info(f"  Total matched MARC records: {len(matched_marc_records):,}")
         self.logger.info(f"  Unique LCCNs matched: {len(matched_lccns):,}")
 
-        return ground_truth_pairs, stats
+        return matched_marc_records, stats
 
     def extract_ground_truth_from_pickles(
         self,
         batch_paths: list[str],
         copyright_publications: list[Publication],
         renewal_publications: list[Publication] | None = None,
-    ) -> tuple[list[GroundTruthPair], GroundTruthStats]:
+    ) -> tuple[list[Publication], GroundTruthStats]:
         """Extract ground truth pairs from pickled MARC batch files for streaming mode
 
         Args:
@@ -145,7 +208,7 @@ class GroundTruthExtractor:
             renewal_publications: Optional list of renewal publications
 
         Returns:
-            Tuple of (ground_truth_pairs, statistics)
+            Tuple of (marc_publications_with_matches, statistics)
         """
         if renewal_publications is None:
             renewal_publications = []
@@ -163,7 +226,7 @@ class GroundTruthExtractor:
         )
 
         # Extract matching pairs by processing pickled batches one at a time
-        ground_truth_pairs = []
+        matched_marc_records = []
 
         # Track statistics
         total_marc_records = 0
@@ -193,38 +256,106 @@ class GroundTruthExtractor:
 
                     marc_with_lccn += 1
                     lccn = marc_record.normalized_lccn
+                    has_match = False
 
                     # Check for copyright registration matches
                     if lccn in copyright_lccn_index:
                         for copyright_record in copyright_lccn_index[lccn]:
-                            try:
-                                pair = GroundTruthPair(
-                                    marc_record=marc_record,
-                                    copyright_record=copyright_record,
-                                    match_type="registration",
-                                    lccn=lccn,
+                            # Calculate similarity scores
+                            title_score = self.similarity_calculator.calculate_title_similarity(
+                                marc_record.title or "", copyright_record.title or ""
+                            )
+                            author_score = self.similarity_calculator.calculate_author_similarity(
+                                marc_record.author or "", copyright_record.author or ""
+                            )
+                            publisher_score = (
+                                self.similarity_calculator.calculate_publisher_similarity(
+                                    marc_record.publisher or "", copyright_record.publisher or ""
                                 )
-                                ground_truth_pairs.append(pair)
-                                registration_matches += 1
-                                matched_lccns.add(lccn)
-                            except ValueError as e:
-                                self.logger.warning(f"Invalid ground truth pair: {e}")
+                            )
+                            combined_score = (title_score + author_score + publisher_score) / 3
+
+                            # Create MatchResult
+                            match_result = MatchResult(
+                                matched_title=copyright_record.title
+                                or copyright_record.original_title
+                                or "",
+                                matched_author=copyright_record.author
+                                or copyright_record.original_author
+                                or "",
+                                similarity_score=combined_score,
+                                title_score=title_score,
+                                author_score=author_score,
+                                publisher_score=publisher_score,
+                                year_difference=abs(
+                                    (marc_record.year or 0) - (copyright_record.year or 0)
+                                ),
+                                source_id=copyright_record.source_id or "",
+                                source_type="registration",
+                                matched_date=copyright_record.pub_date or "",
+                                matched_publisher=copyright_record.publisher
+                                or copyright_record.original_publisher,
+                                match_type=MatchType.LCCN,
+                                normalized_title=copyright_record.title or "",
+                                normalized_author=copyright_record.author or "",
+                            )
+
+                            # Attach to MARC record
+                            marc_record.registration_match = match_result
+                            registration_matches += 1
+                            matched_lccns.add(lccn)
+                            has_match = True
 
                     # Check for renewal matches
                     if lccn in renewal_lccn_index:
                         for renewal_record in renewal_lccn_index[lccn]:
-                            try:
-                                pair = GroundTruthPair(
-                                    marc_record=marc_record,
-                                    copyright_record=renewal_record,
-                                    match_type="renewal",
-                                    lccn=lccn,
+                            # Calculate similarity scores
+                            title_score = self.similarity_calculator.calculate_title_similarity(
+                                marc_record.title or "", renewal_record.title or ""
+                            )
+                            author_score = self.similarity_calculator.calculate_author_similarity(
+                                marc_record.author or "", renewal_record.author or ""
+                            )
+                            publisher_score = (
+                                self.similarity_calculator.calculate_publisher_similarity(
+                                    marc_record.publisher or "", renewal_record.publisher or ""
                                 )
-                                ground_truth_pairs.append(pair)
-                                renewal_matches += 1
-                                matched_lccns.add(lccn)
-                            except ValueError as e:
-                                self.logger.warning(f"Invalid ground truth pair: {e}")
+                            )
+                            combined_score = (title_score + author_score + publisher_score) / 3
+
+                            # Create MatchResult
+                            match_result = MatchResult(
+                                matched_title=renewal_record.title
+                                or renewal_record.original_title
+                                or "",
+                                matched_author=renewal_record.author
+                                or renewal_record.original_author
+                                or "",
+                                similarity_score=combined_score,
+                                title_score=title_score,
+                                author_score=author_score,
+                                publisher_score=publisher_score,
+                                year_difference=abs(
+                                    (marc_record.year or 0) - (renewal_record.year or 0)
+                                ),
+                                source_id=renewal_record.source_id or "",
+                                source_type="renewal",
+                                matched_date=renewal_record.pub_date or "",
+                                matched_publisher=renewal_record.publisher
+                                or renewal_record.original_publisher,
+                                match_type=MatchType.LCCN,
+                                normalized_title=renewal_record.title or "",
+                                normalized_author=renewal_record.author or "",
+                            )
+
+                            # Attach to MARC record
+                            marc_record.renewal_match = match_result
+                            renewal_matches += 1
+                            matched_lccns.add(lccn)
+                            has_match = True
+
+                    if has_match:
+                        matched_marc_records.append(marc_record)
 
                 # Clear batch from memory immediately
                 del marc_batch
@@ -243,6 +374,7 @@ class GroundTruthExtractor:
             registration_matches=registration_matches,
             renewal_matches=renewal_matches,
             unique_lccns_matched=len(matched_lccns),
+            unique_lccns=0,  # We don't have all records to count unique LCCNs in streaming mode
         )
 
         self.logger.info(f"Streaming ground truth extraction complete:")
@@ -254,13 +386,13 @@ class GroundTruthExtractor:
         )
         self.logger.info(f"  Registration matches: {registration_matches:,}")
         self.logger.info(f"  Renewal matches: {renewal_matches:,}")
-        self.logger.info(f"  Total ground truth pairs: {len(ground_truth_pairs):,}")
+        self.logger.info(f"  Total matched MARC records: {len(matched_marc_records):,}")
         self.logger.info(f"  Unique LCCNs matched: {len(matched_lccns):,}")
 
-        return ground_truth_pairs, stats
+        return matched_marc_records, stats
 
     def _build_lccn_index(self, publications: list[Publication]) -> dict[str, list[Publication]]:
-        """Build an index of publications by normalized LCCN for fast lookup
+        """Build an index of publications by normalized LCCN
 
         Args:
             publications: List of publications to index
@@ -268,7 +400,7 @@ class GroundTruthExtractor:
         Returns:
             Dictionary mapping normalized LCCN to list of publications
         """
-        index = defaultdict(list)
+        index: dict[str, list[Publication]] = defaultdict(list)
 
         for pub in publications:
             if pub.normalized_lccn:
@@ -277,83 +409,79 @@ class GroundTruthExtractor:
         return dict(index)
 
     def filter_by_year_range(
-        self,
-        ground_truth_pairs: list[GroundTruthPair],
-        min_year: int | None = None,
-        max_year: int | None = None,
-    ) -> list[GroundTruthPair]:
-        """Filter ground truth pairs by publication year range
+        self, pairs: list[Publication], min_year: int | None = None, max_year: int | None = None
+    ) -> list[Publication]:
+        """Filter ground truth pairs by year range
 
         Args:
-            ground_truth_pairs: List of ground truth pairs
+            pairs: List of MARC publications with matches
             min_year: Minimum publication year (inclusive)
             max_year: Maximum publication year (inclusive)
 
         Returns:
-            Filtered list of ground truth pairs
+            Filtered list of publications
         """
-        filtered_pairs = []
+        if min_year is None and max_year is None:
+            return pairs
 
-        for pair in ground_truth_pairs:
-            marc_year = pair.marc_record.year
-            copyright_year = pair.copyright_record.year
-
-            # Use MARC year if available, otherwise copyright year
-            year = marc_year if marc_year else copyright_year
-
-            if year is None:
-                continue  # Skip records without year information
-
-            if min_year is not None and year < min_year:
+        filtered = []
+        for pub in pairs:
+            if pub.year is None:
                 continue
-            if max_year is not None and year > max_year:
+            if min_year is not None and pub.year < min_year:
                 continue
+            if max_year is not None and pub.year > max_year:
+                continue
+            filtered.append(pub)
 
-            filtered_pairs.append(pair)
+        return filtered
 
-        year_filter_desc = []
-        if min_year is not None:
-            year_filter_desc.append(f"≥{min_year}")
-        if max_year is not None:
-            year_filter_desc.append(f"≤{max_year}")
-        filter_desc = " and ".join(year_filter_desc) if year_filter_desc else "all years"
-
-        self.logger.info(f"Filtered to {len(filtered_pairs)} pairs with years {filter_desc}")
-        return filtered_pairs
-
-    def get_coverage_report(self, stats: GroundTruthStats) -> str:
-        """Generate a human-readable coverage report
+    def get_coverage_report(
+        self,
+        marc_batches: list[list[Publication]],
+        copyright_publications: list[Publication],
+        renewal_publications: list[Publication] | None = None,
+    ) -> dict[str, float | int]:
+        """Generate a coverage report for LCCN presence in the datasets
 
         Args:
-            stats: Ground truth statistics
+            marc_batches: List of MARC publication batches
+            copyright_publications: List of copyright registration publications
+            renewal_publications: Optional list of renewal publications
 
         Returns:
-            Formatted coverage report string
+            Dictionary with coverage statistics
         """
-        report = []
-        report.append("LCCN Ground Truth Coverage Report")
-        report.append("=" * 40)
-        report.append(f"MARC Records:")
-        report.append(f"  Total: {stats.total_marc_records:,}")
-        report.append(f"  With LCCN: {stats.marc_with_lccn:,} ({stats.marc_lccn_coverage:.1f}%)")
-        report.append(f"")
-        report.append(f"Copyright Registration Records:")
-        report.append(f"  Total: {stats.total_copyright_records:,}")
-        report.append(
-            f"  With LCCN: {stats.copyright_with_lccn:,} ({stats.copyright_lccn_coverage:.1f}%)"
-        )
-        report.append(f"")
-        report.append(f"Renewal Records:")
-        report.append(f"  Total: {stats.total_renewal_records:,}")
-        report.append(f"")
-        report.append(f"Ground Truth Matches:")
-        report.append(f"  Registration matches: {stats.registration_matches:,}")
-        report.append(f"  Renewal matches: {stats.renewal_matches:,}")
-        report.append(f"  Total matches: {stats.total_matches:,}")
-        report.append(f"  Unique LCCNs: {stats.unique_lccns_matched:,}")
+        if renewal_publications is None:
+            renewal_publications = []
 
-        if stats.marc_with_lccn > 0:
-            match_rate = (stats.total_matches / stats.marc_with_lccn) * 100
-            report.append(f"  Match rate: {match_rate:.1f}% of MARC records with LCCN")
+        # Flatten MARC batches
+        marc_records = []
+        for batch in marc_batches:
+            marc_records.extend(batch)
 
-        return "\n".join(report)
+        # Count LCCN presence
+        marc_total = len(marc_records)
+        marc_with_lccn = sum(1 for r in marc_records if r.normalized_lccn)
+
+        copyright_total = len(copyright_publications)
+        copyright_with_lccn = sum(1 for r in copyright_publications if r.normalized_lccn)
+
+        renewal_total = len(renewal_publications)
+        renewal_with_lccn = sum(1 for r in renewal_publications if r.normalized_lccn)
+
+        return {
+            "marc_total": marc_total,
+            "marc_with_lccn": marc_with_lccn,
+            "marc_lccn_percentage": (marc_with_lccn / marc_total * 100) if marc_total > 0 else 0,
+            "copyright_total": copyright_total,
+            "copyright_with_lccn": copyright_with_lccn,
+            "copyright_lccn_percentage": (
+                (copyright_with_lccn / copyright_total * 100) if copyright_total > 0 else 0
+            ),
+            "renewal_total": renewal_total,
+            "renewal_with_lccn": renewal_with_lccn,
+            "renewal_lccn_percentage": (
+                (renewal_with_lccn / renewal_total * 100) if renewal_total > 0 else 0
+            ),
+        }

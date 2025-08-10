@@ -10,8 +10,6 @@
 from marc_pd_tool.api import AnalysisResults
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
-from marc_pd_tool.data.ground_truth import GroundTruthPair
 from tests.fixtures.publications import PublicationBuilder
 
 
@@ -24,7 +22,6 @@ class TestAnalysisResults:
 
         assert results.publications == []
         assert results.result_file_paths == []
-        assert results.ground_truth_analysis is None
         assert results.ground_truth_pairs is None
         assert results.ground_truth_stats is None
         assert results.result_temp_dir is None
@@ -205,47 +202,53 @@ class TestAnalysisResults:
         assert results.statistics["no_matches"] == 1  # Only pub4 has no matches at all
 
     def test_ground_truth_storage(self):
-        """Test storage of ground truth analysis results"""
+        """Test storage of ground truth pairs and stats"""
         results = AnalysisResults()
 
-        # Create mock ground truth data
-        # Local imports
-        from marc_pd_tool.data.ground_truth import ScoreDistribution
-
-        gt_analysis = GroundTruthAnalysis(
-            total_pairs=10,
-            registration_pairs=6,
-            renewal_pairs=4,
-            title_distribution=ScoreDistribution("title", [90.0, 95.0, 85.0]),
-            author_distribution=ScoreDistribution("author", [85.0, 90.0, 80.0]),
-            publisher_distribution=ScoreDistribution("publisher", [70.0, 75.0, 65.0]),
-            combined_distribution=ScoreDistribution("combined", [85.0, 90.0, 80.0]),
-            pairs_by_match_type={"registration": [], "renewal": []},
-        )
-
-        # Create proper GroundTruthPair
+        # Create Publications with LCCN matches
         marc_pub = PublicationBuilder.basic_us_publication()
         marc_pub.normalized_lccn = "12345678"
-        copyright_pub = PublicationBuilder.basic_us_publication()
-        copyright_pub.normalized_lccn = "12345678"
+        # Add a mock match to simulate ground truth
+        # Local imports
+        from marc_pd_tool.data.enums import MatchType
+        from marc_pd_tool.data.publication import MatchResult
 
-        gt_pairs = [
-            GroundTruthPair(
-                marc_record=marc_pub,
-                copyright_record=copyright_pub,
-                match_type="registration",
-                lccn="12345678",
-            )
-        ]
+        marc_pub.registration_match = MatchResult(
+            matched_title="Test Book",
+            matched_author="Test Author",
+            similarity_score=95.0,
+            title_score=100.0,
+            author_score=90.0,
+            year_difference=0,
+            source_id="REG123",
+            source_type="registration",
+            match_type=MatchType.LCCN,
+        )
+
+        gt_pairs = [marc_pub]
+
+        # Create ground truth stats
+        # Local imports
+        from marc_pd_tool.data.ground_truth import GroundTruthStats
+
+        gt_stats = GroundTruthStats(
+            total_marc_records=100,
+            marc_with_lccn=50,
+            total_copyright_records=200,
+            copyright_with_lccn=150,
+            registration_matches=10,
+            renewal_matches=5,
+            unique_lccns_matched=15,
+        )
 
         # Store ground truth data
-        results.ground_truth_analysis = gt_analysis
         results.ground_truth_pairs = gt_pairs
+        results.ground_truth_stats = gt_stats
 
-        assert results.ground_truth_analysis.total_pairs == 10
-        assert results.ground_truth_analysis.registration_pairs == 6
-        assert results.ground_truth_analysis.renewal_pairs == 4
         assert len(results.ground_truth_pairs) == 1
+        assert results.ground_truth_stats.total_marc_records == 100
+        assert results.ground_truth_stats.registration_matches == 10
+        assert results.ground_truth_stats.renewal_matches == 5
 
     def test_result_temp_dir_tracking(self):
         """Test tracking of temporary directory for results"""

@@ -453,13 +453,26 @@ class TestStreamingGroundTruthExtractor:
         assert regular_stats.renewal_matches == streaming_stats.renewal_matches
 
         # Compare individual pairs (order might differ, so sort by LCCN)
-        regular_pairs_sorted = sorted(regular_pairs, key=lambda p: p.marc_record.lccn)
-        streaming_pairs_sorted = sorted(streaming_pairs, key=lambda p: p.marc_record.lccn)
+        # Filter out entries without LCCN for sorting
+        regular_with_lccn = [p for p in regular_pairs if p.lccn]
+        streaming_with_lccn = [p for p in streaming_pairs if p.lccn]
+
+        regular_pairs_sorted = sorted(regular_with_lccn, key=lambda p: p.lccn)
+        streaming_pairs_sorted = sorted(streaming_with_lccn, key=lambda p: p.lccn)
 
         for reg_pair, stream_pair in zip(regular_pairs_sorted, streaming_pairs_sorted):
-            assert reg_pair.marc_record.lccn == stream_pair.marc_record.lccn
-            assert reg_pair.copyright_record.lccn == stream_pair.copyright_record.lccn
-            assert reg_pair.match_type == stream_pair.match_type
+            assert reg_pair.lccn == stream_pair.lccn
+            assert reg_pair.normalized_lccn == stream_pair.normalized_lccn
+            # Check that match types are the same
+            if reg_pair.registration_match:
+                assert stream_pair.registration_match is not None
+                assert (
+                    reg_pair.registration_match.match_type
+                    == stream_pair.registration_match.match_type
+                )
+            if reg_pair.renewal_match:
+                assert stream_pair.renewal_match is not None
+                assert reg_pair.renewal_match.match_type == stream_pair.renewal_match.match_type
 
 
 class TestStreamingGroundTruthIntegration:
@@ -525,7 +538,9 @@ class TestStreamingGroundTruthIntegration:
             assert stats.total_marc_records == 1
             assert stats.marc_with_lccn == 1
             assert stats.registration_matches == 1
-            assert pairs[0].match_type == "registration"
+            # Check that the MARC record has a registration match
+            assert pairs[0].registration_match is not None
+            assert pairs[0].registration_match.source_type == "registration"
 
     def test_streaming_ground_truth_error_recovery(self):
         """Test streaming ground truth recovers from individual file errors"""

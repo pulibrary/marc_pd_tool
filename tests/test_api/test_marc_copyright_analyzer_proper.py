@@ -299,36 +299,3 @@ class TestMarcCopyrightAnalyzerProper:
             # Verify processing occurred
             assert len(analyzer.results.publications) == 2
             assert result_pubs == pubs  # Should return the publications passed in
-
-    def test_process_records_with_ground_truth(self):
-        """Test processing records when ground truth is available"""
-        analyzer = MarcCopyrightAnalyzer()
-
-        # Set up mock ground truth
-        # Local imports
-        from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
-
-        analyzer.ground_truth_analysis = Mock(spec=GroundTruthAnalysis)
-
-        # Create publication
-        pub = PublicationBuilder.basic_us_publication()
-
-        with (
-            patch.object(analyzer, "_load_and_index_data"),
-            patch.object(analyzer, "analyze_marc_records") as mock_analyze,
-        ):
-
-            # Mock analyze to add ground truth info
-            def add_ground_truth(*args, **kwargs):
-                analyzer.results.add_publication(pub)
-                analyzer.results.ground_truth_analysis = analyzer.ground_truth_analysis
-
-            mock_analyze.side_effect = add_ground_truth
-
-            with TemporaryDirectory() as temp_dir:
-                marc_path = Path(temp_dir) / "test.marcxml"
-                marc_path.write_text('<?xml version="1.0"?><collection></collection>')
-
-                results = analyzer.analyze_marc_file(str(marc_path))
-
-                assert results.ground_truth_analysis is not None

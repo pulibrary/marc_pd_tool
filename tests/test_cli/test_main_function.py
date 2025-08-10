@@ -265,13 +265,14 @@ class TestMainFunction:
                         mock_stats.renewal_matches = 10
                         mock_stats.total_marc_records = 200
 
-                        mock_analyzer.extract_ground_truth.return_value = ([], mock_stats)
+                        # Return some mock ground truth pairs so export gets called
+                        mock_pair = Mock()
+                        mock_analyzer.extract_ground_truth.return_value = ([mock_pair], mock_stats)
 
                         main()
 
                         # Verify ground truth methods were called
                         mock_analyzer.extract_ground_truth.assert_called_once()
-                        mock_analyzer.analyze_ground_truth_scores.assert_called_once()
                         mock_analyzer.export_ground_truth_analysis.assert_called_once()
 
 

@@ -5,86 +5,13 @@
 # Standard library imports
 
 # Third party imports
-from pytest import raises
+import pytest
 
 # Local imports
-from marc_pd_tool.data.ground_truth import GroundTruthPair
+from marc_pd_tool.data.enums import MatchType
 from marc_pd_tool.data.ground_truth import GroundTruthStats
 from marc_pd_tool.data.publication import Publication
 from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
-
-
-class TestGroundTruthPair:
-    """Test the GroundTruthPair dataclass"""
-
-    def test_valid_pair_creation(self):
-        """Test creating a valid ground truth pair"""
-        marc_pub = Publication("Test Title", lccn="n78-890351", source="MARC")
-        copyright_pub = Publication("Test Title", lccn="n78890351", source="Copyright")
-
-        pair = GroundTruthPair(
-            marc_record=marc_pub,
-            copyright_record=copyright_pub,
-            match_type="registration",
-            lccn="n78890351",
-        )
-
-        assert pair.marc_record == marc_pub
-        assert pair.copyright_record == copyright_pub
-        assert pair.match_type == "registration"
-        assert pair.lccn == "n78890351"
-
-    def test_pair_validation_no_marc_lccn(self):
-        """Test validation fails when MARC record has no LCCN"""
-        marc_pub = Publication("Test Title", source="MARC")  # No LCCN
-        copyright_pub = Publication("Test Title", lccn="n78890351", source="Copyright")
-
-        with raises(ValueError, match="MARC record must have normalized LCCN"):
-            GroundTruthPair(
-                marc_record=marc_pub,
-                copyright_record=copyright_pub,
-                match_type="registration",
-                lccn="n78890351",
-            )
-
-    def test_pair_validation_no_copyright_lccn(self):
-        """Test validation fails when copyright record has no LCCN"""
-        marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
-        copyright_pub = Publication("Test Title", source="Copyright")  # No LCCN
-
-        with raises(ValueError, match="Copyright record must have normalized LCCN"):
-            GroundTruthPair(
-                marc_record=marc_pub,
-                copyright_record=copyright_pub,
-                match_type="registration",
-                lccn="n78890351",
-            )
-
-    def test_pair_validation_mismatched_lccn(self):
-        """Test validation fails when LCCNs don't match"""
-        marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
-        copyright_pub = Publication("Test Title", lccn="n79123456", source="Copyright")
-
-        with raises(ValueError, match="LCCN values must match"):
-            GroundTruthPair(
-                marc_record=marc_pub,
-                copyright_record=copyright_pub,
-                match_type="registration",
-                lccn="n78890351",
-            )
-
-    def test_pair_validation_invalid_match_type(self):
-        """Test validation fails with invalid match type"""
-        marc_pub = Publication("Test Title", lccn="n78890351", source="MARC")
-        copyright_pub = Publication("Test Title", lccn="n78890351", source="Copyright")
-
-        with raises(ValueError, match="Match type must be 'registration' or 'renewal'"):
-            GroundTruthPair(
-                marc_record=marc_pub,
-                copyright_record=copyright_pub,
-                match_type="invalid",
-                lccn="n78890351",
-            )
 
 
 class TestGroundTruthStats:
@@ -94,21 +21,21 @@ class TestGroundTruthStats:
         """Test calculated properties of GroundTruthStats"""
         stats = GroundTruthStats(
             total_marc_records=1000,
-            marc_with_lccn=100,
-            total_copyright_records=500,
-            copyright_with_lccn=50,
-            total_renewal_records=200,
-            registration_matches=25,
-            renewal_matches=15,
-            unique_lccns_matched=35,
+            marc_with_lccn=500,
+            total_copyright_records=2000,
+            copyright_with_lccn=1500,
+            total_renewal_records=1000,
+            registration_matches=100,
+            renewal_matches=50,
+            unique_lccns_matched=120,
         )
 
-        assert stats.total_matches == 40
-        assert stats.marc_lccn_coverage == 10.0
-        assert stats.copyright_lccn_coverage == 10.0
+        assert stats.total_matches == 150
+        assert stats.marc_lccn_coverage == 50.0
+        assert stats.copyright_lccn_coverage == 75.0
 
     def test_stats_zero_division_handling(self):
-        """Test that zero division is handled gracefully"""
+        """Test that stats handle zero totals gracefully"""
         stats = GroundTruthStats(
             total_marc_records=0,
             marc_with_lccn=0,
@@ -132,136 +59,157 @@ class TestGroundTruthExtractor:
         """Test building LCCN index from publications"""
         extractor = GroundTruthExtractor()
 
-        publications = [
-            Publication("Title 1", lccn="n78890351", source="Test"),
-            Publication("Title 2", lccn="n79123456", source="Test"),
-            Publication("Title 3", source="Test"),  # No LCCN
-            Publication("Title 4", lccn="n78890351", source="Test"),  # Duplicate LCCN
+        pubs = [
+            Publication("Title 1", lccn="n78890351"),
+            Publication("Title 2", lccn="n79123456"),
+            Publication("Title 3", lccn="n78890351"),  # Duplicate LCCN
+            Publication("Title 4"),  # No LCCN
         ]
 
-        index = extractor._build_lccn_index(publications)
+        index = extractor._build_lccn_index(pubs)
 
         assert len(index) == 2
         assert "n78890351" in index
         assert "n79123456" in index
-        assert len(index["n78890351"]) == 2  # Two publications with same LCCN
+        assert len(index["n78890351"]) == 2
         assert len(index["n79123456"]) == 1
 
     def test_extract_ground_truth_pairs_basic(self):
-        """Test basic ground truth pair extraction"""
+        """Test basic ground truth extraction returns Publications with matches"""
         extractor = GroundTruthExtractor()
 
-        # Create test data with matching LCCNs
-        marc_records = [
-            [Publication("MARC Title 1", lccn="n78890351", source="MARC")],
-            [Publication("MARC Title 2", lccn="n79123456", source="MARC")],
-            [Publication("MARC Title 3", source="MARC")],  # No LCCN
-        ]
+        # Create MARC records
+        marc1 = Publication("Book 1", author="Author 1", lccn="n78890351")
+        marc1.year = 1950
+        marc2 = Publication("Book 2", author="Author 2", lccn="n79123456")
+        marc2.year = 1960
+        marc3 = Publication("Book 3", author="Author 3")  # No LCCN
 
-        copyright_records = [
-            Publication(
-                "Copyright Title 1", lccn="n78-890351", source="Copyright"
-            ),  # Matches after normalization
-            Publication("Copyright Title 4", lccn="n80999999", source="Copyright"),  # No match
-        ]
+        marc_batches = [[marc1, marc2, marc3]]
 
-        renewal_records = [
-            Publication(
-                "Renewal Title 2", lccn="n79-123456", source="Renewal"
-            )  # Matches after normalization
-        ]
+        # Create copyright records
+        copyright1 = Publication("Book 1", author="Author 1", lccn="n78890351")
+        copyright1.year = 1950
+        copyright1.source_id = "REG1"
+        copyright2 = Publication("Book X", author="Author X", lccn="n80999999")  # No match
 
-        pairs, stats = extractor.extract_ground_truth_pairs(
-            marc_records, copyright_records, renewal_records
+        copyright_pubs = [copyright1, copyright2]
+
+        # Create renewal records
+        renewal1 = Publication("Book 2", author="Author 2", lccn="n79123456")
+        renewal1.year = 1960
+        renewal1.source_id = "REN1"
+
+        renewal_pubs = [renewal1]
+
+        # Extract ground truth
+        matched_publications, stats = extractor.extract_ground_truth_pairs(
+            marc_batches, copyright_pubs, renewal_pubs
         )
 
-        # Should find 2 matches: 1 registration + 1 renewal
-        assert len(pairs) == 2
-        assert stats.total_matches == 2
+        # Check returned publications
+        assert len(matched_publications) == 2  # Two MARC records with matches
+
+        # Check that matches are attached
+        book1 = next(p for p in matched_publications if p.lccn == "n78890351")
+        assert book1.registration_match is not None
+        assert book1.registration_match.match_type == MatchType.LCCN
+        assert book1.registration_match.source_id == "REG1"
+
+        book2 = next(p for p in matched_publications if p.lccn == "n79123456")
+        assert book2.renewal_match is not None
+        assert book2.renewal_match.match_type == MatchType.LCCN
+        assert book2.renewal_match.source_id == "REN1"
+
+        # Check statistics
+        assert stats.total_marc_records == 3
+        assert stats.marc_with_lccn == 2
         assert stats.registration_matches == 1
         assert stats.renewal_matches == 1
         assert stats.unique_lccns_matched == 2
 
-        # Check the actual pairs
-        registration_pair = next(p for p in pairs if p.match_type == "registration")
-        renewal_pair = next(p for p in pairs if p.match_type == "renewal")
-
-        assert registration_pair.lccn == "n78890351"
-        assert renewal_pair.lccn == "n79123456"
-
     def test_extract_ground_truth_pairs_no_renewals(self):
-        """Test extraction when no renewal data provided"""
+        """Test extraction with no renewal data"""
         extractor = GroundTruthExtractor()
 
-        marc_records = [[Publication("MARC Title", lccn="n78890351", source="MARC")]]
+        marc = Publication("Book", lccn="n78890351")
+        copyright = Publication("Book", lccn="n78890351")
+        copyright.source_id = "REG1"
 
-        copyright_records = [Publication("Copyright Title", lccn="n78890351", source="Copyright")]
+        marc_batches = [[marc]]
+        copyright_pubs = [copyright]
 
-        pairs, stats = extractor.extract_ground_truth_pairs(marc_records, copyright_records, None)
+        matched_publications, stats = extractor.extract_ground_truth_pairs(
+            marc_batches, copyright_pubs
+        )
 
-        assert len(pairs) == 1
+        assert len(matched_publications) == 1
+        assert matched_publications[0].registration_match is not None
+        assert matched_publications[0].registration_match.source_id == "REG1"
         assert stats.registration_matches == 1
         assert stats.renewal_matches == 0
-        assert stats.total_renewal_records == 0
 
     def test_filter_by_year_range(self):
-        """Test filtering by publication year range"""
+        """Test filtering ground truth pairs by year"""
         extractor = GroundTruthExtractor()
 
-        pairs = [
-            GroundTruthPair(
-                marc_record=Publication(
-                    "Title 1", lccn="n78890351", pub_date="1950", source="MARC"
-                ),
-                copyright_record=Publication("Title 1", lccn="n78890351", source="Copyright"),
-                match_type="registration",
-                lccn="n78890351",
-            ),
-            GroundTruthPair(
-                marc_record=Publication(
-                    "Title 2", lccn="n79123456", pub_date="1975", source="MARC"
-                ),
-                copyright_record=Publication("Title 2", lccn="n79123456", source="Copyright"),
-                match_type="registration",
-                lccn="n79123456",
-            ),
-        ]
+        # Create publications with different years
+        pub1950 = Publication("Book 1950")
+        pub1950.year = 1950
+        pub1960 = Publication("Book 1960")
+        pub1960.year = 1960
+        pub1970 = Publication("Book 1970")
+        pub1970.year = 1970
+        pub_none = Publication("Book None")  # No year
 
-        # Filter for 1960-1980
-        filtered = extractor.filter_by_year_range(pairs, min_year=1960, max_year=1980)
-        assert len(filtered) == 1
-        assert filtered[0].marc_record.year == 1975
+        publications = [pub1950, pub1960, pub1970, pub_none]
 
-        # Filter for minimum year only
-        filtered = extractor.filter_by_year_range(pairs, min_year=1960)
-        assert len(filtered) == 1
+        # Test min year filter
+        filtered = extractor.filter_by_year_range(publications, min_year=1960)
+        assert len(filtered) == 2
+        assert all(p.year >= 1960 for p in filtered if p.year)
 
-        # Filter for maximum year only
-        filtered = extractor.filter_by_year_range(pairs, max_year=1960)
+        # Test max year filter
+        filtered = extractor.filter_by_year_range(publications, max_year=1960)
+        assert len(filtered) == 2
+        assert all(p.year <= 1960 for p in filtered if p.year)
+
+        # Test both filters
+        filtered = extractor.filter_by_year_range(publications, min_year=1955, max_year=1965)
         assert len(filtered) == 1
-        assert filtered[0].marc_record.year == 1950
+        assert filtered[0].year == 1960
+
+        # Test no filters
+        filtered = extractor.filter_by_year_range(publications)
+        assert len(filtered) == 4
 
     def test_get_coverage_report(self):
         """Test coverage report generation"""
         extractor = GroundTruthExtractor()
 
-        stats = GroundTruthStats(
-            total_marc_records=1000,
-            marc_with_lccn=100,
-            total_copyright_records=500,
-            copyright_with_lccn=50,
-            total_renewal_records=200,
-            registration_matches=25,
-            renewal_matches=15,
-            unique_lccns_matched=35,
-        )
+        marc_batches = [
+            [
+                Publication("Book 1", lccn="n78890351"),
+                Publication("Book 2", lccn="n79123456"),
+                Publication("Book 3"),  # No LCCN
+            ]
+        ]
 
-        report = extractor.get_coverage_report(stats)
+        copyright_pubs = [
+            Publication("Copyright 1", lccn="n78890351"),
+            Publication("Copyright 2"),  # No LCCN
+        ]
 
-        assert "LCCN Ground Truth Coverage Report" in report
-        assert "Total: 1,000" in report
-        assert "With LCCN: 100 (10.0%)" in report
-        assert "Registration matches: 25" in report
-        assert "Renewal matches: 15" in report
-        assert "Total matches: 40" in report
-        assert "Match rate: 40.0%" in report
+        renewal_pubs = [Publication("Renewal 1", lccn="n79123456")]
+
+        report = extractor.get_coverage_report(marc_batches, copyright_pubs, renewal_pubs)
+
+        assert report["marc_total"] == 3
+        assert report["marc_with_lccn"] == 2
+        assert report["marc_lccn_percentage"] == pytest.approx(66.67, rel=0.01)
+        assert report["copyright_total"] == 2
+        assert report["copyright_with_lccn"] == 1
+        assert report["copyright_lccn_percentage"] == 50.0
+        assert report["renewal_total"] == 1
+        assert report["renewal_with_lccn"] == 1
+        assert report["renewal_lccn_percentage"] == 100.0

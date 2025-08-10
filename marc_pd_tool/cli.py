@@ -661,13 +661,17 @@ def main() -> None:
             logger.info(f"Registration matches: {gt_stats.registration_matches:,}")
             logger.info(f"Renewal matches: {gt_stats.renewal_matches:,}")
 
-            # Analyze scores
-            analyzer.analyze_ground_truth_scores(ground_truth_pairs)
+            # Export results in all requested formats (skip analysis if no pairs found)
+            if ground_truth_pairs:
+                # Store pairs in results for export
+                analyzer.results.ground_truth_pairs = ground_truth_pairs
+                analyzer.results.ground_truth_stats = gt_stats
 
-            # Export results in all requested formats
-            analyzer.export_ground_truth_analysis(
-                output_filename, output_formats=args.output_formats
-            )
+                analyzer.export_ground_truth_analysis(
+                    output_filename, output_formats=args.output_formats
+                )
+            else:
+                logger.warning("No ground truth pairs found - skipping export")
 
             # Update run info for ground truth mode
             run_info["marc_count"] = str(gt_stats.total_marc_records)

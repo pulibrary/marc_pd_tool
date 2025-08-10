@@ -17,10 +17,7 @@ from marc_pd_tool.api import MarcCopyrightAnalyzer
 from marc_pd_tool.data.enums import CopyrightStatus
 from marc_pd_tool.data.enums import CountryClassification
 from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.ground_truth import GroundTruthAnalysis
-from marc_pd_tool.data.ground_truth import GroundTruthPair
 from marc_pd_tool.data.ground_truth import GroundTruthStats
-from marc_pd_tool.data.ground_truth import ScoreDistribution
 from marc_pd_tool.data.publication import MatchResult
 from marc_pd_tool.data.publication import Publication
 
@@ -32,7 +29,6 @@ from marc_pd_tool.loaders.marc_loader import MarcLoader
 from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
 from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
 from marc_pd_tool.processing.matching_engine import DataMatcher
-from marc_pd_tool.processing.score_analyzer import ScoreAnalyzer
 
 # Version info
 __version__ = "1.0.0"
@@ -47,11 +43,8 @@ __all__: list[str] = [
     "CopyrightStatus",
     "CountryClassification",
     "MatchType",
-    # Ground truth analysis
-    "GroundTruthPair",
+    # Ground truth
     "GroundTruthStats",
-    "GroundTruthAnalysis",
-    "ScoreDistribution",
     # Advanced usage - loaders
     "MarcLoader",
     "CopyrightDataLoader",
@@ -59,7 +52,6 @@ __all__: list[str] = [
     # Advanced usage - processing
     "DataMatcher",
     "GroundTruthExtractor",
-    "ScoreAnalyzer",
     # Advanced usage - infrastructure
     "ConfigLoader",
     "CacheManager",

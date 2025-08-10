@@ -180,8 +180,12 @@ class TestMainCLI:
                             mock_stats.renewal_matches = 10
                             mock_stats.total_marc_records = 200
 
-                            mock_analyzer.extract_ground_truth.return_value = ([], mock_stats)
-                            mock_analyzer.analyze_ground_truth_scores = Mock()
+                            # Return some mock ground truth pairs so export gets called
+                            mock_pair = Mock()
+                            mock_analyzer.extract_ground_truth.return_value = (
+                                [mock_pair],
+                                mock_stats,
+                            )
                             mock_analyzer.export_ground_truth_analysis = Mock()
                             mock_analyzer_class.return_value = mock_analyzer
                             mock_logging.return_value = None
@@ -191,7 +195,6 @@ class TestMainCLI:
 
                             # Verify ground truth methods were called
                             mock_analyzer.extract_ground_truth.assert_called_once()
-                            mock_analyzer.analyze_ground_truth_scores.assert_called_once()
                             mock_analyzer.export_ground_truth_analysis.assert_called_once()
 
 
