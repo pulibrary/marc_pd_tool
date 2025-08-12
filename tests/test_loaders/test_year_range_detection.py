@@ -62,7 +62,7 @@ class TestYearRangeDetection(TestCase):
 
         # Test year range detection
         loader = CopyrightDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         # Verify results
         self.assertEqual(min_year, 1923)
@@ -71,7 +71,7 @@ class TestYearRangeDetection(TestCase):
     def test_copyright_year_range_empty_directory(self):
         """Test copyright year range detection with empty directory"""
         loader = CopyrightDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         self.assertIsNone(min_year)
         self.assertIsNone(max_year)
@@ -90,7 +90,7 @@ class TestYearRangeDetection(TestCase):
         test_file.write_text(test_xml)
 
         loader = CopyrightDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         self.assertIsNone(min_year)
         self.assertIsNone(max_year)
@@ -110,7 +110,7 @@ R999999	Invalid Date	Green, Grace	D99999	invalid-date	2000-01-01	Green LLC	uuid-
 
         # Test year range detection
         loader = RenewalDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         # Verify results (based on odat field)
         self.assertEqual(min_year, 1925)
@@ -119,7 +119,7 @@ R999999	Invalid Date	Green, Grace	D99999	invalid-date	2000-01-01	Green LLC	uuid-
     def test_renewal_year_range_empty_directory(self):
         """Test renewal year range detection with empty directory"""
         loader = RenewalDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         self.assertIsNone(min_year)
         self.assertIsNone(max_year)
@@ -133,7 +133,7 @@ R123456	No Date Work	Smith, John	A12345		1952-06-15	Smith Estate	uuid-1234"""
         test_file.write_text(test_tsv)
 
         loader = RenewalDataLoader(str(self.temp_path))
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
 
         self.assertIsNone(min_year)
         self.assertIsNone(max_year)

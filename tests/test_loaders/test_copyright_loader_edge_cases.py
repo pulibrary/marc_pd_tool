@@ -298,10 +298,9 @@ class TestCopyrightLoaderSpecialCases:
 
     def test_get_year_range(self, tmp_path):
         """Test getting year range from copyright data"""
+        # Test empty directory first
         loader = CopyrightDataLoader(str(tmp_path))
-
-        # Empty directory
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
         assert min_year is None
         assert max_year is None
 
@@ -326,7 +325,9 @@ class TestCopyrightLoaderSpecialCases:
 
             (year_dir / "entries.xml").write_text(xml_content)
 
-        min_year, max_year = loader.get_year_range()
+        # Create a new loader after files are created (cached_property caches the result)
+        loader2 = CopyrightDataLoader(str(tmp_path))
+        min_year, max_year = loader2.year_range
         assert min_year == 1945
         assert max_year == 1965
 

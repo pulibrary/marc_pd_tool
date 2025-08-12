@@ -62,7 +62,7 @@ class DataMatcher(ConfigurableMixin):
         self.similarity_calculator = similarity_calculator
 
         # Get adaptive scoring configuration
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
 
         # Get weight values using safe navigation
         title_weight = self._get_config_value(

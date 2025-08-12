@@ -316,9 +316,7 @@ class TestBuildWordbasedIndex:
     def test_build_index_with_config(self):
         """Test building index with custom config"""
         config = Mock(spec=ConfigLoader)
-        config.get_config.return_value = {
-            "matching": {"word_based": {"enable_abbreviation_expansion": False}}
-        }
+        config.config = {"matching": {"word_based": {"enable_abbreviation_expansion": False}}}
 
         publications = [
             Publication(title="Book 1", source_id="001"),

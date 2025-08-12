@@ -80,7 +80,7 @@ class DataIndexer(ConfigurableMixin):
         self._stemmer: Optional[MultiLanguageStemmer] = None
 
         # Get abbreviation expansion setting from config
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
         self.enable_abbreviation_expansion = bool(
             self._get_config_value(
                 config_dict, "matching.word_based.enable_abbreviation_expansion", True
@@ -439,7 +439,7 @@ def generate_wordbased_author_keys(
 
     # Get author processing config
     config = get_config()
-    author_config = config.get_author_processing_config()
+    author_config = config.author_processing_config
     author_stopwords_raw = author_config["stopwords"]
     author_titles_raw = author_config["titles"]
 
@@ -582,7 +582,7 @@ def generate_wordbased_publisher_keys(
 
     # Get publisher stopwords from config
     config = get_config()
-    publisher_stopwords = config.get_publisher_stopwords()
+    publisher_stopwords = config.publisher_stopwords
 
     # Enhanced punctuation and formatting cleanup
     cleaned = expanded_publisher.lower()

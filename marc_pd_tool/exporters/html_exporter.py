@@ -46,7 +46,7 @@ class HTMLExporter(BaseJSONExporter):
         # Group records by status
         if self.single_file:
             # All records together
-            all_records = self.get_records()
+            all_records = self.records
             sorted_records = self.sort_by_quality(all_records)
             self._generate_status_pages("all", sorted_records, output_path)
 
@@ -368,7 +368,7 @@ footer {
 
     def _generate_index(self, by_status: dict[str, JSONList], output_path: Path) -> None:
         """Generate the main index page"""
-        metadata = self.get_metadata()
+        metadata = self.metadata
         total_records = sum(len(records) for records in by_status.values())
 
         html = f"""<!DOCTYPE html>
@@ -442,7 +442,7 @@ footer {
 
     def _generate_simple_index(self, total_records: int, output_path: Path) -> None:
         """Generate simple index for single file mode"""
-        metadata = self.get_metadata()
+        metadata = self.metadata
 
         html = f"""<!DOCTYPE html>
 <html lang="en">

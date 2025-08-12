@@ -80,7 +80,7 @@ class ProcessingMixin:
         logger.info(f"Processing {len(publications)} records sequentially")
 
         # Get configuration for process_batch
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
         config_hash = self._compute_config_hash(config_dict)
 
         # Get detector config
@@ -174,7 +174,7 @@ class ProcessingMixin:
         )
 
         # Get configuration
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
         config_hash = self._compute_config_hash(config_dict)
 
         # Get detector config

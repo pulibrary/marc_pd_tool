@@ -79,7 +79,9 @@ class TestGroundTruthExtractor:
         extractor = GroundTruthExtractor()
 
         # Create MARC records
+        # Local imports
         from marc_pd_tool.data.enums import CountryClassification
+
         marc1 = Publication("Book 1", author="Author 1", lccn="n78890351")
         marc1.year = 1950
         marc1.country_classification = CountryClassification.US
@@ -130,7 +132,7 @@ class TestGroundTruthExtractor:
         assert stats.marc_with_lccn == 2
         assert stats.registration_matches == 1
         assert stats.renewal_matches == 1
-        
+
         # Check that copyright status was determined
         assert book1.copyright_status is not None
         assert book2.copyright_status is not None

@@ -108,11 +108,11 @@ def create_argument_parser() -> ArgumentParser:
     config = get_config()
 
     # Get all config sections with defaults
-    processing_config = config.get_processing_config()
-    filtering_config = config.get_filtering_config()
-    output_config = config.get_output_config()
-    caching_config = config.get_caching_config()
-    logging_config = config.get_logging_config()
+    processing_config = config.processing_config
+    filtering_config = config.filtering_config
+    output_config = config.output_config
+    caching_config = config.caching_config
+    logging_config = config.logging_config
 
     parser = ArgumentParser(
         description="Compare MARC publication data with copyright registry entries",
@@ -279,7 +279,7 @@ def create_argument_parser() -> ArgumentParser:
     parser.add_argument(
         "--generic-title-threshold",
         type=int,
-        default=config.get_generic_detector_config()["frequency_threshold"],
+        default=config.generic_detector_config["frequency_threshold"],
         help="Minimum occurrences for a title to be considered generic",
     )
     parser.add_argument(

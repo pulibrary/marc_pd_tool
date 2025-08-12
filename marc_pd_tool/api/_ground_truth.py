@@ -5,6 +5,7 @@
 # Standard library imports
 from json import dump
 from logging import getLogger
+from typing import Any
 from typing import Protocol
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,9 @@ class GroundTruthAnalyzerProtocol(Protocol):
     renewal_dir: str
     copyright_data: list[Publication] | None
     renewal_data: list[Publication] | None
+    config: Any  # ConfigLoader instance
+    registration_index: Any | None  # DataIndexer instance or None
+    renewal_index: Any | None  # DataIndexer instance or None
 
     def _load_and_index_data(self, options: dict[str, JSONType]) -> None: ...
     def _export_ground_truth_json(self, output_path: str) -> None: ...
@@ -67,7 +71,7 @@ class GroundTruthMixin:
         # Load MARC data
         logger.info(f"Loading MARC records from {marc_path}")
         # Use batch_size from config like other modes
-        batch_size = self.config.get_config().get("processing", {}).get("batch_size", 100)
+        batch_size = self.config.config.get("processing", {}).get("batch_size", 100)
         marc_loader = MarcLoader(
             marc_path=marc_path, batch_size=batch_size, min_year=min_year, max_year=max_year
         )

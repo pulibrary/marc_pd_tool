@@ -338,10 +338,9 @@ Book with\ttab\tAuthor\tName\tA234567\t1951\tR00002\t1978\tPublisher\tFull text 
 
     def test_get_year_range(self, tmp_path):
         """Test getting year range from renewal data"""
+        # Test empty directory first
         loader = RenewalDataLoader(str(tmp_path))
-
-        # Empty directory
-        min_year, max_year = loader.get_year_range()
+        min_year, max_year = loader.year_range
         assert min_year is None
         assert max_year is None
 
@@ -354,7 +353,9 @@ Book None\tAuthor\tA003\tinvalid\tR00003\t1990-01-01\tClaimant\tFull text"""
         tsv_file = tmp_path / "renewals.tsv"
         tsv_file.write_text(content)
 
-        min_year, max_year = loader.get_year_range()
+        # Create a new loader after files are created (cached_property caches the result)
+        loader2 = RenewalDataLoader(str(tmp_path))
+        min_year, max_year = loader2.year_range
         assert min_year == 1945
         assert max_year == 1965
 

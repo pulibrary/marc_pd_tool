@@ -30,7 +30,7 @@ class CSVExporter(BaseJSONExporter):
 
     def _export_single_file(self) -> None:
         """Export all records to a single CSV file"""
-        records = self.get_records()
+        records = self.records
         sorted_records = self.sort_by_quality(records)
 
         with open(self.output_path, "w", newline="", encoding="utf-8") as f:

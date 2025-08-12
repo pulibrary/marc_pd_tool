@@ -56,7 +56,7 @@ def normalize_unicode(text: str) -> str:
     # Get encoding corruption mappings from config
     # These are specific patterns found in ground truth analysis
     config = get_config()
-    replacements = config.get_unicode_corrections()
+    replacements = config.unicode_corrections
 
     # Apply known corruption fixes
     fixed = text

@@ -30,7 +30,7 @@ class TestMaxDataYearDetection:
             (temp_path / "99999").mkdir()  # Invalid year
 
             loader = CopyrightDataLoader(temp_dir)
-            max_year = loader.get_max_data_year()
+            max_year = loader.max_data_year
 
             assert max_year == 1977
 
@@ -44,14 +44,14 @@ class TestMaxDataYearDetection:
             (temp_path / "indexes").mkdir()
 
             loader = CopyrightDataLoader(temp_dir)
-            max_year = loader.get_max_data_year()
+            max_year = loader.max_data_year
 
             assert max_year is None
 
     def test_copyright_loader_nonexistent_directory(self):
         """Test CopyrightDataLoader with nonexistent directory"""
         loader = CopyrightDataLoader("/nonexistent/path")
-        max_year = loader.get_max_data_year()
+        max_year = loader.max_data_year
 
         assert max_year is None
 
@@ -71,7 +71,7 @@ class TestMaxDataYearDetection:
             (temp_path / "index.tsv").touch()
 
             loader = RenewalDataLoader(temp_dir)
-            max_year = loader.get_max_data_year()
+            max_year = loader.max_data_year
 
             assert max_year == 2001
 
@@ -85,14 +85,14 @@ class TestMaxDataYearDetection:
             (temp_path / "index.tsv").touch()
 
             loader = RenewalDataLoader(temp_dir)
-            max_year = loader.get_max_data_year()
+            max_year = loader.max_data_year
 
             assert max_year is None
 
     def test_renewal_loader_nonexistent_directory(self):
         """Test RenewalDataLoader with nonexistent directory"""
         loader = RenewalDataLoader("/nonexistent/path")
-        max_year = loader.get_max_data_year()
+        max_year = loader.max_data_year
 
         assert max_year is None
 
@@ -109,6 +109,6 @@ class TestMaxDataYearDetection:
             (temp_path / "bad-1999.tsv").touch()  # Should not match (doesn't start with year)
 
             loader = RenewalDataLoader(temp_dir)
-            max_year = loader.get_max_data_year()
+            max_year = loader.max_data_year
 
             assert max_year == 2001

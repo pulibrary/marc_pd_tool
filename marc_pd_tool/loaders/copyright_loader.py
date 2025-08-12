@@ -3,6 +3,7 @@
 """Copyright data XML loader for publications"""
 
 # Standard library imports
+from functools import cached_property
 from logging import getLogger
 from pathlib import Path
 from re import search
@@ -161,7 +162,8 @@ class CopyrightDataLoader(YearFilterableMixin):
         except Exception:
             return None
 
-    def get_year_range(self) -> tuple[int | None, int | None]:
+    @cached_property
+    def year_range(self) -> tuple[int | None, int | None]:
         """Get the year range (min, max) of copyright data without loading full publications
 
         Returns:
@@ -254,7 +256,8 @@ class CopyrightDataLoader(YearFilterableMixin):
         except Exception:
             return None
 
-    def get_max_data_year(self) -> int | None:
+    @cached_property
+    def max_data_year(self) -> int | None:
         """Scan copyright directory to find the latest year of data available
 
         Returns:

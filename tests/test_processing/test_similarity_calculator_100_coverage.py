@@ -20,7 +20,7 @@ class TestSimilarityCalculatorEdgeCases:
 
         # Create a mock config that disables abbreviation expansion
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": False,
@@ -29,8 +29,8 @@ class TestSimilarityCalculatorEdgeCases:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -43,7 +43,7 @@ class TestSimilarityCalculatorEdgeCases:
 
         # Create a mock config that disables stemming
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": True,
@@ -52,8 +52,8 @@ class TestSimilarityCalculatorEdgeCases:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -78,7 +78,7 @@ class TestSimilarityCalculatorEdgeCases:
         # Test line 217 - when abbreviation expansion is disabled
 
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": False,
@@ -87,8 +87,8 @@ class TestSimilarityCalculatorEdgeCases:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -112,7 +112,7 @@ class TestSimilarityCalculatorEdgeCases:
         # Test line 242 - when abbreviation expansion is disabled
 
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": False,
@@ -121,8 +121,8 @@ class TestSimilarityCalculatorEdgeCases:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -138,7 +138,7 @@ class TestCalculatorConfiguration:
         """Test calculator with all features disabled"""
 
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": False,
@@ -147,8 +147,8 @@ class TestCalculatorConfiguration:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -169,7 +169,7 @@ class TestCalculatorConfiguration:
         """Test calculator with mixed configurations"""
         # Enable abbreviation but not stemming
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_config.return_value = {
+        mock_config.config = {
             "matching": {
                 "word_based": {
                     "enable_abbreviation_expansion": True,
@@ -178,8 +178,8 @@ class TestCalculatorConfiguration:
                 }
             }
         }
-        mock_config.get_author_stopwords.return_value = []
-        mock_config.get_publisher_stopwords.return_value = []
+        mock_config.author_stopwords = set()
+        mock_config.publisher_stopwords = set()
 
         calculator = SimilarityCalculator(config=mock_config)
 

@@ -4,6 +4,7 @@
 
 # Standard library imports
 from csv import DictReader
+from functools import cached_property
 from logging import getLogger
 from pathlib import Path
 from re import search
@@ -174,7 +175,8 @@ class RenewalDataLoader(YearFilterableMixin):
             logger.debug(f"Error extracting publisher from full_text: {e}")
             return ""
 
-    def get_year_range(self) -> tuple[int | None, int | None]:
+    @cached_property
+    def year_range(self) -> tuple[int | None, int | None]:
         """Get the year range (min, max) of renewal data without loading full publications
 
         Returns:
@@ -244,7 +246,8 @@ class RenewalDataLoader(YearFilterableMixin):
         except Exception:
             return None
 
-    def get_max_data_year(self) -> int | None:
+    @cached_property
+    def max_data_year(self) -> int | None:
         """Scan renewal directory to find the latest year of data available
 
         Returns:

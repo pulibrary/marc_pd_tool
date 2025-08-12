@@ -137,7 +137,7 @@ class MultiLanguageStemmer:
 
 # Get abbreviations from config
 _config = get_config()
-PUBLISHING_ABBREVIATIONS = _config.get_abbreviations()
+PUBLISHING_ABBREVIATIONS = _config.abbreviations
 if not PUBLISHING_ABBREVIATIONS:
     raise ValueError("No abbreviations found in wordlists.json")
 
@@ -204,7 +204,7 @@ def normalize_publisher_text(
     if config is None:
         config = get_config()
 
-    suffix_pattern = config.get_publisher_suffix_regex()
+    suffix_pattern = config.publisher_suffix_regex
 
     return normalize_text_comprehensive(
         text,
@@ -227,7 +227,7 @@ def _get_publisher_stopwords() -> set[str]:
         Set of publisher stopwords
     """
     config = get_config()
-    stopwords_list = config.get_stopwords("publisher") if config else None
+    stopwords_list = list(config.publisher_stopwords) if config else None
     return set(stopwords_list) if stopwords_list else set()
 
 
@@ -308,7 +308,7 @@ class GenericTitleDetector:
         if not config:
             config = get_config()
 
-        generic_patterns = config.get_patterns("generic_titles")
+        generic_patterns = list(config.generic_title_patterns)
         if not generic_patterns:
             raise ValueError("No generic title patterns found in wordlists.json")
 
@@ -319,7 +319,7 @@ class GenericTitleDetector:
             self.patterns.update(p.lower() for p in custom_patterns)
 
         # Get stopwords for filtering - require config
-        self.stopwords = config.get_stopwords_set()
+        self.stopwords = config.stopwords_set
 
         self._trim_performed = False  # Track if we've trimmed the counter
 

@@ -3,6 +3,7 @@
 """Configuration loading and management for MARC copyright analysis tool"""
 
 # Standard library imports
+from functools import cached_property
 from json import load as json_load
 from logging import getLogger
 from os import getcwd
@@ -20,7 +21,11 @@ logger = getLogger(__name__)
 
 
 class ConfigLoader:
-    """Handles loading and merging of JSON configuration files"""
+    """Handles loading and merging of JSON configuration files
+
+    This class provides a clean property-based API for accessing configuration
+    values. All expensive computations are automatically cached using @cached_property.
+    """
 
     def __init__(self, config_path: str | None = None):
         """Initialize configuration loader
@@ -142,152 +147,6 @@ class ConfigLoader:
 
         return result
 
-    def get_scoring_weights(self, scenario: str) -> dict[str, float]:
-        """Get scoring weights for a specific scenario
-
-        Args:
-            scenario: One of 'normal_with_publisher', 'generic_with_publisher',
-                     'normal_no_publisher', 'generic_no_publisher'
-
-        Returns:
-            Dictionary with title, author, and optionally publisher weights
-        """
-        weights = self._config.get("scoring_weights", {})
-        scenario_weights = weights.get(scenario, {})  # type: ignore[union-attr]
-        return {k: float(v) for k, v in scenario_weights.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
-
-    def get_threshold(self, threshold_name: str) -> int:
-        """Get a specific threshold value
-
-        Args:
-            threshold_name: Name of threshold (title, author, publisher, etc.)
-
-        Returns:
-            Threshold value
-        """
-        thresholds = self._config.get("default_thresholds", {})
-        value = thresholds.get(threshold_name, 80)  # type: ignore[union-attr]
-        if isinstance(value, (int, float)):
-            return int(value)
-        return 80
-
-    def get_generic_detector_config(self) -> dict[str, int]:
-        """Get generic title detector configuration
-
-        Returns:
-            Configuration dictionary for GenericTitleDetector
-        """
-        config = self._config.get("generic_title_detector", {"frequency_threshold": 10})
-        return {k: int(v) for k, v in config.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
-
-    def get_stopwords_set(self) -> set[str]:
-        """Get stopwords as a set for efficient lookup
-
-        Returns:
-            Set of stopwords
-        """
-        return set(self.get_stopwords("general"))
-
-    def get_publisher_stopwords(self) -> set[str]:
-        """Get publisher stopwords as a set for efficient lookup
-
-        Returns:
-            Set of publisher stopwords
-        """
-        return set(self.get_stopwords("publisher"))
-
-    def get_edition_stopwords(self) -> set[str]:
-        """Get edition stopwords as a set for efficient lookup
-
-        Returns:
-            Set of edition stopwords
-        """
-        return set(self.get_stopwords("edition"))
-
-    def get_ordinal_terms(self) -> set[str]:
-        """Get ordinal terms as a set for efficient lookup
-
-        Returns:
-            Set of ordinal terms
-        """
-        return set(self.get_patterns("ordinals"))
-
-    def get_config(self) -> JSONDict:
-        """Get the complete configuration dictionary
-
-        Returns:
-            Complete configuration dictionary
-        """
-        return self._config
-
-    def get_matching_config(self) -> MatchingConfig:
-        """Get matching engine configuration
-
-        Returns:
-            Configuration dictionary for matching engines
-        """
-        matching = self._config.get("matching", {})
-        word_based_raw = matching.get("word_based", {})  # type: ignore[union-attr]
-        # Ensure all required fields are present
-        word_based: WordBasedConfig = {
-            "default_language": str(word_based_raw.get("default_language", "eng")),  # type: ignore[union-attr]
-            "enable_stemming": bool(word_based_raw.get("enable_stemming", True)),  # type: ignore[union-attr]
-            "enable_abbreviation_expansion": bool(
-                word_based_raw.get("enable_abbreviation_expansion", True)  # type: ignore[union-attr]
-            ),
-        }
-        return MatchingConfig(word_based=word_based)
-
-    def get_processing_config(self) -> JSONDict:
-        """Get processing configuration
-
-        Returns:
-            Dictionary with batch_size, max_workers, score_everything_mode, brute_force_missing_year
-        """
-        processing = self._config.get("processing", {})
-        return dict(processing)  # type: ignore[arg-type]
-
-    def get_filtering_config(self) -> JSONDict:
-        """Get filtering configuration
-
-        Returns:
-            Dictionary with min_year, max_year, us_only
-        """
-        filtering = self._config.get("filtering", {})
-        return dict(filtering)  # type: ignore[arg-type]
-
-    def get_output_config(self) -> JSONDict:
-        """Get output configuration
-
-        Returns:
-            Dictionary with single_file setting
-        """
-        output = self._config.get("output", {})
-        return dict(output)  # type: ignore[arg-type]
-
-    def get_caching_config(self) -> JSONDict:
-        """Get caching configuration
-
-        Returns:
-            Dictionary with cache_dir, force_refresh, no_cache
-        """
-        caching = self._config.get("caching", {})
-        return dict(caching)  # type: ignore[arg-type]
-
-    def get_logging_config(self) -> JSONDict:
-        """Get logging configuration
-
-        Returns:
-            Dictionary with debug, log_file
-        """
-        logging = self._config.get("logging", {})
-        return dict(logging)  # type: ignore[arg-type]
-
-    def reload(self) -> None:
-        """Reload configuration from file"""
-        self._config = self._load_config()
-        self._wordlists = self._load_wordlists()
-
     def _resolve_wordlists_path(self) -> str | None:
         """Find wordlists.json file in same directory as config
 
@@ -332,146 +191,142 @@ class ConfigLoader:
 
         return None
 
-    def get_wordlists(self) -> Wordlists | None:
-        """Get the wordlists dictionary
+    # ============= Simple Properties (no caching needed) =============
 
-        Returns:
-            Wordlists dictionary or None
-        """
+    @property
+    def config(self) -> JSONDict:
+        """Complete configuration dictionary"""
+        return self._config
+
+    @property
+    def wordlists(self) -> Wordlists | None:
+        """Wordlists dictionary if loaded"""
         return self._wordlists
 
-    def get_abbreviations(self) -> dict[str, str]:
-        """Get abbreviations dictionary
+    @property
+    def processing_config(self) -> JSONDict:
+        """Processing configuration section"""
+        result = self._config.get("processing", {})
+        return result if isinstance(result, dict) else {}
 
-        Returns:
-            Abbreviations mapping
-        """
+    @property
+    def filtering_config(self) -> JSONDict:
+        """Filtering configuration section"""
+        result = self._config.get("filtering", {})
+        return result if isinstance(result, dict) else {}
+
+    @property
+    def output_config(self) -> JSONDict:
+        """Output configuration section"""
+        result = self._config.get("output", {})
+        return result if isinstance(result, dict) else {}
+
+    @property
+    def caching_config(self) -> JSONDict:
+        """Caching configuration section"""
+        result = self._config.get("caching", {})
+        return result if isinstance(result, dict) else {}
+
+    @property
+    def logging_config(self) -> JSONDict:
+        """Logging configuration section"""
+        result = self._config.get("logging", {})
+        return result if isinstance(result, dict) else {}
+
+    # ============= Cached Properties (expensive computations) =============
+
+    @cached_property
+    def stopwords_set(self) -> set[str]:
+        """General stopwords as a set for efficient lookup"""
+        return set(self._get_stopwords("general"))
+
+    @cached_property
+    def publisher_stopwords(self) -> set[str]:
+        """Publisher-specific stopwords as a set"""
+        return set(self._get_stopwords("publisher"))
+
+    @cached_property
+    def edition_stopwords(self) -> set[str]:
+        """Edition-specific stopwords as a set"""
+        return set(self._get_stopwords("edition"))
+
+    @cached_property
+    def author_stopwords(self) -> set[str]:
+        """Author-specific stopwords as a set"""
+        return set(self._get_stopwords("author"))
+
+    @cached_property
+    def title_stopwords(self) -> set[str]:
+        """Title-specific stopwords as a set"""
+        return set(self._get_stopwords("title"))
+
+    @cached_property
+    def all_stopwords(self) -> set[str]:
+        """All stopwords from all categories combined"""
+        if self._wordlists and "stopwords" in self._wordlists:
+            all_words = set()
+            for category_stopwords in self._wordlists["stopwords"].values():
+                if isinstance(category_stopwords, list):
+                    all_words.update(category_stopwords)
+            return all_words
+        return set()
+
+    @cached_property
+    def ordinal_terms(self) -> set[str]:
+        """Ordinal terms (first, second, 1st, 2nd, etc.) as a set"""
+        return set(self._get_patterns("ordinals"))
+
+    @cached_property
+    def generic_title_patterns(self) -> set[str]:
+        """Generic title patterns as a set"""
+        return set(self._get_patterns("generic_titles"))
+
+    @cached_property
+    def matching_config(self) -> MatchingConfig:
+        """Matching engine configuration"""
+        matching = self._config.get("matching", {})
+        word_based_raw = matching.get("word_based", {})  # type: ignore[union-attr]
+        # Ensure all required fields are present
+        word_based: WordBasedConfig = {
+            "default_language": str(word_based_raw.get("default_language", "eng")),  # type: ignore[union-attr]
+            "enable_stemming": bool(word_based_raw.get("enable_stemming", True)),  # type: ignore[union-attr]
+            "enable_abbreviation_expansion": bool(
+                word_based_raw.get("enable_abbreviation_expansion", True)  # type: ignore[union-attr]
+            ),
+        }
+        return MatchingConfig(word_based=word_based)
+
+    @cached_property
+    def generic_detector_config(self) -> dict[str, int]:
+        """Generic title detector configuration"""
+        config = self._config.get("generic_title_detector", {"frequency_threshold": 10})
+        return {k: int(v) for k, v in config.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
+
+    @cached_property
+    def abbreviations(self) -> dict[str, str]:
+        """Bibliographic abbreviations mapping"""
         if self._wordlists and "abbreviations" in self._wordlists:
             abbrevs = self._wordlists["abbreviations"].get("bibliographic", {})
-            # Ensure we return a proper dict[str, str]
             return {k: str(v) for k, v in abbrevs.items() if isinstance(k, str)}
         return {}
 
-    def get_stopwords(self, category: str = "general") -> list[str]:
-        """Get stopwords list by category
-
-        Args:
-            category: Stopword category (general, publisher, edition, title, author)
-
-        Returns:
-            List of stopwords
-        """
-        if self._wordlists and "stopwords" in self._wordlists:
-            words = self._wordlists["stopwords"].get(category, [])
-            # Ensure we return a proper list[str]
-            return [str(w) for w in words]
-        # Return empty list if no wordlists loaded
-        return []
-
-    def get_patterns(self, pattern_type: str) -> list[str]:
-        """Get pattern list by type
-
-        Args:
-            pattern_type: Pattern type (generic_titles, ordinals, etc.)
-
-        Returns:
-            List of patterns
-        """
-        if self._wordlists and "patterns" in self._wordlists:
-            patterns = self._wordlists["patterns"].get(pattern_type, [])
-            # Ensure we return a proper list[str]
-            return [str(p) for p in patterns]
-        return []
-
-    def get_author_stopwords(self) -> set[str]:
-        """Get author stopwords as a set for efficient lookup
-
-        Returns:
-            Set of author stopwords
-        """
-        if self._wordlists and "stopwords" in self._wordlists:
-            return set(self._wordlists["stopwords"].get("author", []))
-        return set()
-
-    def get_unicode_corrections(self) -> dict[str, str]:
-        """Get Unicode encoding corruption corrections mapping
-
-        Returns:
-            Dictionary mapping corrupted characters to correct ones
-        """
+    @cached_property
+    def unicode_corrections(self) -> dict[str, str]:
+        """Unicode encoding corruption corrections"""
         if self._wordlists and "text_fixes" in self._wordlists:
             result = self._wordlists["text_fixes"].get("unicode_corrections", {})
             return dict(result)
         return {}
 
-    def get_combined_stopwords(self, *categories: str) -> set[str]:
-        """Get combined stopwords from multiple categories
+    @cached_property
+    def publisher_suffixes(self) -> list[str]:
+        """Publisher suffix patterns for normalization"""
+        return self._get_patterns("publisher_suffixes")
 
-        Args:
-            *categories: Variable number of category names (e.g., "general", "title", "author")
-
-        Returns:
-            Set of combined stopwords from all specified categories
-        """
-        result = set()
-        for category in categories:
-            stopwords = self.get_stopwords(category)
-            result.update(stopwords)
-        return result
-
-    def get_all_stopwords(self) -> set[str]:
-        """Get all stopwords from all categories
-
-        Returns:
-            Set of all stopwords across all categories
-        """
-        if self._wordlists and "stopwords" in self._wordlists:
-            all_stopwords = set()
-            for category_stopwords in self._wordlists["stopwords"].values():
-                if isinstance(category_stopwords, list):
-                    all_stopwords.update(category_stopwords)
-            return all_stopwords
-        return set()
-
-    def get_title_processing_config(self) -> JSONDict:
-        """Get all configuration needed for title processing
-
-        Returns:
-            Dictionary with stopwords, abbreviations, and generic patterns
-        """
-        return {
-            "stopwords": list(self.get_stopwords("title")),
-            "abbreviations": self.get_abbreviations(),  # type: ignore[dict-item]
-            "generic_patterns": self.get_patterns("generic_titles"),  # type: ignore[dict-item]
-        }
-
-    def get_author_processing_config(self) -> JSONDict:
-        """Get all configuration needed for author processing
-
-        Returns:
-            Dictionary with stopwords, titles, and other author-specific config
-        """
-        return {
-            "stopwords": list(self.get_author_stopwords()),
-            "titles": self.get_patterns("author_titles"),  # type: ignore[dict-item]
-            "abbreviations": self.get_abbreviations(),  # type: ignore[dict-item]
-        }
-
-    def get_publisher_suffixes(self) -> list[str]:
-        """Get publisher suffix patterns for normalization
-
-        Returns:
-            List of publisher suffix patterns
-        """
-        return self.get_patterns("publisher_suffixes")
-
-    def get_publisher_suffix_regex(self) -> str:
-        """Get compiled regex pattern for publisher suffixes
-
-        Returns:
-            Regex pattern string for matching publisher suffixes
-        """
-        suffixes = self.get_publisher_suffixes()
+    @cached_property
+    def publisher_suffix_regex(self) -> str:
+        """Compiled regex pattern for publisher suffixes"""
+        suffixes = self.publisher_suffixes
         if suffixes:
             # Handle plurals with ? in the pattern
             pattern_parts = []
@@ -482,6 +337,107 @@ class ConfigLoader:
                     pattern_parts.append(suffix)
             return r"\b(" + "|".join(pattern_parts) + r")\b"
         return ""
+
+    @cached_property
+    def title_processing_config(self) -> JSONDict:
+        """All configuration needed for title processing"""
+        return {
+            "stopwords": list(self.title_stopwords),
+            "abbreviations": (
+                self.abbreviations
+            ),  # dict[str, str] is already compatible with JSONType
+            "generic_patterns": list(self.generic_title_patterns),
+        }
+
+    @cached_property
+    def author_processing_config(self) -> JSONDict:
+        """All configuration needed for author processing"""
+        return {
+            "stopwords": list(self.author_stopwords),
+            "titles": self._get_patterns("author_titles"),
+            "abbreviations": (
+                self.abbreviations
+            ),  # dict[str, str] is already compatible with JSONType
+        }
+
+    # ============= Public Methods (need parameters) =============
+
+    def get_scoring_weights(self, scenario: str) -> dict[str, float]:
+        """Get scoring weights for a specific scenario
+
+        Args:
+            scenario: One of 'normal_with_publisher', 'generic_with_publisher',
+                     'normal_no_publisher', 'generic_no_publisher'
+
+        Returns:
+            Dictionary with title, author, and optionally publisher weights
+        """
+        weights = self._config.get("scoring_weights", {})
+        scenario_weights = weights.get(scenario, {})  # type: ignore[union-attr]
+        return {k: float(v) for k, v in scenario_weights.items() if isinstance(v, (int, float))}  # type: ignore[union-attr]
+
+    def get_threshold(self, threshold_name: str) -> int:
+        """Get a specific threshold value
+
+        Args:
+            threshold_name: Name of threshold (title, author, publisher, etc.)
+
+        Returns:
+            Threshold value
+        """
+        thresholds = self._config.get("default_thresholds", {})
+        value = thresholds.get(threshold_name, 80)  # type: ignore[union-attr]
+        if isinstance(value, (int, float)):
+            return int(value)
+        return 80
+
+    def get_combined_stopwords(self, *categories: str) -> set[str]:
+        """Get combined stopwords from multiple categories
+
+        Args:
+            *categories: Variable number of category names
+
+        Returns:
+            Set of combined stopwords from all specified categories
+        """
+        result = set()
+        for category in categories:
+            stopwords = self._get_stopwords(category)
+            result.update(stopwords)
+        return result
+
+    # ============= Private Helper Methods =============
+
+    def _get_stopwords(self, category: str = "general") -> list[str]:
+        """INTERNAL: Get stopwords list by category
+
+        Args:
+            category: Stopword category
+
+        Returns:
+            List of stopwords for the category
+        """
+        if self._wordlists and "stopwords" in self._wordlists:
+            words = self._wordlists["stopwords"].get(category, [])
+            # Ensure we return a proper list[str]
+            return [str(w) for w in words]
+        # Return empty list if no wordlists loaded
+        return []
+
+    def _get_patterns(self, pattern_type: str) -> list[str]:
+        """INTERNAL: Get pattern list by type
+
+        Args:
+            pattern_type: Pattern type
+
+        Returns:
+            List of patterns
+        """
+        if self._wordlists and "patterns" in self._wordlists:
+            patterns = self._wordlists["patterns"].get(pattern_type, [])
+            # Ensure we return a proper list[str]
+            return [str(p) for p in patterns]
+        return []
 
 
 # Global default instance - uses auto-detection

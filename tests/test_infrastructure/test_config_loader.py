@@ -31,7 +31,7 @@ class TestConfigLoader:
         assert config.get_threshold("publisher") == 30
 
         # Test word lists
-        stopwords = config.get_stopwords()
+        stopwords = config._get_stopwords()
         assert "the" in stopwords
         assert "and" in stopwords
         assert len(stopwords) > 10
@@ -128,17 +128,17 @@ class TestConfigLoader:
         config = ConfigLoader()
 
         # Test stopwords
-        stopwords = config.get_stopwords_set()
+        stopwords = config.stopwords_set
         assert isinstance(stopwords, set)
         assert "the" in stopwords
 
         # Test publisher stopwords
-        pub_stopwords = config.get_publisher_stopwords()
+        pub_stopwords = config.publisher_stopwords
         assert isinstance(pub_stopwords, set)
         assert "publishing" in pub_stopwords  # Changed from "press" which is no longer a stopword
 
         # Test edition stopwords
-        ed_stopwords = config.get_edition_stopwords()
+        ed_stopwords = config.edition_stopwords
         assert isinstance(ed_stopwords, set)
         assert "edition" in ed_stopwords
 
@@ -179,7 +179,7 @@ class TestConfigLoader:
         """Test generic title detector configuration access"""
         config = ConfigLoader()
 
-        detector_config = config.get_generic_detector_config()
+        detector_config = config.generic_detector_config
         assert isinstance(detector_config, dict)
         assert "frequency_threshold" in detector_config
         assert detector_config["frequency_threshold"] == 10

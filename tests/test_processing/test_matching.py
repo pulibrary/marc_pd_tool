@@ -195,7 +195,7 @@ class TestSimilarityCalculator:
     def mock_config(self):
         """Create a mock configuration"""
         config = MagicMock(spec=ConfigLoader)
-        config.get_config.return_value = {
+        config.config = {
             "matching": {
                 "word_based": {
                     "default_language": "eng",
@@ -205,15 +205,8 @@ class TestSimilarityCalculator:
             }
         }
         # Add method mocks for stopwords
-        config.get_author_stopwords.return_value = {
-            "by",
-            "edited",
-            "compiled",
-            "translated",
-            "author",
-            "editor",
-        }
-        config.get_publisher_stopwords.return_value = {
+        config.author_stopwords = {"by", "edited", "compiled", "translated", "author", "editor"}
+        config.publisher_stopwords = {
             "publishing",
             "publishers",
             "company",
@@ -385,7 +378,7 @@ class TestDataMatcher:
     def mock_config(self):
         """Create a mock configuration"""
         config = MagicMock(spec=ConfigLoader)
-        config.get_config.return_value = {
+        config.config = {
             "matching": {
                 "word_based": {
                     "default_language": "eng",
@@ -567,7 +560,7 @@ class TestMatchingIntegration:
     def test_enhanced_matching_with_stemming_disabled(self):
         """Test enhanced matching with stemming disabled"""
         config = MagicMock(spec=ConfigLoader)
-        config.get_config.return_value = {
+        config.config = {
             "matching": {
                 "word_based": {
                     "default_language": "eng",
@@ -583,7 +576,7 @@ class TestMatchingIntegration:
     def test_enhanced_matching_with_abbreviation_expansion_disabled(self):
         """Test enhanced matching with abbreviation expansion disabled"""
         config = MagicMock(spec=ConfigLoader)
-        config.get_config.return_value = {
+        config.config = {
             "matching": {
                 "word_based": {
                     "default_language": "eng",
@@ -599,7 +592,7 @@ class TestMatchingIntegration:
     def test_enhanced_matching_different_languages(self):
         """Test enhanced matching with different default languages"""
         config = MagicMock(spec=ConfigLoader)
-        config.get_config.return_value = {
+        config.config = {
             "matching": {
                 "word_based": {
                     "default_language": "fre",  # French

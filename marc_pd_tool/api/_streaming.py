@@ -179,7 +179,7 @@ class StreamingMixin:
         logger.info(f"Worker results will be saved to: {result_temp_dir}")
 
         # Get configuration hash for cache validation
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
         config_hash = self._compute_config_hash(config_dict)
 
         # Get detector config

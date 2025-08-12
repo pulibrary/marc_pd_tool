@@ -17,25 +17,31 @@ class MockConfigLoader:
     def __init__(self, config_dict: Dict[str, Any]):
         self.config = config_dict
 
-    def get_processing_config(self) -> Dict[str, Any]:
+    @property
+    def processing_config(self) -> Dict[str, Any]:
         return self.config.get("processing", {})
 
-    def get_filtering_config(self) -> Dict[str, Any]:
+    @property
+    def filtering_config(self) -> Dict[str, Any]:
         return self.config.get("filtering", {})
 
-    def get_output_config(self) -> Dict[str, Any]:
+    @property
+    def output_config(self) -> Dict[str, Any]:
         return self.config.get("output", {})
 
-    def get_caching_config(self) -> Dict[str, Any]:
+    @property
+    def caching_config(self) -> Dict[str, Any]:
         return self.config.get("caching", {})
 
-    def get_logging_config(self) -> Dict[str, Any]:
+    @property
+    def logging_config(self) -> Dict[str, Any]:
         return self.config.get("logging", {})
 
     def get_threshold(self, name: str) -> int:
         return self.config.get("default_thresholds", {}).get(name, 80)
 
-    def get_generic_detector_config(self) -> Dict[str, int]:
+    @property
+    def generic_detector_config(self) -> Dict[str, int]:
         return self.config.get("generic_title_detector", {"frequency_threshold": 10})
 
 

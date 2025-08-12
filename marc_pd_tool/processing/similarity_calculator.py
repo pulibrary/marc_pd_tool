@@ -31,7 +31,7 @@ class SimilarityCalculator(ConfigurableMixin):
         self.stemmer = MultiLanguageStemmer()
 
         # Get default language from config
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
 
         # Get configuration values using safe navigation
         self.default_language = str(
@@ -217,7 +217,7 @@ class SimilarityCalculator(ConfigurableMixin):
             expanded = author
 
         # Remove common author stopwords and qualifiers
-        author_stopwords = self.config.get_author_stopwords()
+        author_stopwords = self.config.author_stopwords
         words = [word for word in expanded.lower().split() if word not in author_stopwords]
 
         return " ".join(words)
@@ -242,7 +242,7 @@ class SimilarityCalculator(ConfigurableMixin):
             expanded = publisher
 
         # Remove common publisher stopwords
-        publisher_stopwords = self.config.get_publisher_stopwords()
+        publisher_stopwords = self.config.publisher_stopwords
         words = [word for word in expanded.lower().split() if word not in publisher_stopwords]
 
         return " ".join(words)

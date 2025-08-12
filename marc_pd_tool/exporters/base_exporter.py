@@ -64,7 +64,8 @@ class BaseJSONExporter(ABC):
         """
         pass
 
-    def get_records(self) -> JSONList:
+    @property
+    def records(self) -> JSONList:
         """Get all records from the JSON data
 
         Returns:
@@ -72,7 +73,8 @@ class BaseJSONExporter(ABC):
         """
         return self.json_data.get("records", [])  # type: ignore[return-value]
 
-    def get_metadata(self) -> JSONDict:
+    @property
+    def metadata(self) -> JSONDict:
         """Get metadata from the JSON data
 
         Returns:
@@ -88,7 +90,7 @@ class BaseJSONExporter(ABC):
         """
         grouped: dict[str, JSONList] = {}
 
-        for record in self.get_records():
+        for record in self.records:
             if isinstance(record, dict):
                 analysis = record.get("analysis", {})
                 status = "UNKNOWN"

@@ -293,7 +293,7 @@ class TestNormalizePublisherText:
         from marc_pd_tool.infrastructure.config_loader import ConfigLoader
 
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_publisher_suffix_regex.return_value = r"\s+(inc|ltd|co)\b"
+        mock_config.publisher_suffix_regex = r"\s+(inc|ltd|co)\b"
 
         result = normalize_publisher_text("Random House Inc", config=mock_config)
         assert "random" in result
@@ -411,7 +411,7 @@ class TestGenericTitleDetector:
         # Mock config to return None for patterns (line 313)
         with patch("marc_pd_tool.processing.text_processing.get_config") as mock_config:
             mock_cfg = Mock()
-            mock_cfg.get_patterns.return_value = None
+            mock_cfg.generic_title_patterns = set()
             mock_config.return_value = mock_cfg
 
             with pytest.raises(ValueError, match="No generic title patterns found"):
@@ -423,8 +423,8 @@ class TestGenericTitleDetector:
         from marc_pd_tool.infrastructure.config_loader import ConfigLoader
 
         mock_config = Mock(spec=ConfigLoader)
-        mock_config.get_patterns.return_value = ["annual report", "complete works"]
-        mock_config.get_stopwords_set.return_value = {"the", "a", "an"}
+        mock_config.generic_title_patterns = {"annual report", "complete works"}
+        mock_config.stopwords_set = {"the", "a", "an"}
 
         # Test line 308 - when config is provided
         detector = GenericTitleDetector(config=mock_config)

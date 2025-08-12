@@ -18,7 +18,7 @@ class TestBatchSizeConsistency:
     def test_default_batch_size_from_config(self):
         """Test that analyzer uses config.json default of 100"""
         analyzer = MarcCopyrightAnalyzer()
-        config = analyzer.config.get_config()
+        config = analyzer.config.config
 
         # Config should default to 100
         assert config.get("processing", {}).get("batch_size") == 100
@@ -34,8 +34,8 @@ class TestBatchSizeConsistency:
             with patch("marc_pd_tool.api._analyzer.CopyrightDataLoader") as mock_copyright:
                 with patch("marc_pd_tool.api._analyzer.RenewalDataLoader") as mock_renewal:
                     # Mock the get_max_data_year methods
-                    mock_copyright.return_value.get_max_data_year.return_value = 1977
-                    mock_renewal.return_value.get_max_data_year.return_value = 2001
+                    mock_copyright.return_value.max_data_year = 1977
+                    mock_renewal.return_value.max_data_year = 2001
 
                     # Mock MarcLoader to capture the batch_size passed to it
                     with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_marc_loader:
@@ -66,8 +66,8 @@ class TestBatchSizeConsistency:
             # Mock the loaders
             with patch("marc_pd_tool.api._analyzer.CopyrightDataLoader") as mock_copyright:
                 with patch("marc_pd_tool.api._analyzer.RenewalDataLoader") as mock_renewal:
-                    mock_copyright.return_value.get_max_data_year.return_value = 1977
-                    mock_renewal.return_value.get_max_data_year.return_value = 2001
+                    mock_copyright.return_value.max_data_year = 1977
+                    mock_renewal.return_value.max_data_year = 2001
 
                     with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_marc_loader:
                         mock_marc_loader.return_value.extract_all_batches.return_value = []
@@ -127,7 +127,7 @@ class TestBatchSizeConsistency:
         # hardcoded values that would override config
 
         analyzer = MarcCopyrightAnalyzer()
-        config = analyzer.config.get_config()
+        config = analyzer.config.config
 
         # The default should be 100 from config, not 200 or 1000
         default_batch = config.get("processing", {}).get("batch_size", 100)

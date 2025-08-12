@@ -162,7 +162,7 @@ class XLSXExporter(BaseJSONExporter):
 
         if self.single_file:
             # All records in one sheet
-            records = self.get_records()
+            records = self.records
             sorted_records = self.sort_by_quality(records)
             self._create_data_sheet(wb, "All Records", sorted_records)
         else:
@@ -196,7 +196,7 @@ class XLSXExporter(BaseJSONExporter):
         ws.merge_cells("A1:B1")
 
         # Processing info
-        metadata = self.get_metadata()
+        metadata = self.metadata
         ws["A3"] = "Processing Date:"
         ws["B3"] = metadata.get("processing_date", "Unknown")
 

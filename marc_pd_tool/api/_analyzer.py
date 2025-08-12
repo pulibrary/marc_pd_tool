@@ -147,8 +147,8 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
             copyright_loader = CopyrightDataLoader(self.copyright_dir)
             renewal_loader = RenewalDataLoader(self.renewal_dir)
 
-            max_copyright_year = copyright_loader.get_max_data_year()
-            max_renewal_year = renewal_loader.get_max_data_year()
+            max_copyright_year = copyright_loader.max_data_year
+            max_renewal_year = renewal_loader.max_data_year
 
             # Use the maximum of both (could be None if directories don't exist)
             if max_copyright_year is not None and max_renewal_year is not None:
@@ -167,7 +167,7 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
         # Create MARC loader with max_data_year
         # Use batch_size from options, which defaults to config.json value
         batch_size = options.get(
-            "batch_size", self.config.get_config().get("processing", {}).get("batch_size", 100)
+            "batch_size", self.config.config.get("processing", {}).get("batch_size", 100)
         )
         marc_loader = MarcLoader(
             marc_path=marc_path,
@@ -277,7 +277,7 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
         # Get processing parameters
         # Use same batch_size default as loading phase
         batch_size = options.get(
-            "batch_size", self.config.get_config().get("processing", {}).get("batch_size", 100)
+            "batch_size", self.config.config.get("processing", {}).get("batch_size", 100)
         )
         num_processes = options.get("num_processes")
         if num_processes is None:
@@ -407,7 +407,7 @@ class MarcCopyrightAnalyzer(ProcessingMixin, StreamingMixin, GroundTruthMixin, E
             logger.info(f"Loading copyright/renewal data for years: {year_range}")
 
         # Check for cached indexes
-        config_dict = self.config.get_config()
+        config_dict = self.config.config
         config_hash = self._compute_config_hash(config_dict)
 
         cached_indexes = self.cache_manager.get_cached_indexes(
