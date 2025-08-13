@@ -12,13 +12,15 @@ from tempfile import TemporaryDirectory
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.ground_truth_csv_exporter import export_ground_truth_csv
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.adapters.exporters.ground_truth_csv_exporter import (
+    export_ground_truth_csv,
+)
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestGroundTruthCSVExport:

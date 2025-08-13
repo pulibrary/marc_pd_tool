@@ -7,8 +7,8 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestLCCNScoring:
@@ -90,12 +90,7 @@ class TestLCCNScoring:
 
         # Score-everything mode
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
+            marc_pub, copyright_pubs, year_tolerance=1
         )
 
         assert result is not None
@@ -134,12 +129,7 @@ class TestLCCNScoring:
 
         # Score-everything mode
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
+            marc_pub, copyright_pubs, year_tolerance=1
         )
 
         assert result is not None

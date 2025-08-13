@@ -8,10 +8,13 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
-from marc_pd_tool.processing.matching_engine import init_worker
-from marc_pd_tool.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.application.processing.matching._match_builder import (
+    MatchResultBuilder,
+)
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.matching_engine import init_worker
+from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestDataMatcherIgnoreThresholds:
@@ -40,16 +43,13 @@ class TestDataMatcherIgnoreThresholds:
             ),
         ]
 
-        generic_detector = GenericTitleDetector()
+        GenericTitleDetector()
 
         # Test with minimum score that filters out low matches
         result = matcher.find_best_match_ignore_thresholds(
             marc_pub,
             copyright_pubs,
             year_tolerance=2,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=generic_detector,
             minimum_combined_score=50,  # Should filter out the second publication
         )
 
@@ -87,15 +87,10 @@ class TestDataMatcherIgnoreThresholds:
         ]
         copyright_pubs[1].normalized_lccn = "25012345"
 
-        generic_detector = GenericTitleDetector()
+        GenericTitleDetector()
 
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=2,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=generic_detector,
+            marc_pub, copyright_pubs, year_tolerance=2
         )
 
         assert result is not None
@@ -103,7 +98,9 @@ class TestDataMatcherIgnoreThresholds:
         # In score-everything mode, real scores are calculated even for LCCN matches
         assert result["similarity_scores"]["title"] == 100  # Same title
         assert result["similarity_scores"]["author"] > 80  # Same author with fuzzy match
-        assert result["similarity_scores"]["publisher"] == 0  # No publisher data
+        assert (
+            result["similarity_scores"]["publisher"] == 100
+        )  # Both have no publisher data (empty == empty)
         assert result["similarity_scores"]["combined"] > 0  # Combined score calculated
         assert result["is_lccn_match"] == True
 
@@ -130,15 +127,10 @@ class TestDataMatcherIgnoreThresholds:
             ),
         ]
 
-        generic_detector = GenericTitleDetector()
+        GenericTitleDetector()
 
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=2,  # Only allows 1926, not 1930
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=generic_detector,
+            marc_pub, copyright_pubs, year_tolerance=2  # Only allows 1926, not 1930
         )
 
         assert result is not None
@@ -164,15 +156,10 @@ class TestDataMatcherIgnoreThresholds:
             )
         ]
 
-        generic_detector = GenericTitleDetector()
+        GenericTitleDetector()
 
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=2,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=generic_detector,
+            marc_pub, copyright_pubs, year_tolerance=2
         )
 
         # Should still match when MARC has no year
@@ -202,12 +189,7 @@ class TestDataMatcherIgnoreThresholds:
         generic_detector.get_frequency.return_value = 100
 
         result = matcher.find_best_match_ignore_thresholds(
-            marc_pub,
-            copyright_pubs,
-            year_tolerance=2,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=generic_detector,
+            marc_pub, copyright_pubs, year_tolerance=2
         )
 
         assert result is not None
@@ -310,9 +292,7 @@ class TestDataMatcherHelperMethods:
     """Test DataMatcher helper methods"""
 
     def test_create_match_result_regular(self):
-        """Test _create_match_result for regular match"""
-        matcher = DataMatcher()
-
+        """Test create_match_result for regular match"""
         copyright_pub = Publication(
             title="Test Book",
             author="Test Author",
@@ -327,13 +307,13 @@ class TestDataMatcherHelperMethods:
 
         generic_detector = GenericTitleDetector()
 
-        result = matcher._create_match_result(
+        result = MatchResultBuilder.create_match_result(
+            marc_pub,
             copyright_pub,
             85.0,  # title_score
             90.0,  # author_score
             75.0,  # publisher_score
             85.0,  # combined_score
-            marc_pub,
             generic_detector,
             is_lccn_match=False,
         )
@@ -347,9 +327,7 @@ class TestDataMatcherHelperMethods:
         # Source type is determined by the publication type
 
     def test_create_match_result_lccn(self):
-        """Test _create_match_result for LCCN match"""
-        matcher = DataMatcher()
-
+        """Test create_match_result for LCCN match"""
         copyright_pub = Publication(
             title="Test Book",
             author="Test Author",
@@ -368,13 +346,13 @@ class TestDataMatcherHelperMethods:
 
         generic_detector = GenericTitleDetector()
 
-        result = matcher._create_match_result(
+        result = MatchResultBuilder.create_match_result(
+            marc_pub,
             copyright_pub,
             100.0,  # title_score
             100.0,  # author_score
             100.0,  # publisher_score
             100.0,  # combined_score
-            marc_pub,
             generic_detector,
             is_lccn_match=True,
         )
@@ -410,41 +388,39 @@ class TestWorkerFunctions:
         renewal_file = tmp_path / "renewal" / "test.tsv"
         renewal_file.write_text("title\tauthor\toreg\todat\tid\trdat\tclaimants\n")
 
-        with patch("marc_pd_tool.processing.matching_engine.CacheManager") as mock_cache_class:
+        with patch("marc_pd_tool.infrastructure.CacheManager") as mock_cache_class:
+            mock_cache = Mock()
+            mock_cache_class.return_value = mock_cache
+
+            # Mock successful cache retrieval
+            mock_reg_index = Mock()
+            mock_reg_index.size.return_value = 100
+            mock_ren_index = Mock()
+            mock_ren_index.size.return_value = 50
+            mock_detector = Mock()
+
+            mock_cache.get_cached_indexes.return_value = (mock_reg_index, mock_ren_index)
+            mock_cache.get_cached_generic_detector.return_value = mock_detector
+
+            # Initialize worker (should succeed with mocked cache)
             with patch(
-                "marc_pd_tool.processing.matching_engine._worker_data", {}
-            ) as mock_worker_data:
-                mock_cache = Mock()
-                mock_cache_class.return_value = mock_cache
+                "marc_pd_tool.application.processing.matching_engine.getpid", return_value=12345
+            ):
+                with patch("psutil.Process") as mock_process_class:
+                    # Mock process memory info
+                    mock_process = Mock()
+                    mock_process.memory_info.return_value.rss = 1024 * 1024 * 100  # 100MB
+                    mock_process_class.return_value = mock_process
 
-                # Mock successful cache retrieval
-                mock_reg_index = Mock()
-                mock_reg_index.size.return_value = 100
-                mock_ren_index = Mock()
-                mock_ren_index.size.return_value = 50
-                mock_detector = Mock()
+                    init_worker(
+                        cache_dir,
+                        copyright_dir,
+                        renewal_dir,
+                        "test_hash",
+                        {"min_length": 10},
+                        min_year=1950,
+                        max_year=1960,
+                        brute_force=False,
+                    )
 
-                mock_cache.get_cached_indexes.return_value = (mock_reg_index, mock_ren_index)
-                mock_cache.get_cached_generic_detector.return_value = mock_detector
-
-                # Initialize worker (should succeed with mocked cache)
-                with patch("marc_pd_tool.processing.matching_engine.getpid", return_value=12345):
-                    with patch("psutil.Process") as mock_process_class:
-                        # Mock process memory info
-                        mock_process = Mock()
-                        mock_process.memory_info.return_value.rss = 1024 * 1024 * 100  # 100MB
-                        mock_process_class.return_value = mock_process
-
-                        init_worker(
-                            cache_dir,
-                            copyright_dir,
-                            renewal_dir,
-                            "test_hash",
-                            {"min_length": 10},
-                            min_year=1950,
-                            max_year=1960,
-                            brute_force=False,
-                        )
-
-                # Since _worker_data is reassigned in the function, we can't verify it here
-                # The test succeeds if no exception is raised
+            # The test succeeds if no exception is raised

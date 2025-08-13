@@ -6,12 +6,14 @@
 from unittest import TestCase
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.indexer import DataIndexer
-from marc_pd_tool.processing.indexer import build_wordbased_index
-from marc_pd_tool.processing.indexer import generate_wordbased_author_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_publisher_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_title_keys
+from marc_pd_tool.application.processing.indexer import (
+    generate_wordbased_publisher_keys,
+)
+from marc_pd_tool.application.processing.indexer import DataIndexer
+from marc_pd_tool.application.processing.indexer import build_wordbased_index
+from marc_pd_tool.application.processing.indexer import generate_wordbased_author_keys
+from marc_pd_tool.application.processing.indexer import generate_wordbased_title_keys
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestWordBasedTitleKeyGeneration(TestCase):

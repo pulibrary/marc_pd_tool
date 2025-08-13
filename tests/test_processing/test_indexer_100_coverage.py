@@ -6,41 +6,43 @@
 from unittest.mock import Mock
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.config_loader import ConfigLoader
-from marc_pd_tool.processing.indexer import CompactIndexEntry
-from marc_pd_tool.processing.indexer import DataIndexer
-from marc_pd_tool.processing.indexer import build_wordbased_index
-from marc_pd_tool.processing.indexer import generate_wordbased_author_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_publisher_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_title_keys
-from marc_pd_tool.processing.text_processing import LanguageProcessor
-from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.application.processing.indexer import (
+    generate_wordbased_publisher_keys,
+)
+from marc_pd_tool.application.processing.indexer import DataIndexer
+from marc_pd_tool.application.processing.indexer import build_wordbased_index
+from marc_pd_tool.application.processing.indexer import generate_wordbased_author_keys
+from marc_pd_tool.application.processing.indexer import generate_wordbased_title_keys
+from marc_pd_tool.application.processing.text_processing import LanguageProcessor
+from marc_pd_tool.application.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.core.domain.index_entry import IndexEntry
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.config import ConfigLoader
 
 
-class TestCompactIndexEntry:
-    """Test CompactIndexEntry class"""
+class TestIndexEntry:
+    """Test IndexEntry class"""
 
     def test_empty_entry(self):
         """Test empty entry behavior"""
-        entry = CompactIndexEntry()
+        entry = IndexEntry()
         assert entry.is_empty() is True
-        assert entry.get_ids() == set()
+        assert entry.ids == set()
 
     def test_single_entry(self):
         """Test single entry behavior"""
-        entry = CompactIndexEntry()
+        entry = IndexEntry()
         entry.add(1)
         assert entry.is_empty() is False
-        assert entry.get_ids() == {1}
+        assert entry.ids == {1}
 
     def test_multiple_entries(self):
         """Test multiple entries behavior"""
-        entry = CompactIndexEntry()
+        entry = IndexEntry()
         entry.add(1)
         entry.add(2)
         entry.add(1)  # Duplicate
-        assert entry.get_ids() == {1, 2}
+        assert entry.ids == {1, 2}
 
 
 class TestDataIndexerEdgeCases:
@@ -76,7 +78,7 @@ class TestDataIndexerEdgeCases:
 
         # Should be in LCCN index
         assert "2001012345" in indexer.lccn_index
-        assert len(indexer.lccn_index["2001012345"].get_ids()) == 1
+        assert len(indexer.lccn_index["2001012345"].ids) == 1
 
     def test_find_candidates_with_lccn_match(self):
         """Test finding candidates with LCCN match"""

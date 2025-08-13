@@ -10,15 +10,16 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.config_loader import ConfigLoader
-from marc_pd_tool.processing.matching_engine import DataMatcher
-from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
-from marc_pd_tool.processing.text_processing import LanguageProcessor
-from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
-from marc_pd_tool.processing.text_processing import PUBLISHING_ABBREVIATIONS
-from marc_pd_tool.processing.text_processing import expand_abbreviations
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.similarity_calculator import (
+    SimilarityCalculator,
+)
+from marc_pd_tool.application.processing.text_processing import LanguageProcessor
+from marc_pd_tool.application.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.application.processing.text_processing import expand_abbreviations
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.config import ConfigLoader
 
 
 class TestLanguageProcessor:
@@ -128,20 +129,16 @@ class TestPublishingAbbreviations:
     """Test publishing abbreviation expansion"""
 
     def test_abbreviations_dictionary(self):
-        """Test abbreviations dictionary has expected entries"""
-        # Test original abbreviations
-        assert "vol" in PUBLISHING_ABBREVIATIONS
-        assert "co" in PUBLISHING_ABBREVIATIONS
-        assert "ed" in PUBLISHING_ABBREVIATIONS
-        assert PUBLISHING_ABBREVIATIONS["ed"] == "edition"
+        """Test abbreviations expansion functionality"""
+        # Test original abbreviations get expanded
+        assert expand_abbreviations("Vol.") == "volume."
+        assert expand_abbreviations("Co.") == "company."
+        assert expand_abbreviations("Ed.") == "edition."
 
-        # Test new AACR2 abbreviations
-        assert "ms" in PUBLISHING_ABBREVIATIONS
-        assert PUBLISHING_ABBREVIATIONS["ms"] == "manuscript"
-        assert "suppl" in PUBLISHING_ABBREVIATIONS
-        assert PUBLISHING_ABBREVIATIONS["suppl"] == "supplement"
-        assert "ca" in PUBLISHING_ABBREVIATIONS
-        assert PUBLISHING_ABBREVIATIONS["ca"] == "circa"
+        # Test new AACR2 abbreviations get expanded
+        assert expand_abbreviations("Ms.") == "manuscript."
+        assert expand_abbreviations("Suppl.") == "supplement."
+        assert expand_abbreviations("Ca.") == "circa."
 
     def test_expand_abbreviations_basic(self):
         """Test basic abbreviation expansion"""
@@ -254,8 +251,9 @@ class TestSimilarityCalculator:
         score = calculator.calculate_title_similarity(
             "iduna robiat", "iduna robiat historischer roman aus merans vergangenheit"
         )
-        # Should score much higher than the original 33.3%
-        assert score > 50.0
+        # With fuzzy matching, partial matches score lower than with Jaccard
+        # The short title is only a small part of the longer one
+        assert score > 30.0  # Fuzzy matching gives ~37%
 
         # Another case: "enoch arden im riesengebirge" vs full title with author
         score = calculator.calculate_title_similarity(
@@ -265,13 +263,13 @@ class TestSimilarityCalculator:
         assert score > 60.0
 
     def test_calculate_title_similarity_partial_match_minimum_words(self, calculator):
-        """Test that partial matching requires at least 2 words"""
-        # Single word shouldn't trigger partial matching boost
+        """Test fuzzy matching behavior with single words"""
+        # Single word match in longer title
         score = calculator.calculate_title_similarity(
             "shakespeare", "shakespeare complete works volume one"
         )
-        # Should get standard Jaccard score, not boosted
-        assert score < 40.0
+        # With fuzzy matching, this scores higher due to the shared word
+        assert score > 40.0  # Fuzzy matching gives ~47%
 
     def test_calculate_title_similarity_short_title_keeps_stopwords(self, calculator):
         """Test that short titles (≤6 words) keep stopwords"""
@@ -315,7 +313,7 @@ class TestSimilarityCalculator:
         score = calculator.calculate_title_similarity("", "title")
         assert score == 0.0  # One empty, one not
 
-    @patch("marc_pd_tool.processing.similarity_calculator.fuzz")
+    @patch("marc_pd_tool.application.processing.similarity_calculator.fuzz")
     def test_calculate_author_similarity_uses_fuzzy_matching(self, mock_fuzz, calculator):
         """Test author similarity uses fuzzy matching with preprocessing"""
         mock_fuzz.ratio.return_value = 85.0
@@ -333,7 +331,7 @@ class TestSimilarityCalculator:
         score = calculator.calculate_author_similarity("Smith, John", "")
         assert score == 0.0
 
-    @patch("marc_pd_tool.processing.similarity_calculator.fuzz")
+    @patch("marc_pd_tool.application.processing.similarity_calculator.fuzz")
     def test_calculate_publisher_similarity_direct(self, mock_fuzz, calculator):
         """Test publisher similarity for direct comparison"""
         mock_fuzz.ratio.return_value = 90.0
@@ -343,7 +341,7 @@ class TestSimilarityCalculator:
         assert score == 90.0
         mock_fuzz.ratio.assert_called_once()
 
-    @patch("marc_pd_tool.processing.similarity_calculator.fuzz")
+    @patch("marc_pd_tool.application.processing.similarity_calculator.fuzz")
     def test_calculate_publisher_similarity_full_text(self, mock_fuzz, calculator):
         """Test publisher similarity against full text"""
         mock_fuzz.partial_ratio.return_value = 75.0
@@ -356,19 +354,23 @@ class TestSimilarityCalculator:
         mock_fuzz.partial_ratio.assert_called_once()
 
     def test_preprocess_author_removes_qualifiers(self, calculator):
-        """Test author preprocessing removes common qualifiers"""
+        """Test author preprocessing removes common stopwords"""
+        # Custom stopwords based on ground truth are more minimal
+        # "by" is removed as a stopword, but "edited" is kept
         result = calculator._preprocess_author("edited by John Smith")
-        assert "edited" not in result.lower()
+        assert "by" not in result.lower()
         assert "john" in result.lower()
         assert "smith" in result.lower()
 
     def test_preprocess_publisher_removes_stopwords(self, calculator):
-        """Test publisher preprocessing removes publisher stopwords"""
+        """Test publisher preprocessing keeps meaningful publisher terms"""
+        # Based on ground truth analysis, "publishing" and "company" are preserved
         result = calculator._preprocess_publisher("Random House Publishing Company")
         assert "random" in result.lower()
         assert "house" in result.lower()
-        assert "publishing" not in result.lower()
-        assert "company" not in result.lower()
+        # These are preserved words for publishers
+        assert "publishing" in result.lower()
+        assert "company" in result.lower()
 
 
 class TestDataMatcher:

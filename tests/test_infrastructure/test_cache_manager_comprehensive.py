@@ -13,9 +13,9 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.cache_manager import CacheManager
-from marc_pd_tool.utils.types import CacheMetadata
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.core.types.results import CacheMetadata
+from marc_pd_tool.infrastructure import CacheManager
 
 
 class TestCacheManagerDirectoryOperations:
@@ -148,7 +148,7 @@ class TestCacheManagerYearRangeOperations:
 
         assert cached is not None
         assert len(cached) == 1
-        assert cached[0].title == "50s book"  # Title normalized to lowercase
+        assert cached[0].title == "50s Book"  # Minimal cleanup only
 
 
 class TestCacheManagerIndexOperations:
@@ -439,7 +439,7 @@ class TestCacheManagerErrorHandling:
 
         assert cached is not None
         assert len(cached) == 2
-        assert cached[0].title == "renewal 1"  # Title normalized to lowercase
+        assert cached[0].title == "Renewal 1"  # Minimal cleanup only
 
     def test_cache_validity_with_dependencies(self, tmp_path):
         """Test cache validity checking with year ranges"""

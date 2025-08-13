@@ -5,10 +5,10 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.utils.text_utils import ascii_fold
-from marc_pd_tool.utils.text_utils import normalize_text_standard
-from marc_pd_tool.utils.text_utils import normalize_unicode
-from marc_pd_tool.utils.text_utils import normalize_word_splits
+from marc_pd_tool.shared.utils.text_utils import ascii_fold
+from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
+from marc_pd_tool.shared.utils.text_utils import normalize_unicode
+from marc_pd_tool.shared.utils.text_utils import normalize_word_splits
 
 
 class TestAsciiFolding:
@@ -147,7 +147,9 @@ class TestLanguageProcessorWithUnicode:
     def test_remove_stopwords_with_unicode_corruption(self):
         """Test stopword removal with Unicode corruption and ASCII folding"""
         # Local imports
-        from marc_pd_tool.processing.text_processing import LanguageProcessor
+        from marc_pd_tool.application.processing.text_processing import (
+            LanguageProcessor,
+        )
 
         processor = LanguageProcessor()
 
@@ -165,7 +167,9 @@ class TestLanguageProcessorWithUnicode:
     def test_remove_stopwords_with_ascii_folding(self):
         """Test that accented characters are folded to ASCII"""
         # Local imports
-        from marc_pd_tool.processing.text_processing import LanguageProcessor
+        from marc_pd_tool.application.processing.text_processing import (
+            LanguageProcessor,
+        )
 
         processor = LanguageProcessor()
 

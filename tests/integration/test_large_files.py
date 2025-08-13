@@ -17,9 +17,9 @@ import psutil
 import pytest
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestLargeFileHandling:
@@ -87,7 +87,7 @@ class TestLargeFileHandling:
         memory_increase = final_memory - initial_memory
 
         # Verify results
-        assert results.statistics["total_records"] == 1000
+        assert results.statistics.total_records == 1000
         assert processing_time > 0.1  # Should have some processing time
 
         # Memory increase should be reasonable (mocked version uses less)
@@ -133,7 +133,7 @@ class TestLargeFileHandling:
                 {
                     "batch_size": config["batch_size"],
                     "time": elapsed,
-                    "records": results.statistics["total_records"],
+                    "records": results.statistics.total_records,
                 }
             )
 
@@ -239,7 +239,7 @@ class TestLargeFileHandling:
                         options={"num_processes": 1},
                     )
 
-                    total_records += results.statistics["total_records"]
+                    total_records += results.statistics.total_records
 
         assert total_records == 1000  # 5 files * 200 records each
 

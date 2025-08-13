@@ -10,11 +10,11 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import process_batch
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.processing.matching_engine import process_batch
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestAnalysisResults:
@@ -25,12 +25,12 @@ class TestAnalysisResults:
         results = AnalysisResults()
         assert results.publications == []
         assert results.result_file_paths == []
-        assert results.statistics["total_records"] == 0
-        assert results.statistics["us_records"] == 0
-        assert results.statistics["non_us_records"] == 0
-        assert results.statistics["registration_matches"] == 0
-        assert results.statistics["renewal_matches"] == 0
-        assert results.statistics["no_matches"] == 0
+        assert results.statistics.total_records == 0
+        assert results.statistics.us_records == 0
+        assert results.statistics.non_us_records == 0
+        assert results.statistics.registration_matches == 0
+        assert results.statistics.renewal_matches == 0
+        assert results.statistics.no_matches == 0
 
     def test_add_publication(self):
         """Test adding publications updates statistics"""
@@ -47,9 +47,9 @@ class TestAnalysisResults:
         results.add_publication(pub1)
 
         assert len(results.publications) == 1
-        assert results.statistics["total_records"] == 1
-        assert results.statistics["us_records"] == 1
-        assert results.statistics["non_us_records"] == 0
+        assert results.statistics.total_records == 1
+        assert results.statistics.us_records == 1
+        assert results.statistics.non_us_records == 0
 
         # Add non-US publication
         pub2 = Publication(
@@ -62,9 +62,9 @@ class TestAnalysisResults:
         results.add_publication(pub2)
 
         assert len(results.publications) == 2
-        assert results.statistics["total_records"] == 2
-        assert results.statistics["us_records"] == 1
-        assert results.statistics["non_us_records"] == 1
+        assert results.statistics.total_records == 2
+        assert results.statistics.us_records == 1
+        assert results.statistics.non_us_records == 1
 
     def test_add_result_file(self):
         """Test adding result files"""
@@ -102,7 +102,7 @@ class TestMarcCopyrightAnalyzer:
         """Test analyzer initialization with force refresh"""
         cache_dir = tmp_path / "test_cache"
 
-        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_class:
+        with patch("marc_pd_tool.adapters.api._analyzer.CacheManager") as mock_cache_class:
             mock_cache = Mock()
             mock_cache_class.return_value = mock_cache
 
@@ -210,8 +210,10 @@ class TestMarcCopyrightAnalyzer:
         analyzer.results.add_publication(pub)
 
         # Mock the exporters where they're imported
-        with patch("marc_pd_tool.api._results.save_matches_json") as mock_json:
-            with patch("marc_pd_tool.api._export.CSVExporter") as mock_csv_class:
+        with patch(
+            "marc_pd_tool.application.models.analysis_results.AnalysisResults.export_json"
+        ) as mock_json:
+            with patch("marc_pd_tool.adapters.api._export.CSVExporter") as mock_csv_class:
                 mock_csv = Mock()
                 mock_csv_class.return_value = mock_csv
 
@@ -219,14 +221,9 @@ class TestMarcCopyrightAnalyzer:
                 output_path = str(tmp_path / "test_export")
                 analyzer.export_results(output_path, formats=["json", "csv"], single_file=True)
 
-                # Verify exporters were called (may be called twice due to temp file)
-                assert mock_json.call_count >= 1
+                # Verify exporters were called
+                mock_json.assert_called_once_with(f"{output_path}.json")
                 mock_csv.export.assert_called_once()
-
-                # Check JSON call arguments - check the last call
-                json_call_args = mock_json.call_args_list[-1]
-                assert json_call_args[0][0] == [pub]  # First arg is publications list
-                # The filename might be the final output or a temp file
 
                 # Check CSV exporter was created with correct arguments
                 csv_init_args = mock_csv_class.call_args
@@ -303,30 +300,39 @@ class TestWorkerFunctions:
             str(result_dir),  # result_temp_dir
         )
 
-        # Mock the dependencies
-        with patch("marc_pd_tool.processing.matching_engine.init_worker"):
+        # Mock the global worker variables and DataMatcher
+        with patch(
+            "marc_pd_tool.application.processing.matching_engine._worker_registration_index", None
+        ):
             with patch(
-                "marc_pd_tool.processing.matching_engine._worker_data",
-                {
-                    "cache_manager": Mock(),
-                    "registration_index": Mock(),
-                    "renewal_index": Mock(),
-                    "registration_matcher": Mock(find_best_match=Mock(return_value=(None, None))),
-                    "renewal_matcher": Mock(find_best_match=Mock(return_value=(None, None))),
-                    "generic_detector": Mock(),
-                },
+                "marc_pd_tool.application.processing.matching_engine._worker_renewal_index", None
             ):
-                # Local imports
-                pass
+                with patch(
+                    "marc_pd_tool.application.processing.matching_engine._worker_generic_detector",
+                    Mock(),
+                ):
+                    with patch(
+                        "marc_pd_tool.application.processing.matching_engine._worker_config", {}
+                    ):
+                        with patch(
+                            "marc_pd_tool.application.processing.matching_engine.DataMatcher"
+                        ) as mock_dm:
+                            # Setup mock DataMatcher
+                            mock_matcher = Mock()
+                            mock_matcher.find_best_match.return_value = (None, None)
+                            mock_dm.return_value = mock_matcher
 
-                batch_id, result_path, stats = process_batch(batch_info)
+                            batch_id, result_path, stats = process_batch(batch_info)
 
                 assert batch_id == 1
                 assert Path(result_path).exists()
-                assert isinstance(stats, dict)
+                # Stats is now a BatchStats object, not a dict
+                # Local imports
+                from marc_pd_tool.application.models.batch_stats import BatchStats
+
+                assert isinstance(stats, BatchStats)
                 # Verify stats has expected fields
-                assert "batch_id" in stats
-                assert stats["batch_id"] == 1
+                assert stats.batch_id == 1
 
 
 class TestAnalysisMethods:

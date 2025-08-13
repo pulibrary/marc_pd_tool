@@ -10,11 +10,10 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import _worker_data
-from marc_pd_tool.processing.matching_engine import init_worker
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.processing.matching_engine import init_worker
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestParallelProcessing:
@@ -37,7 +36,7 @@ class TestParallelProcessing:
         ]
 
         # Mock multiprocessing Pool
-        with patch("marc_pd_tool.api._processing.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -127,7 +126,7 @@ class TestParallelProcessing:
             )
         ]
 
-        with patch("marc_pd_tool.api._processing.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -163,8 +162,12 @@ class TestParallelProcessing:
                 os.makedirs(os.path.dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
                     pickle.dump(result, f)
-                # Return tuple like process_batch does
-                yield (batch_info[0], result_path, {"error": "Simulated worker error"})
+                # Return tuple like process_batch does, but with a BatchStats object
+                # Local imports
+                from marc_pd_tool.application.models.batch_stats import BatchStats
+
+                stats = BatchStats(batch_id=batch_info[0])
+                yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
 
@@ -222,7 +225,7 @@ class TestParallelProcessing:
             nonlocal cleanup_called
             cleanup_called = True
 
-        with patch("marc_pd_tool.api._processing.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -251,16 +254,19 @@ class TestParallelProcessing:
                 os.makedirs(os.path.dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
                     pickle.dump(publications, f)
-                # Return proper stats
-                stats = {
-                    "batch_id": 1,
-                    "marc_count": 1,
-                    "registration_matches_found": 0,
-                    "renewal_matches_found": 0,
-                    "skipped_records": 0,
-                    "processing_time": 0.1,
-                    "records_with_errors": 0,
-                }
+                # Return proper BatchStats object
+                # Local imports
+                from marc_pd_tool.application.models.batch_stats import BatchStats
+
+                stats = BatchStats(
+                    batch_id=1,
+                    marc_count=1,
+                    registration_matches_found=0,
+                    renewal_matches_found=0,
+                    skipped_no_year=0,
+                    processing_time=0.1,
+                    records_with_errors=0,
+                )
                 yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
@@ -312,7 +318,7 @@ class TestParallelProcessing:
             for i in range(6)
         ]
 
-        with patch("marc_pd_tool.api._processing.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -350,17 +356,19 @@ class TestParallelProcessing:
                     with open(stats_path, "wb") as f:
                         pickle.dump(detailed_stats, f)
 
-                    # Return stats with different processing times
-                    stats = {
-                        "batch_id": batch_info[0],
-                        "marc_count": 3,
-                        "registration_matches_found": i + 1,  # 1 for batch 1, 2 for batch 2
-                        "renewal_matches_found": i * 2,  # 0 for batch 1, 2 for batch 2
-                        "skipped_no_year": 0,
-                        "records_processed": 3,
-                        "processing_time": 1.5 + i * 0.5,  # 1.5s for batch 1, 2.0s for batch 2
-                        "records_with_errors": 0,
-                    }
+                    # Return BatchStats with different processing times
+                    # Local imports
+                    from marc_pd_tool.application.models.batch_stats import BatchStats
+
+                    stats = BatchStats(
+                        batch_id=batch_info[0],
+                        marc_count=3,
+                        registration_matches_found=i + 1,  # 1 for batch 1, 2 for batch 2
+                        renewal_matches_found=i * 2,  # 0 for batch 1, 2 for batch 2
+                        skipped_no_year=0,
+                        processing_time=1.5 + i * 0.5,  # 1.5s for batch 1, 2.0s for batch 2
+                        records_with_errors=0,
+                    )
                     yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
@@ -383,7 +391,8 @@ class TestParallelProcessing:
 
                         # Patch the logger.info to capture messages
                         with patch(
-                            "marc_pd_tool.api._processing.logger.info", side_effect=mock_logger_info
+                            "marc_pd_tool.adapters.api._processing.logger.info",
+                            side_effect=mock_logger_info,
                         ):
                             results = analyzer._process_parallel(
                                 publications=publications,
@@ -412,14 +421,17 @@ class TestParallelProcessing:
                                 len(timing_messages) == 2
                             ), f"Expected 2 timing logs, got {len(timing_messages)}: {timing_messages}"
 
-                            # Check batch 1 timing (1 reg, 0 ren, 2.0 rec/s)
+                            # Check batch 1 timing - new format includes "Found:" and "|"
+                            # Format: "Batch    1/2 [ 50.0%] | Found:  1 reg,  0 ren | Total:     1 reg,     0 ren |   2.0 rec/s"
                             assert (
-                                "1 reg, 0 ren matches (2.0 rec/s)" in timing_messages[0]
+                                "Found:  1 reg,  0 ren" in timing_messages[0]
+                                and "2.0 rec/s" in timing_messages[0]
                             ), f"Batch 1 log: {timing_messages[0]}"
 
-                            # Check batch 2 timing (2 reg, 2 ren, 1.5 rec/s)
+                            # Check batch 2 timing
                             assert (
-                                "2 reg, 2 ren matches (1.5 rec/s)" in timing_messages[1]
+                                "Found:  2 reg,  2 ren" in timing_messages[1]
+                                and "1.5 rec/s" in timing_messages[1]
                             ), f"Batch 2 log: {timing_messages[1]}"
 
 
@@ -448,11 +460,10 @@ class TestWorkerInitialization:
         renewal_file = Path(renewal_dir) / "test.tsv"
         renewal_file.write_text("title\tauthor\toreg\todat\tid\trdat\tclaimants\n")
 
-        # Mock the cache manager and other dependencies
-        with patch("marc_pd_tool.processing.matching_engine.CacheManager") as mock_cache_class:
+        # Mock the cache manager at the actual import location
+        with patch("marc_pd_tool.infrastructure.CacheManager") as mock_cache_class:
             mock_cache = Mock()
             mock_cache_class.return_value = mock_cache
-            mock_cache.get_cached_indexes.return_value = None
 
             # Mock indexes
             mock_reg_index = Mock()
@@ -460,13 +471,11 @@ class TestWorkerInitialization:
             mock_ren_index = Mock()
             mock_ren_index.size.return_value = 50
 
-            # Return cached indexes
+            # Return cached indexes consistently
             mock_cache.get_cached_indexes.return_value = (mock_reg_index, mock_ren_index)
             mock_cache.get_cached_generic_detector.return_value = Mock()
 
-            # Clear any existing worker data
-            if hasattr(_worker_data, "clear"):
-                _worker_data.clear()
+            # No longer need to clear worker data - it's handled internally
 
             # Call init_worker with all required params
             init_worker(

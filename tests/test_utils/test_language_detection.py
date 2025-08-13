@@ -6,8 +6,8 @@
 from unittest import TestCase
 
 # Local imports
-from marc_pd_tool.utils.marc_utilities import MARC_LANGUAGE_MAPPING
-from marc_pd_tool.utils.marc_utilities import extract_language_from_marc
+from marc_pd_tool.shared.utils.marc_utilities import MARC_LANGUAGE_MAPPING
+from marc_pd_tool.shared.utils.marc_utilities import extract_language_from_marc
 
 
 class TestMARCLanguageMapping(TestCase):

@@ -10,9 +10,9 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CopyrightStatus
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.enums import CopyrightStatus
 from tests.fixtures.publications import PublicationBuilder
 
 
@@ -41,7 +41,7 @@ class TestMarcCopyrightAnalyzerProper:
             config_data = {"title_threshold": 45, "author_threshold": 35, "year_tolerance": 2}
             config_path.write_text(json.dumps(config_data))
 
-            with patch("marc_pd_tool.api._analyzer.get_config") as mock_get_config:
+            with patch("marc_pd_tool.adapters.api._analyzer.get_config") as mock_get_config:
                 mock_config = Mock()
                 mock_get_config.return_value = mock_config
 
@@ -55,7 +55,7 @@ class TestMarcCopyrightAnalyzerProper:
         """Test analyzer initialization with custom cache directory"""
         custom_cache_dir = "/tmp/custom_cache"
 
-        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_manager:
+        with patch("marc_pd_tool.adapters.api._analyzer.CacheManager") as mock_cache_manager:
             analyzer = MarcCopyrightAnalyzer(cache_dir=custom_cache_dir)
 
             assert analyzer.cache_dir == custom_cache_dir
@@ -63,7 +63,7 @@ class TestMarcCopyrightAnalyzerProper:
 
     def test_initialization_force_refresh(self):
         """Test analyzer initialization with force refresh"""
-        with patch("marc_pd_tool.api._analyzer.CacheManager") as mock_cache_manager:
+        with patch("marc_pd_tool.adapters.api._analyzer.CacheManager") as mock_cache_manager:
             mock_manager_instance = Mock()
             mock_cache_manager.return_value = mock_manager_instance
 
@@ -114,7 +114,7 @@ class TestMarcCopyrightAnalyzerProper:
 
                 # Verify results
                 assert isinstance(results, AnalysisResults)
-                assert results.statistics["total_records"] == 1
+                assert results.statistics.total_records == 1
 
     def test_analyze_marc_file_with_options(self):
         """Test MARC file analysis with custom options"""
@@ -235,7 +235,7 @@ class TestMarcCopyrightAnalyzerProper:
         results = analyzer.get_results()
 
         assert results == analyzer.results
-        assert results.statistics["total_records"] == 2
+        assert results.statistics.total_records == 2
         assert len(results.publications) == 2
 
     def test_export_results_various_formats(self):

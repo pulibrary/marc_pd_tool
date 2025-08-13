@@ -6,8 +6,8 @@
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestPublisherEarlyExit:
@@ -208,10 +208,11 @@ class TestPublisherEarlyExit:
                     assert result["copyright_record"]["source_id"] == "c001"
 
                     # Should have only evaluated first candidate (early exit)
-                    # When no publisher data, publisher threshold is ignored
+                    # When no publisher data, publisher similarity is not calculated
                     assert mock_title.call_count == 1
                     assert mock_author.call_count == 1
-                    assert mock_publisher.call_count == 1
+                    # Publisher similarity not called when no publisher data
+                    assert mock_publisher.call_count == 0
 
     def test_publisher_threshold_enforcement(self):
         """Test that publisher threshold is enforced when data exists"""

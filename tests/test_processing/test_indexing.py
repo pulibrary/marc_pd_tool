@@ -10,8 +10,8 @@ from pytest import fixture
 # Local imports
 from marc_pd_tool import DataMatcher
 from marc_pd_tool import Publication
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.processing.indexer import build_wordbased_index
+from marc_pd_tool.application.processing.indexer import build_wordbased_index
+from marc_pd_tool.core.domain.enums import CountryClassification
 
 
 @fixture

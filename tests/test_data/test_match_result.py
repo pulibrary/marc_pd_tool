@@ -5,7 +5,7 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.data.publication import MatchResult
+from marc_pd_tool.core.domain.match_result import MatchResult
 
 
 class TestMatchResultCreation:

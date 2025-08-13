@@ -11,9 +11,9 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 # Local imports
-from marc_pd_tool.processing.text_processing import LanguageProcessor
-from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
-from marc_pd_tool.processing.text_processing import expand_abbreviations
+from marc_pd_tool.application.processing.text_processing import LanguageProcessor
+from marc_pd_tool.application.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.application.processing.text_processing import expand_abbreviations
 
 
 class TestLanguageProcessorProperties:
@@ -61,7 +61,7 @@ class TestLanguageProcessorProperties:
 
         # Get normalized words from original text
         # Local imports
-        from marc_pd_tool.utils.text_utils import normalize_unicode
+        from marc_pd_tool.shared.utils.text_utils import normalize_unicode
 
         normalized = normalize_unicode(text)
         original_words = normalized.lower().split()

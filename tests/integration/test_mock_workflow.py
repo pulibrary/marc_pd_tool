@@ -9,9 +9,9 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestMockWorkflow:
@@ -44,7 +44,7 @@ class TestMockWorkflow:
 
         # Mock the internal methods to avoid heavy processing
         with patch.object(analyzer, "_load_and_index_data"):
-            with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
+            with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader_class:
                 mock_loader = Mock()
                 mock_loader_class.return_value = mock_loader
                 mock_loader.extract_all_batches.return_value = [test_pubs]
@@ -77,7 +77,7 @@ class TestMockWorkflow:
                         assert not mock_par.called
 
         # Verify results
-        assert results.statistics["total_records"] == 2
+        assert results.statistics.total_records == 2
         assert len(results.publications) == 2
 
         # Verify output files created
@@ -93,7 +93,7 @@ class TestMockWorkflow:
         assert json_path.exists(), f"JSON should exist at {json_path}"
         assert csv_path.exists(), f"CSV should exist at {csv_path}"
 
-    @patch("marc_pd_tool.api._analyzer.CacheManager")
+    @patch("marc_pd_tool.adapters.api._analyzer.CacheManager")
     def test_caching_workflow(
         self, mock_cache_manager_class, small_marc_file: Path, temp_output_dir: Path
     ):
@@ -133,7 +133,7 @@ class TestMockWorkflow:
         analyzer = MarcCopyrightAnalyzer()
 
         # Mock at the API level to intercept MarcLoader creation
-        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
+        with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader_class:
             mock_loader = Mock()
             mock_loader_class.return_value = mock_loader
             mock_loader.extract_all_batches.return_value = [pubs_1950s]
@@ -198,7 +198,9 @@ class TestMockWorkflow:
         config_path = temp_output_dir / "custom_config.json"
         custom_config = {
             "default_thresholds": {"title": 60, "author": 50, "year_tolerance": 2},
-            "scoring_weights": {"default": {"title": 0.5, "author": 0.3, "publisher": 0.2}},
+            "scoring_weights": {
+                "normal_with_publisher": {"title": 0.5, "author": 0.3, "publisher": 0.2}
+            },
         }
         config_path.write_text(json.dumps(custom_config))
 
@@ -214,7 +216,7 @@ class TestMockWorkflow:
         assert analyzer.config.get_threshold("year_tolerance") == 2
 
         # Check scoring weights
-        weights = analyzer.config.get_scoring_weights("default")
+        weights = analyzer.config.get_scoring_weights("normal_with_publisher")
         assert weights["title"] == 0.5
         assert weights["author"] == 0.3
         assert weights["publisher"] == 0.2

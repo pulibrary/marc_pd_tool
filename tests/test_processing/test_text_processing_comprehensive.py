@@ -10,13 +10,15 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.processing.text_processing import GenericTitleDetector
-from marc_pd_tool.processing.text_processing import LanguageProcessor
-from marc_pd_tool.processing.text_processing import MultiLanguageStemmer
-from marc_pd_tool.processing.text_processing import _get_publisher_stopwords
-from marc_pd_tool.processing.text_processing import expand_abbreviations
-from marc_pd_tool.processing.text_processing import extract_best_publisher_match
-from marc_pd_tool.processing.text_processing import normalize_publisher_text
+from marc_pd_tool.application.processing.text_processing import (
+    extract_best_publisher_match,
+)
+from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.application.processing.text_processing import LanguageProcessor
+from marc_pd_tool.application.processing.text_processing import MultiLanguageStemmer
+from marc_pd_tool.application.processing.text_processing import _get_publisher_stopwords
+from marc_pd_tool.application.processing.text_processing import expand_abbreviations
+from marc_pd_tool.application.processing.text_processing import normalize_publisher_text
 
 
 class TestLanguageProcessor:
@@ -163,30 +165,40 @@ class TestPublishingAbbreviations:
 
     def test_abbreviations_not_found(self):
         """Test when abbreviations are not found in config"""
-        # Test line 142 - ValueError when no abbreviations
-        with patch("marc_pd_tool.processing.text_processing.get_config") as mock_config:
-            mock_cfg = Mock()
-            mock_cfg.get_abbreviations.return_value = None
-            mock_config.return_value = mock_cfg
+        # Test that _get_abbreviations handles missing config gracefully
+        # Local imports
+        import marc_pd_tool.application.processing.text_processing
 
-            # Force reload of the module to trigger the ValueError
-            # Standard library imports
+        # Save the original value
+        original_abbrevs = (
+            marc_pd_tool.application.processing.text_processing._PUBLISHING_ABBREVIATIONS
+        )
 
-            # Local imports
-            import marc_pd_tool.processing.text_processing
+        try:
+            with patch(
+                "marc_pd_tool.application.processing.text_processing.get_config"
+            ) as mock_config:
+                mock_cfg = Mock()
+                mock_cfg.abbreviations = None  # Use attribute instead of method
+                mock_config.return_value = mock_cfg
 
-            # Save the original PUBLISHING_ABBREVIATIONS
-            original_abbrevs = marc_pd_tool.processing.text_processing.PUBLISHING_ABBREVIATIONS
+                # Import the private function for testing
+                # Local imports
+                from marc_pd_tool.application.processing.text_processing import (
+                    _get_abbreviations,
+                )
 
-            try:
-                # Temporarily set to None to trigger reload
-                marc_pd_tool.processing.text_processing.PUBLISHING_ABBREVIATIONS = None
+                # Clear the global cache first
+                marc_pd_tool.application.processing.text_processing._PUBLISHING_ABBREVIATIONS = None
 
-                # This would raise ValueError if we could reload the module-level code
-                # Since we can't easily reload module-level code in tests, skip this
-            finally:
-                # Restore original
-                marc_pd_tool.processing.text_processing.PUBLISHING_ABBREVIATIONS = original_abbrevs
+                # Should return empty dict when abbreviations are None
+                result = _get_abbreviations()
+                assert result == {}  # Should default to empty dict
+        finally:
+            # Restore the original value
+            marc_pd_tool.application.processing.text_processing._PUBLISHING_ABBREVIATIONS = (
+                original_abbrevs
+            )
 
 
 class TestExpandAbbreviations:
@@ -290,7 +302,7 @@ class TestNormalizePublisherText:
     def test_with_config(self):
         """Test with custom config"""
         # Local imports
-        from marc_pd_tool.infrastructure.config_loader import ConfigLoader
+        from marc_pd_tool.infrastructure.config import ConfigLoader
 
         mock_config = Mock(spec=ConfigLoader)
         mock_config.publisher_suffix_regex = r"\s+(inc|ltd|co)\b"
@@ -409,7 +421,7 @@ class TestGenericTitleDetector:
     def test_init_without_config(self):
         """Test initialization when config returns no patterns"""
         # Mock config to return None for patterns (line 313)
-        with patch("marc_pd_tool.processing.text_processing.get_config") as mock_config:
+        with patch("marc_pd_tool.application.processing.text_processing.get_config") as mock_config:
             mock_cfg = Mock()
             mock_cfg.generic_title_patterns = set()
             mock_config.return_value = mock_cfg
@@ -420,7 +432,7 @@ class TestGenericTitleDetector:
     def test_init_with_config_object(self):
         """Test initialization with config object"""
         # Local imports
-        from marc_pd_tool.infrastructure.config_loader import ConfigLoader
+        from marc_pd_tool.infrastructure.config import ConfigLoader
 
         mock_config = Mock(spec=ConfigLoader)
         mock_config.generic_title_patterns = {"annual report", "complete works"}

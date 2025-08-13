@@ -11,12 +11,12 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestAnalysisResultsExport:
@@ -62,17 +62,15 @@ class TestAnalysisResultsExport:
         results.add_publication(pub2)
         results.add_publication(pub3)
 
-        # Set some statistics
-        results.statistics = {
-            "total_records": 3,
-            "us_records": 3,
-            "non_us_records": 0,
-            "registration_matches": 1,
-            "renewal_matches": 0,
-            "pd_us_not_renewed": 1,
-            "in_copyright": 1,
-            "research_us_status": 1,
-        }
+        # Set some statistics (they're already set by add_publication, but override for test)
+        results.statistics.total_records = 3
+        results.statistics.us_records = 3
+        results.statistics.non_us_records = 0
+        results.statistics.registration_matches = 1
+        results.statistics.renewal_matches = 0
+        results.statistics.pd_us_not_renewed = 1
+        results.statistics.in_copyright = 1
+        results.statistics.research_us_status = 1
 
         return results
 
@@ -96,8 +94,8 @@ class TestAnalysisResultsExport:
         """Test CSV export functionality"""
         output_prefix = str(tmp_path / "results")
 
-        # Mock the CSV exporter
-        with patch("marc_pd_tool.api._results.CSVExporter") as mock_csv:
+        # Mock the CSV exporter where it's actually imported
+        with patch("marc_pd_tool.application.models.analysis_results.CSVExporter") as mock_csv:
             mock_exporter = Mock()
             mock_csv.return_value = mock_exporter
 
@@ -112,8 +110,8 @@ class TestAnalysisResultsExport:
         """Test XLSX export functionality"""
         output_file = str(tmp_path / "results.xlsx")
 
-        # Mock the XLSX exporter
-        with patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx:
+        # Mock the XLSX exporter where it's actually imported
+        with patch("marc_pd_tool.application.models.analysis_results.XLSXExporter") as mock_xlsx:
             mock_exporter = Mock()
             mock_xlsx.return_value = mock_exporter
 
@@ -128,8 +126,8 @@ class TestAnalysisResultsExport:
         """Test HTML export functionality"""
         output_dir = str(tmp_path / "html_output")
 
-        # Mock the HTML exporter
-        with patch("marc_pd_tool.api._results.HTMLExporter") as mock_html:
+        # Mock the HTML exporter where it's actually imported
+        with patch("marc_pd_tool.application.models.analysis_results.HTMLExporter") as mock_html:
             mock_exporter = Mock()
             mock_html.return_value = mock_exporter
 
@@ -144,12 +142,14 @@ class TestAnalysisResultsExport:
         """Test export_all method that exports to all formats"""
         output_path = str(tmp_path / "all_formats")
 
-        # Mock all exporters
+        # Mock all exporters and the export_json method
         with (
-            patch("marc_pd_tool.api._results.CSVExporter") as mock_csv,
-            patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx,
-            patch("marc_pd_tool.api._results.HTMLExporter") as mock_html,
-            patch.object(sample_results, "export_json") as mock_json,
+            patch("marc_pd_tool.application.models.analysis_results.CSVExporter") as mock_csv,
+            patch("marc_pd_tool.application.models.analysis_results.XLSXExporter") as mock_xlsx,
+            patch("marc_pd_tool.application.models.analysis_results.HTMLExporter") as mock_html,
+            patch(
+                "marc_pd_tool.application.models.analysis_results.save_matches_json"
+            ) as mock_save_json,
         ):
 
             mock_csv_exporter = Mock()
@@ -163,8 +163,8 @@ class TestAnalysisResultsExport:
             result_paths = sample_results.export_all(output_path)
 
             # Verify all exporters were called
-            # export_json is called multiple times (once for main export, once for each format)
-            assert mock_json.call_count >= 4  # Main + CSV + XLSX + HTML
+            # save_matches_json is called multiple times (once for main export, once for each format)
+            assert mock_save_json.call_count >= 4  # Main + CSV + XLSX + HTML
             mock_csv_exporter.export.assert_called_once()
             mock_xlsx_exporter.export.assert_called_once()
             mock_html_exporter.export.assert_called_once()
@@ -255,10 +255,12 @@ class TestExportErrorHandling:
 
         # Mock exporters with one failure
         with (
-            patch("marc_pd_tool.api._results.CSVExporter") as mock_csv,
-            patch("marc_pd_tool.api._results.XLSXExporter") as mock_xlsx,
-            patch("marc_pd_tool.api._results.HTMLExporter") as mock_html,
-            patch.object(sample_results, "export_json") as mock_json,
+            patch("marc_pd_tool.application.models.analysis_results.CSVExporter") as mock_csv,
+            patch("marc_pd_tool.application.models.analysis_results.XLSXExporter") as mock_xlsx,
+            patch("marc_pd_tool.application.models.analysis_results.HTMLExporter") as mock_html,
+            patch(
+                "marc_pd_tool.application.models.analysis_results.save_matches_json"
+            ) as mock_save_json,
         ):
 
             mock_csv_exporter = Mock()
@@ -276,8 +278,8 @@ class TestExportErrorHandling:
             result_paths = sample_results.export_all(output_path)
 
             # Other exports should still be called
-            # export_json is called multiple times (once for main export, once for each format)
-            assert mock_json.call_count >= 3  # Main + CSV + HTML (XLSX failed)
+            # save_matches_json is called multiple times (once for main export, once for each format)
+            assert mock_save_json.call_count >= 3  # Main + CSV + HTML (XLSX failed)
             mock_csv_exporter.export.assert_called_once()
             mock_html_exporter.export.assert_called_once()
 

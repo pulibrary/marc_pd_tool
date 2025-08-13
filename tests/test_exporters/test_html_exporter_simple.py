@@ -7,9 +7,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.exporters.html_exporter import HTMLExporter
-from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.adapters.exporters.html_exporter import HTMLExporter
+from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
+from marc_pd_tool.core.domain.enums import CopyrightStatus
 from tests.fixtures.publications import PublicationBuilder
 
 

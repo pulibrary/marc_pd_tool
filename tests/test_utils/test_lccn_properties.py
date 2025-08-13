@@ -12,10 +12,10 @@ from hypothesis import strategies as st
 from hypothesis.strategies import composite
 
 # Local imports
-from marc_pd_tool.utils.text_utils import extract_lccn_prefix
-from marc_pd_tool.utils.text_utils import extract_lccn_serial
-from marc_pd_tool.utils.text_utils import extract_lccn_year
-from marc_pd_tool.utils.text_utils import normalize_lccn
+from marc_pd_tool.shared.utils.text_utils import extract_lccn_prefix
+from marc_pd_tool.shared.utils.text_utils import extract_lccn_serial
+from marc_pd_tool.shared.utils.text_utils import extract_lccn_year
+from marc_pd_tool.shared.utils.text_utils import normalize_lccn
 
 
 class TestLCCNNormalizationProperties:

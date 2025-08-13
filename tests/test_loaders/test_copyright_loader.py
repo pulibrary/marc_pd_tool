@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
+from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
 
 
 @fixture
@@ -163,7 +163,7 @@ class TestCopyrightXMLParsing:
         assert len(publications) > 0
 
         # Find entries from malformed file (they should have empty fields)
-        incomplete_entries = [pub for pub in publications if pub.title == "incomplete entry"]
+        incomplete_entries = [pub for pub in publications if pub.title == "Incomplete Entry"]
         assert len(incomplete_entries) > 0
 
     def test_extract_from_file_with_sample_xml(self, sample_copyright_xml):
@@ -419,7 +419,7 @@ class TestCopyrightDataLoaderPerformance:
         ]
         assert sorted_test_files == sorted(sorted_test_files)
 
-    @patch("marc_pd_tool.loaders.copyright_loader.logger")
+    @patch("marc_pd_tool.infrastructure.persistence._copyright_loader.logger")
     def test_logging_behavior(self, mock_logger, temp_copyright_dir):
         """Test that appropriate logging occurs during loading"""
         loader = CopyrightDataLoader(temp_copyright_dir)

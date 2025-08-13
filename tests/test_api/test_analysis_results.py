@@ -7,9 +7,9 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
 from tests.fixtures.publications import PublicationBuilder
 
 
@@ -27,19 +27,19 @@ class TestAnalysisResults:
         assert results.result_temp_dir is None
 
         # Check statistics are initialized
-        assert results.statistics["total_records"] == 0
-        assert results.statistics["us_records"] == 0
-        assert results.statistics["non_us_records"] == 0
-        assert results.statistics["unknown_country"] == 0
-        assert results.statistics["registration_matches"] == 0
-        assert results.statistics["renewal_matches"] == 0
-        assert results.statistics["no_matches"] == 0
-        assert results.statistics["pd_us_not_renewed"] == 0
-        assert results.statistics["pd_pre_min_year"] == 0
-        assert results.statistics["in_copyright"] == 0
-        assert results.statistics["research_us_status"] == 0
-        assert results.statistics["research_us_only_pd"] == 0
-        assert results.statistics["country_unknown"] == 0
+        assert results.statistics.total_records == 0
+        assert results.statistics.us_records == 0
+        assert results.statistics.non_us_records == 0
+        assert results.statistics.unknown_country == 0
+        assert results.statistics.registration_matches == 0
+        assert results.statistics.renewal_matches == 0
+        assert results.statistics.no_matches == 0
+        assert results.statistics.pd_us_not_renewed == 0
+        assert results.statistics.pd_pre_min_year == 0
+        assert results.statistics.in_copyright == 0
+        assert results.statistics.research_us_status == 0
+        assert results.statistics.research_us_only_pd == 0
+        assert results.statistics.country_unknown == 0
 
     def test_add_publication_updates_statistics(self):
         """Test that adding publications correctly updates statistics"""
@@ -52,10 +52,10 @@ class TestAnalysisResults:
         results.add_publication(pub1)
 
         assert len(results.publications) == 1
-        assert results.statistics["total_records"] == 1
-        assert results.statistics["us_records"] == 1
-        assert results.statistics["registration_matches"] == 1
-        assert results.statistics["us_registered_not_renewed"] == 1
+        assert results.statistics.total_records == 1
+        assert results.statistics.us_records == 1
+        assert results.statistics.registration_matches == 1
+        assert results.statistics.get("us_registered_not_renewed", 0) == 1
 
         # Non-US publication with renewal match
         pub2 = PublicationBuilder.basic_us_publication(
@@ -66,10 +66,10 @@ class TestAnalysisResults:
         results.add_publication(pub2)
 
         assert len(results.publications) == 2
-        assert results.statistics["total_records"] == 2
-        assert results.statistics["non_us_records"] == 1
-        assert results.statistics["renewal_matches"] == 1
-        assert results.statistics["us_renewed"] == 1
+        assert results.statistics.total_records == 2
+        assert results.statistics.non_us_records == 1
+        assert results.statistics.renewal_matches == 1
+        assert results.statistics.get("us_renewed", 0) == 1
 
         # Publication with no matches
         pub3 = PublicationBuilder.basic_us_publication()
@@ -78,9 +78,9 @@ class TestAnalysisResults:
         results.add_publication(pub3)
 
         assert len(results.publications) == 3
-        assert results.statistics["total_records"] == 3
-        assert results.statistics["no_matches"] == 1
-        assert results.statistics["foreign_no_match_xxk"] == 1
+        assert results.statistics.total_records == 3
+        assert results.statistics.no_matches == 1
+        assert results.statistics.get("foreign_no_match_xxk", 0) == 1
 
     def test_add_result_file_tracking(self):
         """Test that result file paths are tracked correctly"""
@@ -118,11 +118,11 @@ class TestAnalysisResults:
         assert len(results.publications) == 0
 
         # But statistics should be updated
-        assert results.statistics["total_records"] == 5
-        assert results.statistics["us_records"] == 5
-        assert results.statistics["registration_matches"] == 3
-        assert results.statistics["us_registered_not_renewed"] == 3
-        assert results.statistics["us_no_match"] == 2
+        assert results.statistics.total_records == 5
+        assert results.statistics.us_records == 5
+        assert results.statistics.registration_matches == 3
+        assert results.statistics.get("us_registered_not_renewed", 0) == 3
+        assert results.statistics.get("us_no_match", 0) == 2
 
     def test_statistics_for_all_statuses(self):
         """Test that all copyright statuses are tracked correctly"""
@@ -144,10 +144,10 @@ class TestAnalysisResults:
             results.add_publication(pub)
 
         # Check all status counters with new status values
-        assert results.statistics["us_registered_not_renewed"] == 1
-        assert results.statistics["us_no_match"] == 3  # 3 instances of US_NO_MATCH
-        assert results.statistics["us_renewed"] == 1
-        assert results.statistics["country_unknown_no_match"] == 1
+        assert results.statistics.get("us_registered_not_renewed", 0) == 1
+        assert results.statistics.get("us_no_match", 0) == 3  # 3 instances of US_NO_MATCH
+        assert results.statistics.get("us_renewed", 0) == 1
+        assert results.statistics.get("country_unknown_no_match", 0) == 1
 
     def test_country_classification_tracking(self):
         """Test that country classifications are tracked correctly"""
@@ -169,9 +169,9 @@ class TestAnalysisResults:
         )
         results.add_publication(pub3)
 
-        assert results.statistics["us_records"] == 1
-        assert results.statistics["non_us_records"] == 1
-        assert results.statistics["unknown_country"] == 1
+        assert results.statistics.us_records == 1
+        assert results.statistics.non_us_records == 1
+        assert results.statistics.unknown_country == 1
 
     def test_match_tracking(self):
         """Test that matches are tracked independently of status"""
@@ -197,9 +197,9 @@ class TestAnalysisResults:
         pub4 = PublicationBuilder.basic_us_publication()
         results.add_publication(pub4)
 
-        assert results.statistics["registration_matches"] == 2
-        assert results.statistics["renewal_matches"] == 2
-        assert results.statistics["no_matches"] == 1  # Only pub4 has no matches at all
+        assert results.statistics.registration_matches == 2
+        assert results.statistics.renewal_matches == 2
+        assert results.statistics.no_matches == 1  # Only pub4 has no matches at all
 
     def test_ground_truth_storage(self):
         """Test storage of ground truth pairs and stats"""
@@ -210,8 +210,8 @@ class TestAnalysisResults:
         marc_pub.normalized_lccn = "12345678"
         # Add a mock match to simulate ground truth
         # Local imports
-        from marc_pd_tool.data.enums import MatchType
-        from marc_pd_tool.data.publication import MatchResult
+        from marc_pd_tool.core.domain.enums import MatchType
+        from marc_pd_tool.core.domain.match_result import MatchResult
 
         marc_pub.registration_match = MatchResult(
             matched_title="Test Book",
@@ -229,7 +229,7 @@ class TestAnalysisResults:
 
         # Create ground truth stats
         # Local imports
-        from marc_pd_tool.data.ground_truth import GroundTruthStats
+        from marc_pd_tool.application.models.ground_truth_stats import GroundTruthStats
 
         gt_stats = GroundTruthStats(
             total_marc_records=100,

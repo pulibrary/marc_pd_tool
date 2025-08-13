@@ -6,9 +6,11 @@
 from unittest.mock import Mock
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.config_loader import ConfigLoader
-from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
+from marc_pd_tool.application.processing.similarity_calculator import (
+    SimilarityCalculator,
+)
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.config import ConfigLoader
 
 
 class TestSimilarityCalculatorEdgeCases:
@@ -31,6 +33,12 @@ class TestSimilarityCalculatorEdgeCases:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -54,6 +62,12 @@ class TestSimilarityCalculatorEdgeCases:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -89,6 +103,12 @@ class TestSimilarityCalculatorEdgeCases:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -123,6 +143,12 @@ class TestSimilarityCalculatorEdgeCases:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -149,6 +175,12 @@ class TestCalculatorConfiguration:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 
@@ -180,6 +212,12 @@ class TestCalculatorConfiguration:
         }
         mock_config.author_stopwords = set()
         mock_config.publisher_stopwords = set()
+        # Add mock wordlists for number normalization
+        mock_config.wordlists = Mock()
+        mock_config.wordlists.number_normalization = Mock()
+        mock_config.wordlists.number_normalization.roman_numerals = {}
+        mock_config.wordlists.number_normalization.ordinals = {}
+        mock_config.wordlists.number_normalization.word_numbers = {}
 
         calculator = SimilarityCalculator(config=mock_config)
 

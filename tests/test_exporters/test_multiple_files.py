@@ -11,11 +11,11 @@ from shutil import rmtree
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.data.publication import CopyrightStatus
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.csv_exporter import CSVExporter
-from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
+from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 def export_to_csv(publications, csv_file, single_file=True):

@@ -8,8 +8,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.cache_manager import CacheManager
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure import CacheManager
 
 
 class TestMarcCaching(TestCase):

@@ -3,7 +3,7 @@
 """Test dual author support (245$c and 1xx fields) in Publication class"""
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestDualAuthorSupport:
@@ -22,9 +22,9 @@ class TestDualAuthorSupport:
         assert pub.original_author == "by John Smith"
         assert pub.original_main_author == "Smith, John, 1945-"
 
-        # Check normalized values
-        assert pub.author == "by john smith"
-        assert pub.main_author == "smith john 1945"
+        # Check minimal cleanup (whitespace normalization only)
+        assert pub.author == "by John Smith"  # Minimal cleanup only
+        assert pub.main_author == "Smith, John, 1945-"  # Minimal cleanup only
 
     def test_publication_with_only_245c_author(self):
         """Test Publication with only 245$c author"""
@@ -32,7 +32,7 @@ class TestDualAuthorSupport:
 
         assert pub.original_author == "by Jane Doe"
         assert pub.original_main_author is None
-        assert pub.author == "by jane doe"
+        assert pub.author == "by Jane Doe"  # Minimal cleanup only
         assert pub.main_author == ""
 
     def test_publication_with_only_1xx_author(self):
@@ -42,7 +42,7 @@ class TestDualAuthorSupport:
         assert pub.original_author is None
         assert pub.original_main_author == "Doe, Jane"
         assert pub.author == ""
-        assert pub.main_author == "doe jane"
+        assert pub.main_author == "Doe, Jane"  # Minimal cleanup only
 
     def test_both_authors_in_to_dict(self):
         """Test that both author fields are included in to_dict output"""
@@ -74,9 +74,9 @@ class TestDualAuthorSupport:
             main_author="Smith, John Q., Jr., 1945-2020",
         )
 
-        # Normalized versions should be cleaned
-        assert pub.author == "by john q smith jr"
-        assert pub.main_author == "smith john q jr 1945 2020"
+        # Minimal cleanup (whitespace normalization only)
+        assert pub.author == "By: John Q. Smith, Jr."  # Minimal cleanup only
+        assert pub.main_author == "Smith, John Q., Jr., 1945-2020"  # Minimal cleanup only
 
         # Originals should be preserved
         assert pub.original_author == "By: John Q. Smith, Jr."

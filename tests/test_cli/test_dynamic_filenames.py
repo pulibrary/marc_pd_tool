@@ -10,7 +10,35 @@ from pytest import fixture
 
 # Local imports
 # Local imports - import CLI functions from new location
-from marc_pd_tool.cli import generate_output_filename
+from marc_pd_tool.adapters.cli import generate_output_filename
+
+
+def create_test_args(**kwargs):
+    """Helper to create test Namespace with all required attributes"""
+    # Local imports
+    from marc_pd_tool.infrastructure.config import get_config
+
+    config = get_config()
+
+    # Set defaults for all required attributes
+    defaults = {
+        "output_filename": "matches.csv",
+        "us_only": False,
+        "min_year": None,
+        "max_year": None,
+        "score_everything_mode": False,
+        "score_everything": False,
+        "ground_truth": None,
+        "output_formats": ["csv"],
+        "title_threshold": config.get_threshold("title"),
+        "author_threshold": config.get_threshold("author"),
+        "publisher_threshold": config.get_threshold("publisher"),
+    }
+
+    # Update with provided kwargs
+    defaults.update(kwargs)
+
+    return Namespace(**defaults)
 
 
 class TestDynamicFilenames:
@@ -19,14 +47,7 @@ class TestDynamicFilenames:
     @fixture
     def base_args(self):
         """Create base args namespace for testing"""
-        return Namespace(
-            output_filename="matches.csv",
-            us_only=False,
-            min_year=None,
-            max_year=None,
-            score_everything_mode=False,
-            output_formats=["csv"],
-        )
+        return create_test_args()
 
     def test_user_provided_filename_gets_correct_extension(self, base_args):
         """Test that user-provided filenames get extensions stripped (added by exporters)"""
@@ -72,13 +93,13 @@ class TestDynamicFilenames:
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_us_only_filter_adds_suffix(self, base_args):
-        """Test that US-only filter adds us-only suffix"""
+        """Test that US-only filter adds us suffix"""
         # Standard library imports
         import re
 
         base_args.us_only = True
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only"
+        pattern = r"reports/\d{8}_\d{6}_matches_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_year_range_filter(self, base_args):
@@ -89,7 +110,7 @@ class TestDynamicFilenames:
         base_args.min_year = 1950
         base_args.max_year = 1960
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_1950-1960"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1950-1960"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_single_year_filter(self, base_args):
@@ -100,7 +121,7 @@ class TestDynamicFilenames:
         base_args.min_year = 1955
         base_args.max_year = 1955
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_1955-1955"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1955-1955"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_min_year_only_filter(self, base_args):
@@ -110,7 +131,7 @@ class TestDynamicFilenames:
 
         base_args.min_year = 1945
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_1945-current"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1945-9999"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_max_year_only_filter(self, base_args):
@@ -120,7 +141,7 @@ class TestDynamicFilenames:
 
         base_args.max_year = 1970
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_pre-1970"
+        pattern = r"reports/\d{8}_\d{6}_matches_y0-1970"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_combined_us_only_and_year_range(self, base_args):
@@ -132,7 +153,7 @@ class TestDynamicFilenames:
         base_args.min_year = 1950
         base_args.max_year = 1960
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_1950-1960"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1950-1960_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_combined_us_only_and_single_year(self, base_args):
@@ -144,7 +165,7 @@ class TestDynamicFilenames:
         base_args.min_year = 1955
         base_args.max_year = 1955
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_1955-1955"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1955-1955_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_combined_us_only_and_min_year(self, base_args):
@@ -155,7 +176,7 @@ class TestDynamicFilenames:
         base_args.us_only = True
         base_args.min_year = 1945
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_1945-current"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1945-9999_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_combined_us_only_and_max_year(self, base_args):
@@ -166,30 +187,30 @@ class TestDynamicFilenames:
         base_args.us_only = True
         base_args.max_year = 1970
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_pre-1970"
+        pattern = r"reports/\d{8}_\d{6}_matches_y0-1970_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_score_everything_indicator(self, base_args):
-        """Test filename includes score-everything indicator when enabled"""
+        """Test filename includes all indicator when enabled"""
         # Standard library imports
         import re
 
-        base_args.score_everything_mode = True
+        base_args.score_everything = True
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_score-everything"
+        pattern = r"reports/\d{8}_\d{6}_matches_all"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_score_everything_with_filters(self, base_args):
-        """Test filename with score-everything and other filters"""
+        """Test filename with all and other filters"""
         # Standard library imports
         import re
 
-        base_args.score_everything_mode = True
+        base_args.score_everything = True
         base_args.us_only = True
         base_args.min_year = 1930
         base_args.max_year = 1960
         result = generate_output_filename(base_args)
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_1930-1960_score-everything"
+        pattern = r"reports/\d{8}_\d{6}_matches_y1930-1960_us_all"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
 
@@ -201,7 +222,7 @@ class TestFilenameEdgeCases:
         # Standard library imports
         import re
 
-        args = Namespace(
+        args = create_test_args(
             output_filename="custom.csv",
             us_only=True,
             min_year=1950,
@@ -223,7 +244,7 @@ class TestFilenameEdgeCases:
         # Standard library imports
         import re
 
-        args = Namespace(
+        args = create_test_args(
             output_filename="data.tsv",
             us_only=True,
             min_year=1950,
@@ -246,7 +267,7 @@ class TestFilenameEdgeCases:
         # Standard library imports
         import re
 
-        args = Namespace(
+        args = create_test_args(
             output_filename="./results/analysis.csv",
             us_only=True,
             min_year=1950,
@@ -264,7 +285,7 @@ class TestFilenameEdgeCases:
         import re
 
         # Scenario 1: Research focused on 1950s US publications
-        args1 = Namespace(
+        args1 = create_test_args(
             output_filename="matches.csv",
             us_only=True,
             min_year=1950,
@@ -273,11 +294,11 @@ class TestFilenameEdgeCases:
             output_formats=["csv"],
         )
         result1 = generate_output_filename(args1)
-        pattern1 = r"reports/\d{8}_\d{6}_matches_us-only_1950-1959"
+        pattern1 = r"reports/\d{8}_\d{6}_matches_y1950-1959_us"
         assert re.match(pattern1, result1), f"Expected timestamp pattern, got: {result1}"
 
         # Scenario 2: Everything after 1930
-        args2 = Namespace(
+        args2 = create_test_args(
             output_filename="matches.csv",
             us_only=False,
             min_year=1930,
@@ -286,11 +307,11 @@ class TestFilenameEdgeCases:
             output_formats=["csv"],
         )
         result2 = generate_output_filename(args2)
-        pattern2 = r"reports/\d{8}_\d{6}_matches_1930-current"
+        pattern2 = r"reports/\d{8}_\d{6}_matches_y1930-9999"
         assert re.match(pattern2, result2), f"Expected timestamp pattern, got: {result2}"
 
         # Scenario 3: US publications up to 1970
-        args3 = Namespace(
+        args3 = create_test_args(
             output_filename="matches.csv",
             us_only=True,
             min_year=None,
@@ -299,13 +320,13 @@ class TestFilenameEdgeCases:
             output_formats=["csv"],
         )
         result3 = generate_output_filename(args3)
-        pattern3 = r"reports/\d{8}_\d{6}_matches_us-only_pre-1970"
+        pattern3 = r"reports/\d{8}_\d{6}_matches_y0-1970_us"
         assert re.match(pattern3, result3), f"Expected timestamp pattern, got: {result3}"
 
     def test_default_detection_logic(self):
         """Test that only the exact default triggers dynamic naming"""
         # These should trigger dynamic naming
-        args_default = Namespace(
+        args_default = create_test_args(
             output_filename="matches.csv",
             us_only=True,
             min_year=1950,
@@ -314,10 +335,10 @@ class TestFilenameEdgeCases:
             output_formats=["csv"],
         )
         result = generate_output_filename(args_default)
-        assert "us-only" in result
+        assert "us" in result
 
         # These should NOT trigger dynamic naming (different from default)
-        args_similar = Namespace(
+        args_similar = create_test_args(
             output_filename="matches2.csv",
             us_only=True,
             min_year=1950,
@@ -337,7 +358,7 @@ class TestFilenameEdgeCases:
         result = generate_output_filename(args_similar)
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
-        args_case = Namespace(
+        args_case = create_test_args(
             output_filename="Matches.csv",
             us_only=True,
             min_year=1950,
@@ -359,7 +380,7 @@ class TestFilenameEdgeCases:
 
     def test_filename_without_extension_gets_added(self):
         """Test that filenames without extensions get the correct extension added"""
-        args = Namespace(
+        args = create_test_args(
             output_filename="my_output",
             us_only=False,
             min_year=None,
@@ -389,7 +410,7 @@ class TestTimestampedFilenames:
     @fixture
     def base_args(self):
         """Create base args namespace for testing"""
-        return Namespace(
+        return create_test_args(
             output_filename="matches.csv",
             us_only=False,
             min_year=None,
@@ -453,8 +474,8 @@ class TestTimestampedFilenames:
         base_args.max_year = 1970
         result = generate_output_filename(base_args)
 
-        # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_us-only_1950-1970
-        pattern = r"reports/\d{8}_\d{6}_matches_us-only_1950-1970"
+        # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_y1950-1970_us
+        pattern = r"reports/\d{8}_\d{6}_matches_y1950-1970_us"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_timestamp_with_ground_truth_mode(self, base_args):
@@ -462,23 +483,23 @@ class TestTimestampedFilenames:
         # Standard library imports
         import re
 
-        base_args.ground_truth_mode = True
+        base_args.ground_truth = True  # Ground truth mode flag
         result = generate_output_filename(base_args)
 
-        # Should match pattern: reports/YYYYMMDD_HHMMSS_ground_truth
-        pattern = r"reports/\d{8}_\d{6}_ground_truth"
+        # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_gt
+        pattern = r"reports/\d{8}_\d{6}_matches_gt"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_timestamp_with_score_everything(self, base_args):
-        """Test that timestamp works with score-everything mode"""
+        """Test that timestamp works with all mode"""
         # Standard library imports
         import re
 
-        base_args.score_everything_mode = True
+        base_args.score_everything = True
         result = generate_output_filename(base_args)
 
-        # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_score-everything
-        pattern = r"reports/\d{8}_\d{6}_matches_score-everything"
+        # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_all
+        pattern = r"reports/\d{8}_\d{6}_matches_all"
         assert re.match(pattern, result), f"Expected timestamp pattern, got: {result}"
 
     def test_timestamp_format_consistency(self, base_args):

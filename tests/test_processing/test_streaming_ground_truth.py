@@ -13,9 +13,11 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
+from marc_pd_tool.application.processing.ground_truth_extractor import (
+    GroundTruthExtractor,
+)
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestStreamingGroundTruthExtractor:
@@ -405,7 +407,8 @@ class TestStreamingGroundTruthExtractor:
                     load_count -= 1
 
             with patch(
-                "marc_pd_tool.processing.ground_truth_extractor.load", side_effect=mock_pickle_load
+                "marc_pd_tool.application.processing.ground_truth_extractor.load",
+                side_effect=mock_pickle_load,
             ):
                 pairs, stats = extractor.extract_ground_truth_from_pickles(
                     pickle_paths, sample_copyright_publications, sample_renewal_publications

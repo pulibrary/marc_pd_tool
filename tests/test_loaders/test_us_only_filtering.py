@@ -10,9 +10,9 @@ from argparse import ArgumentParser
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 
 class TestUSOnlyFiltering:

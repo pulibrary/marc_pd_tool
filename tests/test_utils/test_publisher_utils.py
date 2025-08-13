@@ -5,8 +5,8 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.utils.publisher_utils import clean_publisher_suffix
-from marc_pd_tool.utils.publisher_utils import extract_publisher_candidates
+from marc_pd_tool.shared.utils.publisher_utils import clean_publisher_suffix
+from marc_pd_tool.shared.utils.publisher_utils import extract_publisher_candidates
 
 
 class TestExtractPublisherCandidates:

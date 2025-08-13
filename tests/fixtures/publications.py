@@ -6,11 +6,11 @@
 import pytest
 
 # Local imports
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class PublicationBuilder:

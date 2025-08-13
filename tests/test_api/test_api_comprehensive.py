@@ -8,9 +8,9 @@ Comprehensive tests for API module - cleaned version with unnecessary skipped te
 from pathlib import Path
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestAnalysisResultsMissingCoverage:
@@ -28,7 +28,7 @@ class TestAnalysisResultsMissingCoverage:
         results.add_publication(pub)
 
         # Should increment counters appropriately
-        assert results.statistics["total_records"] == 1
+        assert results.statistics.total_records == 1
         assert results.statistics.get("unknown_country", 0) == 1
 
     def test_load_all_publications_with_errors(self, tmp_path):

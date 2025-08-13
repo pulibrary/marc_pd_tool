@@ -6,8 +6,8 @@
 import pytest
 
 # Local imports
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import MatchResult
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
 
 
 class MatchResultBuilder:

@@ -11,7 +11,9 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 # Local imports
-from marc_pd_tool.processing.similarity_calculator import SimilarityCalculator
+from marc_pd_tool.application.processing.similarity_calculator import (
+    SimilarityCalculator,
+)
 
 
 class TestTitleSimilarityProperties:
@@ -51,7 +53,9 @@ class TestTitleSimilarityProperties:
         # Very short titles might be filtered out completely
         # Check what the processing actually produces
         # Local imports
-        from marc_pd_tool.processing.text_processing import expand_abbreviations
+        from marc_pd_tool.application.processing.text_processing import (
+            expand_abbreviations,
+        )
 
         expanded = expand_abbreviations(title)
         words = expanded.lower().split()
@@ -59,12 +63,8 @@ class TestTitleSimilarityProperties:
         # Filter out words < 2 chars (same as the algorithm)
         significant_words = [w for w in words if len(w) >= 2]
 
-        if not significant_words:
-            # No significant words after processing - score should be 0
-            assert score == 0.0
-        else:
-            # Has significant words - identical should be 100
-            assert score == 100.0
+        # Identical titles should always score 100, even if they normalize to nothing
+        assert score == 100.0
 
     @given(
         st.text(min_size=1),

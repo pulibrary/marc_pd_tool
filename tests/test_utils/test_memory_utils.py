@@ -8,14 +8,14 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.utils.memory_utils import MemoryMonitor
+from marc_pd_tool.shared.utils.memory_utils import MemoryMonitor
 
 
 class TestMemoryMonitor:
     """Test memory monitoring functionality"""
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_memory_monitor_initialization(
         self, mock_virtual_memory: Mock, mock_process_class: Mock
     ):
@@ -39,8 +39,8 @@ class TestMemoryMonitor:
         assert monitor.peak_memory > 0
         assert monitor.start_time > 0
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_get_memory_usage(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test get_memory_usage returns correct statistics"""
         # Mock process and memory info
@@ -64,8 +64,8 @@ class TestMemoryMonitor:
         assert abs(stats["available_gb"] - 4.0) < 0.01  # Should be ~4GB
         assert stats["peak_gb"] >= stats["process_gb"]
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_peak_memory_tracking(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test peak memory tracking works correctly"""
         # Mock process and memory info
@@ -98,8 +98,8 @@ class TestMemoryMonitor:
         final_stats = monitor.get_memory_usage()
         assert abs(final_stats["peak_gb"] - 3.0) < 0.01
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_check_memory_threshold(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test memory threshold checking"""
         # Mock process and memory info
@@ -123,8 +123,8 @@ class TestMemoryMonitor:
         # Should not exceed 6GB threshold
         assert monitor.check_memory_threshold(6.0) is False
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_log_if_needed_respects_interval(
         self, mock_virtual_memory: Mock, mock_process_class: Mock
     ):
@@ -159,8 +159,8 @@ class TestMemoryMonitor:
             monitor.log_if_needed()
             assert mock_info.call_count >= 1
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_force_log_always_logs(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test force_log always logs regardless of interval"""
         # Mock process and memory info
@@ -191,8 +191,8 @@ class TestMemoryMonitor:
             assert "test context 1" in str(log_calls[0])
             assert "test context 2" in str(log_calls[1])
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_get_final_summary(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test get_final_summary returns formatted summary"""
         # Mock process and memory info
@@ -222,8 +222,8 @@ class TestMemoryMonitor:
         assert "Final" in summary and "2.0GB" in summary
         assert "Runtime" in summary and "minutes" in summary
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_log_memory_warning_if_high(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test log_memory_warning_if_high warns when threshold exceeded"""
         # Mock process and memory info
@@ -252,8 +252,8 @@ class TestMemoryMonitor:
             monitor.log_memory_warning_if_high(warning_threshold_gb=15.0)
             assert mock_warning.call_count == 0
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_error_handling(self, mock_virtual_memory: Mock, mock_process_class: Mock):
         """Test error handling when psutil calls fail"""
         # Mock process that raises exceptions
@@ -284,8 +284,8 @@ class TestMemoryMonitor:
 class TestMemoryMonitorIntegration:
     """Integration tests for memory monitoring with realistic scenarios"""
 
-    @patch("marc_pd_tool.utils.memory_utils.Process")
-    @patch("marc_pd_tool.utils.memory_utils.virtual_memory")
+    @patch("marc_pd_tool.shared.utils.memory_utils.Process")
+    @patch("marc_pd_tool.shared.utils.memory_utils.virtual_memory")
     def test_realistic_monitoring_scenario(
         self, mock_virtual_memory: Mock, mock_process_class: Mock
     ):
@@ -336,8 +336,10 @@ class TestMemoryMonitorIntegration:
 
     def test_monitor_context_usage_pattern(self):
         """Test memory monitor usage pattern that would be used in real processing"""
-        with patch("marc_pd_tool.utils.memory_utils.Process") as mock_process_class:
-            with patch("marc_pd_tool.utils.memory_utils.virtual_memory") as mock_virtual_memory:
+        with patch("marc_pd_tool.shared.utils.memory_utils.Process") as mock_process_class:
+            with patch(
+                "marc_pd_tool.shared.utils.memory_utils.virtual_memory"
+            ) as mock_virtual_memory:
                 # Setup mocks
                 mock_process = Mock()
                 mock_process_class.return_value = mock_process

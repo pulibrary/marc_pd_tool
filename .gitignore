@@ -25,6 +25,7 @@ ground_truth_data/
 notes.md
 .tool-versions
 projects/
+REFACTORING*
 
 # Cache directories - do not commit cached data
 .marcpd_cache/

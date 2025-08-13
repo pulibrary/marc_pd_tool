@@ -6,8 +6,10 @@
 from unittest import TestCase
 
 # Local imports
-from marc_pd_tool.processing.indexer import generate_wordbased_author_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_publisher_keys
+from marc_pd_tool.application.processing.indexer import (
+    generate_wordbased_publisher_keys,
+)
+from marc_pd_tool.application.processing.indexer import generate_wordbased_author_keys
 
 
 class TestEnhancedAuthorPreprocessing(TestCase):

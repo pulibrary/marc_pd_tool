@@ -6,8 +6,8 @@
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.indexer import DataIndexer
+from marc_pd_tool.application.processing.indexer import DataIndexer
+from marc_pd_tool.core.domain.publication import Publication
 
 
 @fixture
@@ -97,7 +97,7 @@ class TestLCCNIndexing:
 
         # Check that duplicate LCCNs are both indexed
         lccn_entry = indexer.lccn_index["25012345"]
-        pub_ids = lccn_entry.get_ids()
+        pub_ids = lccn_entry.ids
         assert len(pub_ids) == 2  # Two publications with same LCCN
         assert 0 in pub_ids  # pub1
         assert 3 in pub_ids  # pub4

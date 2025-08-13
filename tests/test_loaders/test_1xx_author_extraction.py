@@ -6,7 +6,7 @@
 import xml.etree.ElementTree as ET
 
 # Local imports
-from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 
 class TestMarcAuthorExtraction:

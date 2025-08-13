@@ -7,7 +7,7 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.processing.text_processing import GenericTitleDetector
+from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
 
 
 class TestDetectionAlgorithm:

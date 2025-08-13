@@ -11,8 +11,8 @@ import unittest
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.infrastructure.cache_manager import CacheManager
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure import CacheManager
 
 
 class TestYearFilteredCaching(unittest.TestCase):
@@ -141,7 +141,7 @@ class TestYearFilteredCaching(unittest.TestCase):
         unexpected_cache_dir = join(self.cache_dir, "copyright_data", "1950_1960")
         self.assertFalse(exists(unexpected_cache_dir))
 
-    @patch("marc_pd_tool.infrastructure.cache_manager.logger")
+    @patch("marc_pd_tool.infrastructure.cache._manager.logger")
     def test_cache_logging(self, mock_logger):
         """Test that appropriate log messages are generated"""
         copyright_dir = "/test/copyright"

@@ -11,12 +11,12 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.utils.types import AnalysisOptions
-from marc_pd_tool.utils.types import JSONDict
-from marc_pd_tool.utils.types import MatchResultDict
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.models.config_models import AnalysisOptions
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.core.types.json import JSONDict
+from marc_pd_tool.core.types.results import MatchResultDict
 
 
 class TestWorkerCalledMethods:
@@ -242,7 +242,7 @@ class TestWorkerCalledMethods:
         """Test save_matches_json function with basic data"""
         # Import from the correct location
         # Local imports
-        from marc_pd_tool.exporters.json_exporter import save_matches_json
+        from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
 
         with TemporaryDirectory() as temp_dir:
             output_file = join(temp_dir, "test_matches.json")
@@ -279,7 +279,7 @@ class TestWorkerCalledMethods:
     def test_save_matches_json_with_compression(self) -> None:
         """Test save_matches_json with compression option"""
         # Local imports
-        from marc_pd_tool.exporters.json_exporter import save_matches_json
+        from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
 
         with TemporaryDirectory() as temp_dir:
             output_file = join(temp_dir, "test_compressed.json")
@@ -303,7 +303,7 @@ class TestWorkerCalledMethods:
     def test_save_matches_json_empty_list(self) -> None:
         """Test save_matches_json with empty publications list"""
         # Local imports
-        from marc_pd_tool.exporters.json_exporter import save_matches_json
+        from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
 
         with TemporaryDirectory() as temp_dir:
             output_file = join(temp_dir, "empty.json")
@@ -361,9 +361,9 @@ class TestWorkerCalledMethods:
         """Test get_statistics returns a copy, not reference"""
         analyzer = MarcCopyrightAnalyzer()
 
-        # Set some statistics
-        analyzer.results.statistics["test_stat"] = 100
-        analyzer.results.statistics["another_stat"] = 200
+        # Set some statistics using the extra_fields for dynamic stats
+        analyzer.results.statistics.extra_fields["test_stat"] = 100
+        analyzer.results.statistics.extra_fields["another_stat"] = 200
 
         # Get statistics
         stats = analyzer.get_statistics()
@@ -376,7 +376,7 @@ class TestWorkerCalledMethods:
         stats["test_stat"] = 999
 
         # Original should be unchanged
-        assert analyzer.results.statistics["test_stat"] == 100
+        assert analyzer.results.statistics.extra_fields["test_stat"] == 100
 
         # Verify it's actually a different object
         assert stats is not analyzer.results.statistics
@@ -401,10 +401,10 @@ class TestWorkerCalledMethods:
                 ):
                     # Mock the loaders
                     with patch(
-                        "marc_pd_tool.loaders.copyright_loader.CopyrightDataLoader"
+                        "marc_pd_tool.infrastructure.persistence._copyright_loader.CopyrightDataLoader"
                     ) as MockCopyright:
                         with patch(
-                            "marc_pd_tool.loaders.renewal_loader.RenewalDataLoader"
+                            "marc_pd_tool.infrastructure.persistence._renewal_loader.RenewalDataLoader"
                         ) as MockRenewal:
                             with patch(
                                 "marc_pd_tool.processing.indexer.build_wordbased_index"

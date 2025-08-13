@@ -9,10 +9,9 @@ import pickle
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
-from marc_pd_tool.processing.matching_engine import process_batch
+from marc_pd_tool.application.processing.matching_engine import process_batch
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestSkipNoYearRecords:
@@ -23,8 +22,10 @@ class TestSkipNoYearRecords:
         if mock_index_class is None:
 
             class MockIndex:
-                def get_candidates_list(self, pub, tolerance):
-                    return []
+                def find_candidates(self, pub):
+                    return []  # Return empty list of indices
+
+                publications = []  # Empty publications list
 
                 def get_stats(self):
                     return {"title_keys": 0, "author_keys": 0}
@@ -34,18 +35,18 @@ class TestSkipNoYearRecords:
 
             mock_index_class = MockIndex
 
-        # Import matching_engine module to access global _worker_data
+        # Import matching_engine module to access global variables
         # Local imports
-        from marc_pd_tool.processing import matching_engine
+        from marc_pd_tool.application.processing import matching_engine
+        from marc_pd_tool.infrastructure.config import get_config
 
-        # Set up the mock worker data
-        matching_engine._worker_data = {
-            "registration_index": mock_index_class(),
-            "renewal_index": mock_index_class(),
-            "generic_detector": None,
-            "matching_engine": DataMatcher(),
-            "cache_manager": None,
-        }
+        # Set up the mock worker globals
+        mock_index = mock_index_class()
+        matching_engine._worker_registration_index = mock_index
+        matching_engine._worker_renewal_index = mock_index
+        matching_engine._worker_generic_detector = None
+        matching_engine._worker_config = get_config()  # Use actual Config object
+        matching_engine._worker_options = None  # Add worker options
 
     @fixture
     def mock_batch_info_with_year(self, tmp_path):
@@ -216,10 +217,10 @@ class TestSkipNoYearRecords:
 
         # The record should be skipped, so no publications should be processed
         assert len(processed_pubs) == 0
-        assert stats["marc_count"] == 0
-        assert stats["registration_matches_found"] == 0
-        assert stats["renewal_matches_found"] == 0
-        assert stats["skipped_no_year"] == 1  # Should track the skipped record
+        assert stats.marc_count == 0
+        assert stats.registration_matches_found == 0
+        assert stats.renewal_matches_found == 0
+        assert stats.skipped_no_year == 1  # Should track the skipped record
 
     def test_process_records_without_year_with_brute_force(
         self, mock_batch_info_no_year, monkeypatch, tmp_path
@@ -248,7 +249,7 @@ class TestSkipNoYearRecords:
 
         # The record should be processed even without a year
         assert len(processed_pubs) == 1
-        assert stats["marc_count"] == 1
+        assert stats.marc_count == 1
         assert processed_pubs[0].original_title == "Test Book Without Year"
 
     def test_mixed_batch_skips_only_no_year_records(
@@ -277,8 +278,8 @@ class TestSkipNoYearRecords:
 
         # Only the record with a year should be processed
         assert len(processed_pubs) == 1
-        assert stats["marc_count"] == 1
-        assert stats["skipped_no_year"] == 1  # Should track the one skipped record
+        assert stats.marc_count == 1
+        assert stats.skipped_no_year == 1  # Should track the one skipped record
         assert processed_pubs[0].original_title == "Book With Year"
         assert processed_pubs[0].year == 2023
 
@@ -299,16 +300,21 @@ class TestSkipNoYearRecords:
 
         # Mock the indexes to return a match
         class MockIndexWithMatch:
-            def get_candidates_list(self, pub, tolerance):
-                # Return a mock candidate that will match
-                mock_candidate = Publication(
-                    title="Test Book Without Year",
-                    author="Jones, Jane",
-                    pub_date="1950",
-                    source="Registration",
-                    source_id="reg001",
-                )
-                return [mock_candidate]
+            def __init__(self):
+                # Store the mock publication
+                self.publications = [
+                    Publication(
+                        title="Test Book Without Year",
+                        author="Jones, Jane",
+                        pub_date="1950",
+                        source="Registration",
+                        source_id="reg001",
+                    )
+                ]
+
+            def find_candidates(self, pub):
+                # Return index 0 to match the publication
+                return [0]
 
             def get_stats(self):
                 return {"title_keys": 0, "author_keys": 0}
@@ -345,11 +351,12 @@ class TestSkipNoYearRecords:
                         "combined": 100.0,
                     },
                     "is_lccn_match": False,
+                    "match_type": MatchType.SIMILARITY,  # Default match type
                 }
             return None
 
         monkeypatch.setattr(
-            "marc_pd_tool.processing.matching_engine.DataMatcher.find_best_match",
+            "marc_pd_tool.application.processing.matching_engine.DataMatcher.find_best_match",
             mock_find_best_match,
         )
 
@@ -360,7 +367,9 @@ class TestSkipNoYearRecords:
         with open(result_file_path, "rb") as f:
             processed_pubs = pickle.load(f)
 
-        # Check that the match was found and has the correct match type
+        # Check that the match was found
         assert len(processed_pubs) == 1
         assert processed_pubs[0].registration_match is not None
+        # Check for BRUTE_FORCE_WITHOUT_YEAR match type
         assert processed_pubs[0].registration_match.match_type == MatchType.BRUTE_FORCE_WITHOUT_YEAR
+        assert processed_pubs[0].registration_match.similarity_score == 100.0

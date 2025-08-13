@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.publication import Publication
 
 # Tests for multiprocessing error handling removed - they were testing non-existent internal methods
 
@@ -42,7 +42,7 @@ class TestAnalysisResultsErrorHandling:
         results.add_publication(pub)
 
         # Should handle missing status
-        assert results.statistics["total_records"] == 1
+        assert results.statistics.total_records == 1
         # Status-specific counters should not be incremented
         assert results.statistics.get("pd_us_no_renewal", 0) == 0
 

@@ -9,8 +9,8 @@ from unittest.mock import Mock
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestMinimumCombinedScore:
@@ -42,13 +42,7 @@ class TestMinimumCombinedScore:
 
         # Test with minimum combined score of 40
         match = matching_engine.find_best_match_ignore_thresholds(
-            marc_pub,
-            [copyright_pub],
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
-            minimum_combined_score=40.0,
+            marc_pub, [copyright_pub], year_tolerance=1, minimum_combined_score=40
         )
 
         # Should return None because combined score will be ~20 (below 40)
@@ -66,13 +60,7 @@ class TestMinimumCombinedScore:
 
         # Test with minimum combined score of 40
         match = matching_engine.find_best_match_ignore_thresholds(
-            marc_pub,
-            [copyright_pub],
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
-            minimum_combined_score=40.0,
+            marc_pub, [copyright_pub], year_tolerance=1, minimum_combined_score=40
         )
 
         # Should return match because title similarity will be 100%
@@ -92,13 +80,7 @@ class TestMinimumCombinedScore:
 
         # Test without minimum combined score
         match = matching_engine.find_best_match_ignore_thresholds(
-            marc_pub,
-            [copyright_pub],
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
-            minimum_combined_score=None,  # No minimum
+            marc_pub, [copyright_pub], year_tolerance=1, minimum_combined_score=None  # No minimum
         )
 
         # Should return match even with low score
@@ -120,16 +102,11 @@ class TestMinimumCombinedScore:
 
         # Test with minimum combined score of 40
         match = matching_engine.find_best_match_ignore_thresholds(
-            marc_pub,
-            [poor_match, good_match],
-            year_tolerance=1,
-            early_exit_title=95,
-            early_exit_author=90,
-            generic_detector=None,
-            minimum_combined_score=40.0,
+            marc_pub, [poor_match, good_match], year_tolerance=1, minimum_combined_score=40
         )
 
         # Should return the good match (100% title score)
         assert match is not None
         assert match["similarity_scores"]["title"] == 100.0
+        # Title preserves original case
         assert match["copyright_record"]["title"] == "Test Book"

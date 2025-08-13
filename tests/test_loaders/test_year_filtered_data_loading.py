@@ -8,8 +8,8 @@ import tempfile
 import unittest
 
 # Local imports
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
+from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
 
 
 class TestYearFilteredDataLoading(unittest.TestCase):
@@ -104,7 +104,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Check all titles are present
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1955", "book from 1958", "book from 1962", "book from 1965"}
+        expected_titles = {"Book from 1955", "Book from 1958", "Book from 1962", "Book from 1965"}
         self.assertEqual(titles, expected_titles)
 
     def test_copyright_load_with_min_year(self):
@@ -116,7 +116,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only 1960s books should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1962", "book from 1965"}
+        expected_titles = {"Book from 1962", "Book from 1965"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are >= 1960
@@ -133,7 +133,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only 1950s books should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1955", "book from 1958"}
+        expected_titles = {"Book from 1955", "Book from 1958"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are <= 1959
@@ -150,7 +150,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only books from 1958 and 1962 should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1958", "book from 1962"}
+        expected_titles = {"Book from 1958", "Book from 1962"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are in range
@@ -168,7 +168,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Check all titles are present
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1955", "book from 1958", "book from 1962", "book from 1965"}
+        expected_titles = {"Book from 1955", "Book from 1958", "Book from 1962", "Book from 1965"}
         self.assertEqual(titles, expected_titles)
 
     def test_renewal_load_with_min_year(self):
@@ -180,7 +180,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only 1960s books should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1962", "book from 1965"}
+        expected_titles = {"Book from 1962", "Book from 1965"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are >= 1960
@@ -197,7 +197,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only 1950s books should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1955", "book from 1958"}
+        expected_titles = {"Book from 1955", "Book from 1958"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are <= 1959
@@ -214,7 +214,7 @@ Book from 1965	Author Four	A45678	1965	ren-004	1992	Publisher D			Book from 1965
 
         # Only books from 1958 and 1962 should be included
         titles = {pub.title for pub in pubs}
-        expected_titles = {"book from 1958", "book from 1962"}
+        expected_titles = {"Book from 1958", "Book from 1962"}
         self.assertEqual(titles, expected_titles)
 
         # Verify all years are in range

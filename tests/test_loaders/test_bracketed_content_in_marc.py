@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 
 class TestBracketedContentInMarcTitles:

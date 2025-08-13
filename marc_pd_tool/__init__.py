@@ -10,28 +10,30 @@ registration and renewal data to determine copyright status.
 
 # Local imports
 # High-level API
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.models.ground_truth_stats import GroundTruthStats
+from marc_pd_tool.application.processing.ground_truth_extractor import (
+    GroundTruthExtractor,
+)
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
 
 # Data models (for advanced users)
-from marc_pd_tool.data.enums import CopyrightStatus
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.ground_truth import GroundTruthStats
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.core.domain.enums import CopyrightStatus
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 # For users who want lower-level control
-from marc_pd_tool.infrastructure.cache_manager import CacheManager
-from marc_pd_tool.infrastructure.config_loader import ConfigLoader
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
-from marc_pd_tool.loaders.marc_loader import MarcLoader
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
-from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.infrastructure import CacheManager
+from marc_pd_tool.infrastructure.config import ConfigLoader
+from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
+from marc_pd_tool.infrastructure.persistence import MarcLoader
+from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
 
 # Version info
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 
 __all__: list[str] = [
     # Primary API

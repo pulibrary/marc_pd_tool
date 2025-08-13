@@ -5,7 +5,7 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.utils.time_utils import format_time_duration
+from marc_pd_tool.shared.utils.time_utils import format_time_duration
 
 
 class TestFormatTimeDuration:

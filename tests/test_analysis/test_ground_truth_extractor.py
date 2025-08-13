@@ -8,10 +8,12 @@
 import pytest
 
 # Local imports
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.ground_truth import GroundTruthStats
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.ground_truth_extractor import GroundTruthExtractor
+from marc_pd_tool.application.models.ground_truth_stats import GroundTruthStats
+from marc_pd_tool.application.processing.ground_truth_extractor import (
+    GroundTruthExtractor,
+)
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestGroundTruthStats:
@@ -80,7 +82,7 @@ class TestGroundTruthExtractor:
 
         # Create MARC records
         # Local imports
-        from marc_pd_tool.data.enums import CountryClassification
+        from marc_pd_tool.core.domain.enums import CountryClassification
 
         marc1 = Publication("Book 1", author="Author 1", lccn="n78890351")
         marc1.year = 1950

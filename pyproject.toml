@@ -1,6 +1,6 @@
 [project]
 name = "marc-pd-comparison-tool"
-version = "0.0.1"
+version = "0.1.0"
 description = "Compare MARC and public domain publication data"
 authors = [
     {name = "Jon Stroop", email = "jsgh@jopast.io"},
@@ -13,6 +13,7 @@ dependencies = [
     "stop-words>=2018.7.23",
     "unidecode>=1.4.0",
     "psutil>=7.0.0",
+    "pydantic>=2.11.7",
 ]
 
 requires-python = ">=3.13.5"
@@ -73,6 +74,7 @@ extensions = [
 [tool.mypy]
 files = "marc_pd_tool"
 python_version = "3.13"
+plugins = ["pydantic.mypy"]
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -124,8 +126,12 @@ module = [
     "marc_pd_tool.processing.matching_engine",
     "marc_pd_tool.processing.indexer",
     "marc_pd_tool.infrastructure.cache_manager",
-    "marc_pd_tool.data.publication",
     "stop_words",
+    # Pydantic models need less strict checking
+    "marc_pd_tool.config.models",
+    "marc_pd_tool.config.shared_models",
+    "marc_pd_tool.config.wordlists",
+    "marc_pd_tool.models.*",
 ]
 disallow_any_expr = false
 
@@ -221,4 +227,4 @@ clean = { shell = '''
 '''}
 # Black can't ignore submodules. Below is the hack:
 submod_clean = { shell = "cd ./nypl-ren ; git checkout . -q ; cd ../nypl-reg ; git checkout . -q ; cd ../" }
-format = { composite = [ "black", "isort", "mdformat", "autoflake", "headers", "submod_clean" ] }
+format = { composite = [ "autoflake", "black", "isort", "mdformat",  "headers", "submod_clean" ] }

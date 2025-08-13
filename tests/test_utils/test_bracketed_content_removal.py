@@ -7,7 +7,7 @@ from pytest import mark
 from pytest import param
 
 # Local imports
-from marc_pd_tool.utils.text_utils import remove_bracketed_content
+from marc_pd_tool.shared.utils.text_utils import remove_bracketed_content
 
 
 class TestBracketedContentRemoval:
@@ -87,7 +87,7 @@ class TestBracketedContentRemoval:
     def test_integration_with_normalization(self):
         """Test that bracketed content removal works with text normalization"""
         # Local imports
-        from marc_pd_tool.utils.text_utils import normalize_text_standard
+        from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
 
         # Test that normalize_text_standard doesn't interfere with bracketed content
         # (it should be removed before normalization in the pipeline)

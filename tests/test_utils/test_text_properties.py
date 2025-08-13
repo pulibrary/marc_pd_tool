@@ -11,13 +11,13 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 # Local imports
-from marc_pd_tool.utils.text_utils import ascii_fold
-from marc_pd_tool.utils.text_utils import extract_significant_words
-from marc_pd_tool.utils.text_utils import extract_year
-from marc_pd_tool.utils.text_utils import normalize_text_standard
-from marc_pd_tool.utils.text_utils import normalize_unicode
-from marc_pd_tool.utils.text_utils import normalize_word_splits
-from marc_pd_tool.utils.text_utils import remove_bracketed_content
+from marc_pd_tool.shared.utils.text_utils import ascii_fold
+from marc_pd_tool.shared.utils.text_utils import extract_significant_words
+from marc_pd_tool.shared.utils.text_utils import extract_year
+from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
+from marc_pd_tool.shared.utils.text_utils import normalize_unicode
+from marc_pd_tool.shared.utils.text_utils import normalize_word_splits
+from marc_pd_tool.shared.utils.text_utils import remove_bracketed_content
 
 
 class TestUnicodeNormalizationProperties:
@@ -276,7 +276,7 @@ class TestSignificantWordsExtraction:
         # Normalize the text to get the actual words that will be processed
         # Use the same normalization as the function
         # Local imports
-        from marc_pd_tool.utils.text_utils import normalize_text_standard
+        from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
 
         normalized = normalize_text_standard(text)
         if not normalized:

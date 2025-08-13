@@ -16,11 +16,11 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.enums import MatchType
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.enums import MatchType
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestFullWorkflow:
@@ -49,20 +49,18 @@ class TestFullWorkflow:
         ]
 
         # Add mock matches
-        test_pubs[0].set_registration_match(
-            MatchResult(
-                matched_title="Test Book 1",
-                matched_author="Author One",
-                similarity_score=95,
-                title_score=95,
-                author_score=95,
-                publisher_score=90,
-                year_difference=0,
-                source_id="REG001",
-                source_type="registration",
-                matched_date="1960",
-                matched_publisher="Test Publisher",
-            )
+        test_pubs[0].registration_match = MatchResult(
+            matched_title="Test Book 1",
+            matched_author="Author One",
+            similarity_score=95,
+            title_score=95,
+            author_score=95,
+            publisher_score=90,
+            year_difference=0,
+            source_id="REG001",
+            source_type="registration",
+            matched_date="1960",
+            matched_publisher="Test Publisher",
         )
 
         # Initialize analyzer
@@ -90,8 +88,8 @@ class TestFullWorkflow:
                 )
 
         # Verify results
-        assert results.statistics["total_records"] == 2
-        assert results.statistics["us_records"] == 2
+        assert results.statistics.total_records == 2
+        assert results.statistics.us_records == 2
         assert len(results.publications) == 2
 
         # Verify output files
@@ -124,7 +122,7 @@ class TestFullWorkflow:
 
         analyzer = MarcCopyrightAnalyzer()
 
-        with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader_class:
+        with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader_class:
             mock_loader = Mock()
             mock_loader_class.return_value = mock_loader
             mock_loader.extract_all_batches.return_value = [pubs_1950s]
@@ -215,21 +213,19 @@ class TestFullWorkflow:
         ]
 
         # Add a match
-        test_pubs[0].set_registration_match(
-            MatchResult(
-                matched_title="Book with LCCN",
-                matched_author="Author",
-                similarity_score=100,
-                title_score=100,
-                author_score=100,
-                publisher_score=100,
-                year_difference=0,
-                source_id="REG001",
-                source_type="registration",
-                matched_date="1960",
-                matched_publisher="Publisher",
-                match_type=MatchType.LCCN,
-            )
+        test_pubs[0].registration_match = MatchResult(
+            matched_title="Book with LCCN",
+            matched_author="Author",
+            similarity_score=100,
+            title_score=100,
+            author_score=100,
+            publisher_score=100,
+            year_difference=0,
+            source_id="REG001",
+            source_type="registration",
+            matched_date="1960",
+            matched_publisher="Publisher",
+            match_type=MatchType.LCCN,
         )
 
         analyzer = MarcCopyrightAnalyzer()
@@ -237,7 +233,7 @@ class TestFullWorkflow:
         # Mock the processing to return our test publications
         with patch.object(analyzer, "_load_and_index_data"):
             # Patch MarcLoader at the correct import location for _ground_truth.py
-            with patch("marc_pd_tool.api._ground_truth.MarcLoader") as mock_loader_class:
+            with patch("marc_pd_tool.adapters.api._ground_truth.MarcLoader") as mock_loader_class:
                 mock_loader = Mock()
                 mock_loader_class.return_value = mock_loader
                 mock_loader.extract_all_batches.return_value = [test_pubs]

@@ -6,10 +6,10 @@
 # pytest imported automatically by test runner
 
 # Local imports
-from marc_pd_tool.processing.indexer import generate_wordbased_author_keys
-from marc_pd_tool.processing.indexer import generate_wordbased_title_keys
-from marc_pd_tool.utils.text_utils import extract_significant_words
-from marc_pd_tool.utils.text_utils import normalize_text_standard
+from marc_pd_tool.application.processing.indexer import generate_wordbased_author_keys
+from marc_pd_tool.application.processing.indexer import generate_wordbased_title_keys
+from marc_pd_tool.shared.utils.text_utils import extract_significant_words
+from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
 
 # Test stopwords matching original hardcoded behavior
 TEST_STOPWORDS = {

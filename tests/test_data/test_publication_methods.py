@@ -7,9 +7,9 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.utils.text_utils import normalize_text_standard
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.shared.utils.text_utils import normalize_text_standard
 
 
 class TestPublicationNormalization:
@@ -127,11 +127,13 @@ class TestPublicationConstruction:
             place="New York",
         )
 
-        assert pub.title == "the great gatsby"  # Normalized
-        assert pub.author == "fitzgerald f scott"  # Normalized
+        # Properties now only do minimal cleanup (whitespace normalization)
+        # Full normalization happens in SimilarityCalculator
+        assert pub.title == "The Great Gatsby"  # Minimal cleanup only
+        assert pub.author == "Fitzgerald, F. Scott"  # Minimal cleanup only
         assert pub.pub_date == "1925"  # Original preserved
-        assert pub.publisher == "scribner"  # Normalized
-        assert pub.place == "new york"  # Normalized
+        assert pub.publisher == "Scribner"  # Minimal cleanup only
+        assert pub.place == "New York"  # Minimal cleanup only
         assert pub.year == 1925  # Extracted
         assert pub.country_classification == CountryClassification.UNKNOWN  # Default
 
@@ -152,9 +154,9 @@ class TestPublicationConstruction:
             full_text="Complete text of the work",
         )
 
-        assert pub.title == "test book"
-        assert pub.author == "test author"
-        assert pub.edition == "first edition"
+        assert pub.title == "Test Book"  # Minimal cleanup only
+        assert pub.author == "Test Author"  # Minimal cleanup only
+        assert pub.edition == "First Edition"  # Minimal cleanup only
         assert pub.language_code == "eng"
         assert pub.source == "MARC"
         assert pub.source_id == "test_001"
@@ -171,7 +173,7 @@ class TestPublicationConstruction:
         """Test publication construction with only title"""
         pub = Publication("Minimal Title")
 
-        assert pub.title == "minimal title"
+        assert pub.title == "Minimal Title"  # Minimal cleanup only
         assert pub.author == ""
         assert pub.pub_date is None
         assert pub.publisher == ""
@@ -254,7 +256,7 @@ class TestPublicationToDictMethod:
     def test_to_dict_with_matches(self):
         """Test to_dict with match results"""
         # Local imports
-        from marc_pd_tool.data.publication import MatchResult
+        from marc_pd_tool.core.domain.match_result import MatchResult
 
         pub = Publication("Test Book", author="Test Author", pub_date="1950")
 
@@ -269,7 +271,7 @@ class TestPublicationToDictMethod:
             source_id="reg_001",
             source_type="registration",
         )
-        pub.set_registration_match(reg_match)
+        pub.registration_match = reg_match
 
         result = pub.to_dict()
 
@@ -296,10 +298,10 @@ class TestPublicationToDictMethod:
 class TestPublicationMatchHandling:
     """Test match setting and retrieval functionality"""
 
-    def test_set_registration_match(self):
+    def test_registration_match_setter(self):
         """Test setting registration match"""
         # Local imports
-        from marc_pd_tool.data.publication import MatchResult
+        from marc_pd_tool.core.domain.match_result import MatchResult
 
         pub = Publication("Test Book")
         match = MatchResult(
@@ -313,16 +315,16 @@ class TestPublicationMatchHandling:
             source_type="registration",
         )
 
-        pub.set_registration_match(match)
+        pub.registration_match = match
 
         assert pub.has_registration_match() is True
         assert pub.registration_match == match
         assert pub.registration_match.source_type == "registration"
 
-    def test_set_renewal_match(self):
+    def test_renewal_match_setter(self):
         """Test setting renewal match"""
         # Local imports
-        from marc_pd_tool.data.publication import MatchResult
+        from marc_pd_tool.core.domain.match_result import MatchResult
 
         pub = Publication("Test Book")
         match = MatchResult(
@@ -336,7 +338,7 @@ class TestPublicationMatchHandling:
             source_type="renewal",
         )
 
-        pub.set_renewal_match(match)
+        pub.renewal_match = match
 
         assert pub.has_renewal_match() is True
         assert pub.renewal_match == match

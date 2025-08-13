@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
 
 
 class TestJSONExporter:

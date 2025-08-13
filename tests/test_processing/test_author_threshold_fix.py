@@ -9,8 +9,8 @@ from unittest.mock import Mock
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.processing.matching_engine import DataMatcher
+from marc_pd_tool.application.processing.matching_engine import DataMatcher
+from marc_pd_tool.core.domain.publication import Publication
 
 
 class TestAuthorThresholdFix:
@@ -61,12 +61,18 @@ class TestAuthorThresholdFix:
         copyright_pub.year = 1950
 
         # Mock the similarity calculator to return low author score
-        mock_calc = Mock()
-        mock_calc.calculate_title_similarity.return_value = 100.0
-        mock_calc.calculate_author_similarity.return_value = 20.0  # Below threshold
-        mock_calc.calculate_publisher_similarity.return_value = 0.0
+        def mock_calculate_similarity(text1, text2, field_type, language):
+            if field_type == "title":
+                return 100.0
+            elif field_type == "author":
+                return 20.0  # Below threshold
+            else:
+                return 0.0
 
-        matching_engine.similarity_calculator = mock_calc
+        mock_calc = Mock()
+        mock_calc.calculate_similarity = Mock(side_effect=mock_calculate_similarity)
+        # Need to mock the core_matcher's similarity_calculator
+        matching_engine.core_matcher.similarity_calculator = mock_calc
 
         # Test with thresholds - should NOT find match due to low author score
         match = matching_engine.find_best_match(
@@ -102,14 +108,16 @@ class TestAuthorThresholdFix:
             pub.year = 1950
 
         matches_evaluated = 0
-        original_calc = matching_engine.similarity_calculator.calculate_title_similarity
+        # Access the core_matcher's similarity calculator
+        original_calc = matching_engine.core_matcher.similarity_calculator.calculate_similarity
 
-        def counting_calc(title1, title2, lang):
+        def counting_calc(text1, text2, field_type, language):
             nonlocal matches_evaluated
-            matches_evaluated += 1
-            return original_calc(title1, title2, lang)
+            if field_type == "title":
+                matches_evaluated += 1
+            return original_calc(text1, text2, field_type, language)
 
-        matching_engine.similarity_calculator.calculate_title_similarity = counting_calc
+        matching_engine.core_matcher.similarity_calculator.calculate_similarity = counting_calc
 
         # Test with early exit thresholds
         match = matching_engine.find_best_match(

@@ -6,7 +6,7 @@
 import xml.etree.ElementTree as ET
 
 # Local imports
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
+from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
 
 
 class TestCopyrightLoaderEdgeCases:
@@ -63,7 +63,7 @@ class TestCopyrightLoaderEdgeCases:
         pub = loader._extract_from_entry(entry)
 
         assert pub is not None
-        assert pub.title == "minimal entry"  # Title normalized to lowercase
+        assert pub.title == "Minimal Entry"  # Minimal cleanup only
         assert pub.author == ""
         assert pub.publisher == ""
 
@@ -167,8 +167,8 @@ class TestCopyrightLoaderEdgeCases:
 
         assert len(publications) == 2
         titles = [pub.title for pub in publications]
-        assert "book from 1950" in titles  # Title normalized to lowercase
-        assert "book from 1951" in titles
+        assert "Book from 1950" in titles  # Minimal cleanup only
+        assert "Book from 1951" in titles
 
     def test_load_all_copyright_data_year_filtered(self, tmp_path):
         """Test year filtering with edge cases"""
@@ -229,12 +229,10 @@ class TestCopyrightLoaderSpecialCases:
         pub = loader._extract_from_entry(entry)
 
         assert (
-            pub.title == "la bibliotheque francaise"
-        )  # Title normalized to lowercase and ASCII folded
-        assert pub.author == "rene descartes"  # Author normalized to lowercase and ASCII folded
-        assert (
-            pub.publisher == "editions gallimard"
-        )  # Publisher normalized to lowercase and ASCII folded
+            pub.title == "La Bibliothèque française"  # Matches XML exactly
+        )  # Minimal cleanup only
+        assert pub.author == "René Descartes"  # Minimal cleanup only
+        assert pub.publisher == "Éditions Gallimard"  # Minimal cleanup only
 
     def test_extract_from_entry_special_characters(self):
         """Test handling of special XML characters"""
@@ -251,8 +249,8 @@ class TestCopyrightLoaderSpecialCases:
         entry = ET.fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
-        assert pub.title == "title subtitle"  # Title normalized, punctuation removed
-        assert pub.author == "author name"  # Author normalized, special chars removed
+        assert pub.title == "Title & Subtitle"  # XML entities are decoded
+        assert pub.author == "Author <Name>"  # XML entities are decoded
         assert pub.source_id == "A123"
 
     def test_extract_from_entry_volume_handling(self):
@@ -269,7 +267,7 @@ class TestCopyrightLoaderSpecialCases:
         pub = loader._extract_from_entry(entry)
 
         # Volume should be appended to title
-        assert pub.title == "encyclopedia volume 3"  # Title normalized to lowercase
+        assert pub.title == "Encyclopedia Volume 3"  # Bracketed content removed by title property
 
     def test_load_all_copyright_data_with_parse_errors(self, tmp_path):
         """Test load_all continues despite individual file errors"""
@@ -294,7 +292,7 @@ class TestCopyrightLoaderSpecialCases:
 
         # Should load the valid file despite error in invalid file
         assert len(publications) == 1
-        assert publications[0].title == "valid book"  # Title normalized to lowercase
+        assert publications[0].title == "Valid Book"  # Minimal cleanup only
 
     def test_get_year_range(self, tmp_path):
         """Test getting year range from copyright data"""

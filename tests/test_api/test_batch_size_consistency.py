@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api._analyzer import MarcCopyrightAnalyzer
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
 
 
 class TestBatchSizeConsistency:
@@ -31,14 +31,16 @@ class TestBatchSizeConsistency:
 
         try:
             # Mock the loaders to avoid needing actual data files
-            with patch("marc_pd_tool.api._analyzer.CopyrightDataLoader") as mock_copyright:
-                with patch("marc_pd_tool.api._analyzer.RenewalDataLoader") as mock_renewal:
+            with patch("marc_pd_tool.adapters.api._analyzer.CopyrightDataLoader") as mock_copyright:
+                with patch("marc_pd_tool.adapters.api._analyzer.RenewalDataLoader") as mock_renewal:
                     # Mock the get_max_data_year methods
                     mock_copyright.return_value.max_data_year = 1977
                     mock_renewal.return_value.max_data_year = 2001
 
                     # Mock MarcLoader to capture the batch_size passed to it
-                    with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_marc_loader:
+                    with patch(
+                        "marc_pd_tool.adapters.api._analyzer.MarcLoader"
+                    ) as mock_marc_loader:
                         mock_marc_loader.return_value.extract_all_batches.return_value = []
 
                         analyzer = MarcCopyrightAnalyzer()
@@ -64,12 +66,14 @@ class TestBatchSizeConsistency:
 
         try:
             # Mock the loaders
-            with patch("marc_pd_tool.api._analyzer.CopyrightDataLoader") as mock_copyright:
-                with patch("marc_pd_tool.api._analyzer.RenewalDataLoader") as mock_renewal:
+            with patch("marc_pd_tool.adapters.api._analyzer.CopyrightDataLoader") as mock_copyright:
+                with patch("marc_pd_tool.adapters.api._analyzer.RenewalDataLoader") as mock_renewal:
                     mock_copyright.return_value.max_data_year = 1977
                     mock_renewal.return_value.max_data_year = 2001
 
-                    with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_marc_loader:
+                    with patch(
+                        "marc_pd_tool.adapters.api._analyzer.MarcLoader"
+                    ) as mock_marc_loader:
                         mock_marc_loader.return_value.extract_all_batches.return_value = []
 
                         analyzer = MarcCopyrightAnalyzer()

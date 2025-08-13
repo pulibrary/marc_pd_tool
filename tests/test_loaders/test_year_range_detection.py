@@ -8,8 +8,8 @@ from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 # Local imports
-from marc_pd_tool.loaders.copyright_loader import CopyrightDataLoader
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
+from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
 
 
 class TestYearRangeDetection(TestCase):

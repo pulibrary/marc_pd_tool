@@ -5,9 +5,9 @@
 # Third party imports
 
 # Local imports
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.utils.marc_utilities import US_COUNTRY_CODES
-from marc_pd_tool.utils.marc_utilities import extract_country_from_marc_008
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.shared.utils.marc_utilities import US_COUNTRY_CODES
+from marc_pd_tool.shared.utils.marc_utilities import extract_country_from_marc_008
 
 
 class TestUSCountryCodes:

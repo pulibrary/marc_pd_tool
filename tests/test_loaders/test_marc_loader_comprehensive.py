@@ -7,9 +7,9 @@ from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 
 class TestMarcLoaderFileHandling:
@@ -236,7 +236,7 @@ class TestMarcLoaderBatchProcessing:
         # Should have 1 batch with 1 record
         assert len(batches) == 1
         assert len(batches[0]) == 1
-        assert batches[0][0].title == "good"  # Title normalized to lowercase
+        assert batches[0][0].title == "Good"  # Minimal cleanup only
 
 
 class TestMarcLoaderRecordExtraction:
@@ -262,7 +262,7 @@ class TestMarcLoaderRecordExtraction:
 
         assert pub is not None
         assert pub.source_id == "12345"
-        assert pub.title == "minimal title"  # Title normalized to lowercase
+        assert pub.title == "Minimal Title"  # Minimal cleanup only
 
     def test_extract_from_record_with_exceptions(self):
         """Test extraction handles exceptions gracefully"""
@@ -342,7 +342,7 @@ class TestMarcLoaderMemoryManagement:
             assert len(batch) == 10
             # Verify first record in each batch
             assert batch[0].source_id == f"{i*10:05d}"
-            assert batch[0].title == f"book {i*10}"  # Title normalized to lowercase
+            assert batch[0].title == f"Book {i*10}"  # Minimal cleanup only
 
 
 class TestMarcLoaderEdgeCases:
@@ -381,7 +381,7 @@ class TestMarcLoaderEdgeCases:
         # Should get at least one batch with the record
         assert len(batches) == 1
         assert len(batches[0]) == 1
-        assert batches[0][0].title == "test book"  # Title normalized to lowercase
+        assert batches[0][0].title == "Test Book"  # Minimal cleanup only
 
     def test_batch_size_larger_than_records(self, tmp_path):
         """Test when batch size is larger than total records"""
@@ -476,11 +476,11 @@ class TestMarcLoaderEdgeCases:
 
         assert pub is not None
         assert pub.source_id == "12345"
-        assert pub.title == "test book a subtitle"  # Title normalized to lowercase
-        assert pub.author == "by john smith"  # Author normalized to lowercase
-        assert pub.main_author == "smith john"  # Main author normalized, punctuation removed
-        assert pub.publisher == "test publisher"  # Publisher normalized to lowercase
-        assert pub.place == "new york"  # Place normalized to lowercase
+        assert pub.title == "Test Book A Subtitle"  # Minimal cleanup only
+        assert pub.author == "by John Smith"  # Minimal cleanup only
+        assert pub.main_author == "Smith, John"  # Minimal cleanup only
+        assert pub.publisher == "Test Publisher"  # Minimal cleanup only
+        assert pub.place == "New York"  # Minimal cleanup only
         assert pub.edition == "2nd edition"  # Edition kept as-is
         assert pub.lccn == "55012345"  # LCCN stripped
         assert pub.pub_date == "1950"
@@ -502,7 +502,7 @@ class TestMarcLoaderEdgeCases:
         pub = loader._extract_from_record(record)
 
         assert pub is not None
-        assert pub.title == "main title part 1 the beginning"  # Title normalized to lowercase
+        assert pub.title == "Main Title Part 1 The Beginning"  # Minimal cleanup only
 
     def test_extract_from_record_bracketed_content_removal(self):
         """Test removal of bracketed content from title"""
@@ -518,7 +518,7 @@ class TestMarcLoaderEdgeCases:
         pub = loader._extract_from_record(record)
 
         assert pub is not None
-        assert pub.title == "test book"  # Title normalized to lowercase
+        assert pub.title == "Test Book"  # Minimal cleanup only
 
     def test_extract_from_record_no_title(self):
         """Test extraction when title is missing"""
@@ -553,7 +553,7 @@ class TestMarcLoaderEdgeCases:
         pub = loader._extract_from_record(record)
 
         assert pub is not None
-        assert pub.main_author == "united nations"  # Main author normalized to lowercase
+        assert pub.main_author == "United Nations"  # Minimal cleanup only
 
     def test_extract_from_record_meeting_author(self):
         """Test extraction of meeting author (111 field)"""
@@ -572,9 +572,7 @@ class TestMarcLoaderEdgeCases:
         pub = loader._extract_from_record(record)
 
         assert pub is not None
-        assert (
-            pub.main_author == "international conference on computing"
-        )  # Main author normalized to lowercase
+        assert pub.main_author == "International Conference on Computing"  # Minimal cleanup only
 
     def test_extract_from_record_pub_date_from_008(self):
         """Test extracting publication date from 008 field"""

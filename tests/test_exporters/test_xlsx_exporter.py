@@ -13,8 +13,8 @@ from tempfile import NamedTemporaryFile
 import pytest
 
 # Local imports
-from marc_pd_tool.exporters.json_exporter import save_matches_json
-from marc_pd_tool.exporters.xlsx_exporter import XLSXExporter
+from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
+from marc_pd_tool.adapters.exporters.xlsx_exporter import XLSXExporter
 
 
 def export_to_xlsx(publications, xlsx_file, parameters=None):

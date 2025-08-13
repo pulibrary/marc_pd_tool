@@ -1,0 +1,574 @@
+# marc_pd_tool/infrastructure/persistence/_marc_loader.py
+
+"""MARC XML data extraction for publications"""
+
+# Standard library imports
+from logging import getLogger
+from pathlib import Path
+from pickle import HIGHEST_PROTOCOL
+from pickle import dump
+from pickle import load
+from tempfile import mkdtemp
+from typing import Iterator
+from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import iterparse
+
+# Local imports
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.shared.utils.marc_utilities import extract_country_from_marc_008
+from marc_pd_tool.shared.utils.text_utils import remove_bracketed_content
+
+logger = getLogger(__name__)
+
+
+class MarcLoader:
+    def __init__(
+        self,
+        marc_path: str,
+        batch_size: int = 1000,
+        min_year: int | None = None,
+        max_year: int | None = None,
+        us_only: bool = False,
+        max_data_year: int | None = None,
+    ) -> None:
+        self.marc_path = Path(marc_path)
+        self.batch_size = batch_size
+        self.min_year = min_year
+        self.max_year = max_year
+        self.us_only = us_only
+        self.max_data_year = max_data_year  # Maximum year we have data for
+        self._temp_batch_dir: str | None = None  # Track temp dir for cleanup
+
+    def extract_all_batches(self) -> list[list[Publication]]:
+        """Extract all MARC records and return as list of batches
+
+        Always uses streaming internally to minimize memory usage.
+        """
+        logger.info(f"Extracting MARC records in batches of {self.batch_size}")
+
+        if not self.marc_path.exists():
+            logger.error(f"MARC path not found: {self.marc_path}")
+            return []
+
+        # Always use streaming approach for memory efficiency
+        return self._extract_with_streaming()
+
+    def _extract_with_streaming(self) -> list[list[Publication]]:
+        """Stream MARC XML and return batches efficiently"""
+        # For backward compatibility, we still return a list of batches
+        # but we generate them on-demand via streaming
+        batches = []
+        for batch in self.iter_batches():
+            batches.append(batch)
+
+        total_publications = sum(len(b) for b in batches)
+        logger.info(
+            f"Extracted {len(batches)} batches totaling {total_publications:,} publications"
+        )
+        return batches
+
+    def extract_batches_to_disk(self, output_dir: str | None = None) -> tuple[list[str], int, int]:
+        """Extract MARC records as pickled batches directly to disk for large datasets.
+
+        This is the preferred method for very large datasets (8M+ records) where
+        loading all batches into memory would cause out-of-memory errors.
+
+        Args:
+            output_dir: Directory for pickle files (temp dir created if None)
+
+        Returns:
+            Tuple of (pickle file paths, total records, filtered count)
+        """
+        return self._stream_batches_to_disk(output_dir)
+
+    def _stream_batches_to_disk(self, output_dir: str | None = None) -> tuple[list[str], int, int]:
+        """Stream MARC XML and pickle batches of Publication objects directly to disk.
+
+        Args:
+            output_dir: Directory for pickle files (temp dir created if None)
+
+        Returns:
+            Tuple of (pickle file paths, total records, filtered count)
+        """
+        if output_dir is None:
+            output_dir = mkdtemp(prefix="marc_stream_")
+            self._temp_batch_dir = output_dir
+
+        # Get list of MARC files to process
+        marc_files = self._get_marc_files()
+        if not marc_files:
+            logger.error(f"No MARC XML files found at: {self.marc_path}")
+            return [], 0, 0
+
+        logger.info(f"Found {len(marc_files)} MARC file(s) to process")
+        logger.info(f"Streaming batches to: {output_dir}")
+
+        batch_paths = []
+        current_batch = []
+        batch_count = 0
+        total_record_count = 0
+        filtered_count = 0
+        no_year_count = 0
+        year_out_of_range_count = 0
+        non_us_count = 0
+        beyond_data_count = 0
+
+        for marc_file in marc_files:
+            logger.info(f"Processing MARC file: {marc_file.name}")
+            try:
+                context = iterparse(marc_file, events=("start", "end"))
+                event, root = next(context)
+
+                file_record_count = 0
+
+                for event, elem in context:
+                    if event == "end" and elem.tag.endswith("record"):
+                        pub = self._extract_from_record(elem)
+                        if pub:
+                            include_record, filter_reason = self._should_include_record_with_reason(
+                                pub
+                            )
+                            if include_record:
+                                current_batch.append(pub)
+                            else:
+                                filtered_count += 1
+                                if filter_reason == "no_year":
+                                    no_year_count += 1
+                                elif filter_reason == "year_out_of_range":
+                                    year_out_of_range_count += 1
+                                elif filter_reason == "non_us":
+                                    non_us_count += 1
+                                elif filter_reason == "beyond_available_data":
+                                    beyond_data_count += 1
+
+                        file_record_count += 1
+                        total_record_count += 1
+
+                        # Pickle batch when it reaches target size
+                        if len(current_batch) >= self.batch_size:
+                            batch_path = f"{output_dir}/batch_{batch_count:05d}.pkl"
+                            with open(batch_path, "wb") as f:
+                                dump(current_batch, f, protocol=HIGHEST_PROTOCOL)
+
+                            batch_paths.append(batch_path)
+                            batch_count += 1
+                            logger.info(
+                                f"Pickled batch {batch_count} with {len(current_batch)} publications (processed {total_record_count:,} records)"
+                            )
+
+                            # Clear batch from memory immediately
+                            current_batch = []
+
+                        # Clear element to save memory
+                        elem.clear()
+                        root.clear()
+
+                logger.info(f"  Processed {file_record_count:,} records from {marc_file.name}")
+
+            except Exception as e:
+                logger.error(f"Error parsing MARC file {marc_file}: {e}")
+                continue
+
+        # Pickle final batch if any records remain
+        if current_batch:
+            batch_path = f"{output_dir}/batch_{batch_count:05d}.pkl"
+            with open(batch_path, "wb") as f:
+                dump(current_batch, f, protocol=HIGHEST_PROTOCOL)
+
+            batch_paths.append(batch_path)
+            batch_count += 1
+            logger.info(f"Pickled final batch {batch_count} with {len(current_batch)} publications")
+
+        total_publications = (
+            sum(len(load(open(path, "rb"))) for path in batch_paths) if batch_paths else 0
+        )
+
+        logger.info(
+            f"Streamed {batch_count} batches totaling {total_publications:,} publications from {len(marc_files)} file(s)"
+        )
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count:,} total records:")
+            if no_year_count > 0:
+                logger.info(f"  - {no_year_count:,} records missing year data")
+            if year_out_of_range_count > 0:
+                if self.min_year and self.max_year:
+                    logger.info(
+                        f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}"
+                    )
+                elif self.min_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records before {self.min_year}")
+                elif self.max_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
+            if non_us_count > 0:
+                logger.info(f"  - {non_us_count:,} non-US publications")
+            if beyond_data_count > 0:
+                logger.info(
+                    f"  - {beyond_data_count:,} records beyond available data (> {self.max_data_year})"
+                )
+
+        return batch_paths, total_record_count, filtered_count
+
+    def iter_batches(self) -> Iterator[list[Publication]]:
+        """Yield batches of Publication objects without accumulating in memory.
+
+        For use in sequential processing mode where you want to process
+        batches one at a time without loading everything into memory.
+        """
+        # Get list of MARC files to process
+        marc_files = self._get_marc_files()
+        if not marc_files:
+            logger.error(f"No MARC XML files found at: {self.marc_path}")
+            return
+
+        logger.info(f"Found {len(marc_files)} MARC file(s) to process")
+
+        current_batch = []
+        total_record_count = 0
+        filtered_count = 0
+        no_year_count = 0
+        year_out_of_range_count = 0
+        non_us_count = 0
+        beyond_data_count = 0
+        batch_count = 0
+
+        for marc_file in marc_files:
+            logger.info(f"Processing MARC file: {marc_file.name}")
+            try:
+                context = iterparse(marc_file, events=("start", "end"))
+                event, root = next(context)
+                file_record_count = 0
+
+                for event, elem in context:
+                    if event == "end" and elem.tag.endswith("record"):
+                        pub = self._extract_from_record(elem)
+                        if pub:
+                            include_record, filter_reason = self._should_include_record_with_reason(
+                                pub
+                            )
+                            if include_record:
+                                current_batch.append(pub)
+                            else:
+                                filtered_count += 1
+                                if filter_reason == "no_year":
+                                    no_year_count += 1
+                                elif filter_reason == "year_out_of_range":
+                                    year_out_of_range_count += 1
+                                elif filter_reason == "non_us":
+                                    non_us_count += 1
+                                elif filter_reason == "beyond_available_data":
+                                    beyond_data_count += 1
+
+                        file_record_count += 1
+                        total_record_count += 1
+
+                        # Yield batch when it reaches target size
+                        if len(current_batch) >= self.batch_size:
+                            batch_count += 1
+                            logger.info(
+                                f"Created batch {batch_count} with {len(current_batch)} publications (processed {total_record_count:,} records)"
+                            )
+                            yield current_batch
+                            current_batch = []
+
+                        # Clear element to save memory
+                        elem.clear()
+                        root.clear()
+
+                logger.info(f"  Processed {file_record_count:,} records from {marc_file.name}")
+
+            except Exception as e:
+                logger.error(f"Error parsing MARC file {marc_file}: {e}")
+                continue
+
+        # Yield final batch if any records remain
+        if current_batch:
+            batch_count += 1
+            logger.info(f"Created final batch {batch_count} with {len(current_batch)} publications")
+            yield current_batch
+
+        # Log filtering statistics
+        if filtered_count > 0:
+            logger.info(f"Filtered out {filtered_count:,} total records:")
+            if no_year_count > 0:
+                logger.info(f"  - {no_year_count:,} records missing year data")
+            if year_out_of_range_count > 0:
+                if self.min_year and self.max_year:
+                    logger.info(
+                        f"  - {year_out_of_range_count:,} records outside year range {self.min_year}-{self.max_year}"
+                    )
+                elif self.min_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records before {self.min_year}")
+                elif self.max_year:
+                    logger.info(f"  - {year_out_of_range_count:,} records after {self.max_year}")
+            if non_us_count > 0:
+                logger.info(f"  - {non_us_count:,} non-US publications")
+            if beyond_data_count > 0:
+                logger.info(
+                    f"  - {beyond_data_count:,} records beyond available data (> {self.max_data_year})"
+                )
+
+    def get_temp_batch_dir(self) -> str | None:
+        """Get the temporary batch directory path if using disk-based streaming"""
+        return self._temp_batch_dir
+
+    def _extract_marc_field(
+        self, record: Element, ns: dict[str, str], tags: list[str], subfield_code: str
+    ) -> Element | None:
+        """Extract a MARC field using pattern matching, trying multiple tags in order
+
+        Args:
+            record: MARC record element
+            ns: Namespace dictionary
+            tags: List of tags to try in order (e.g., ['264', '260'])
+            subfield_code: Subfield code to extract
+
+        Returns:
+            Element if found, None otherwise
+        """
+        for tag in tags:
+            # Try without namespace first
+            elem = record.find(f".//datafield[@tag='{tag}']/subfield[@code='{subfield_code}']")
+            if elem is not None:
+                return elem
+            # Try with namespace
+            elem = record.find(
+                f".//marc:datafield[@tag='{tag}']/marc:subfield[@code='{subfield_code}']", ns
+            )
+            if elem is not None:
+                return elem
+        return None
+
+    def _get_marc_files(self) -> list[Path]:
+        """Get list of MARC XML files from path (file or directory)"""
+        if self.marc_path.is_file():
+            # Single file
+            if self.marc_path.suffix.lower() in [".xml", ".marcxml"]:
+                return [self.marc_path]
+            else:
+                logger.warning(f"File {self.marc_path} doesn't have .xml or .marcxml extension")
+                return [self.marc_path]  # Try anyway
+        elif self.marc_path.is_dir():
+            # Directory - find all XML/MARCXML files
+            marc_files: list[Path] = []
+            for pattern in ["*.xml", "*.marcxml"]:
+                marc_files.extend(self.marc_path.glob(pattern))
+            return sorted(marc_files)
+        else:
+            return []
+
+    def _extract_from_record(self, record: Element) -> Publication | None:
+        try:
+            ns = {"marc": "http://www.loc.gov/MARC21/slim"}
+
+            # Extract complete title from 245 subfields in original order
+            title_parts = []
+
+            # Find all subfields under 245 datafield
+            title_datafield = record.find(".//datafield[@tag='245']")
+            if title_datafield is None:
+                title_datafield = record.find(".//marc:datafield[@tag='245']", ns)
+
+            if title_datafield is not None:
+                # Get all subfields in their original order
+                subfields = title_datafield.findall("./subfield") or title_datafield.findall(
+                    "./marc:subfield", ns
+                )
+
+                for subfield in subfields:
+                    code = subfield.get("code")
+                    if code in ["a", "b", "n", "p"] and subfield.text:
+                        title_parts.append(subfield.text.strip())
+
+            title = " ".join(title_parts) if title_parts else ""
+
+            # Remove bracketed content from title (e.g., "[microform]", "[electronic resource]")
+            if title:
+                title = remove_bracketed_content(title)
+
+            if not title:
+                return None
+
+            # Extract author from 245$c (statement of responsibility)
+            author_elem = record.find(".//datafield[@tag='245']/subfield[@code='c']")
+            if author_elem is None:
+                author_elem = record.find(
+                    ".//marc:datafield[@tag='245']/marc:subfield[@code='c']", ns
+                )
+
+            author = author_elem.text if author_elem is not None else ""
+
+            # Extract main author from 1xx fields (100, 110, 111) - priority order
+            main_author = ""
+
+            # Try 100$a (personal name) first
+            main_author_elem = record.find(".//datafield[@tag='100']/subfield[@code='a']")
+            if main_author_elem is None:
+                main_author_elem = record.find(
+                    ".//marc:datafield[@tag='100']/marc:subfield[@code='a']", ns
+                )
+
+            if main_author_elem is not None:
+                main_author = main_author_elem.text or ""
+                # Clean up dates from personal names (e.g., "Smith, John, 1945-" -> "Smith, John")
+                if main_author and "," in main_author:
+                    parts = main_author.split(",")
+                    if len(parts) >= 3:
+                        # Check if the last part looks like a date
+                        last_part = parts[-1].strip()
+                        if last_part and (last_part[0].isdigit() or last_part.endswith("-")):
+                            main_author = ",".join(parts[:-1]).strip()
+
+            # If no 100, try 110$a (corporate name)
+            if not main_author:
+                main_author_elem = record.find(".//datafield[@tag='110']/subfield[@code='a']")
+                if main_author_elem is None:
+                    main_author_elem = record.find(
+                        ".//marc:datafield[@tag='110']/marc:subfield[@code='a']", ns
+                    )
+                if main_author_elem is not None:
+                    main_author = main_author_elem.text or ""
+
+            # If no 100 or 110, try 111$a (meeting name)
+            if not main_author:
+                main_author_elem = record.find(".//datafield[@tag='111']/subfield[@code='a']")
+                if main_author_elem is None:
+                    main_author_elem = record.find(
+                        ".//marc:datafield[@tag='111']/marc:subfield[@code='a']", ns
+                    )
+                if main_author_elem is not None:
+                    main_author = main_author_elem.text or ""
+
+            # Ensure main_author is a string
+            main_author = main_author if main_author else ""
+
+            # Extract publication date (try 264 first, then 260)
+            pub_date_elem = self._extract_marc_field(record, ns, ["264", "260"], "c")
+
+            # Get 008 field for both publication date and country extraction
+            control_008 = record.find(".//controlfield[@tag='008']")
+            if control_008 is None:
+                control_008 = record.find(".//marc:controlfield[@tag='008']", ns)
+
+            if pub_date_elem is not None:
+                pub_date = pub_date_elem.text
+            else:
+                if control_008 is not None and control_008.text and len(control_008.text) >= 11:
+                    pub_date = control_008.text[7:11]
+                else:
+                    pub_date = ""
+
+            # Extract country information from 008 field
+            country_code = ""
+            country_classification = CountryClassification.UNKNOWN
+            language_code = ""
+            if control_008 is not None and control_008.text:
+                country_code, country_classification = extract_country_from_marc_008(
+                    control_008.text
+                )
+                # Extract language code from positions 35-37
+                if len(control_008.text) >= 38:
+                    language_code = control_008.text[35:38].strip().lower()
+
+            # Fallback to field 041$a if no language in 008
+            if not language_code:
+                lang_041_elem = record.find(".//datafield[@tag='041']/subfield[@code='a']")
+                if lang_041_elem is None:
+                    lang_041_elem = record.find(
+                        ".//marc:datafield[@tag='041']/marc:subfield[@code='a']", ns
+                    )
+                if lang_041_elem is not None and lang_041_elem.text:
+                    language_code = lang_041_elem.text.strip().lower()[:3]  # Take first 3 chars
+
+            # Extract publisher (try 264 first, then 260)
+            publisher_elem = self._extract_marc_field(record, ns, ["264", "260"], "b")
+            publisher = publisher_elem.text if publisher_elem is not None else ""
+
+            # Extract place (try 264 first, then 260)
+            place_elem = self._extract_marc_field(record, ns, ["264", "260"], "a")
+            place = place_elem.text if place_elem is not None else ""
+
+            # Extract edition statement from field 250$a
+            edition_elem = record.find(".//datafield[@tag='250']/subfield[@code='a']")
+            if edition_elem is None:
+                edition_elem = record.find(
+                    ".//marc:datafield[@tag='250']/marc:subfield[@code='a']", ns
+                )
+            edition = edition_elem.text if edition_elem is not None else ""
+
+            # Extract record ID
+            control_001 = record.find(".//controlfield[@tag='001']")
+            if control_001 is None:
+                control_001 = record.find(".//marc:controlfield[@tag='001']", ns)
+            source_id = control_001.text if control_001 is not None else ""
+
+            # Extract LCCN from field 010$a
+            lccn_elem = record.find(".//datafield[@tag='010']/subfield[@code='a']")
+            if lccn_elem is None:
+                lccn_elem = record.find(
+                    ".//marc:datafield[@tag='010']/marc:subfield[@code='a']", ns
+                )
+            lccn = lccn_elem.text.strip() if lccn_elem is not None and lccn_elem.text else ""
+
+            pub = Publication(
+                title=title,
+                author=author,
+                main_author=main_author,
+                pub_date=pub_date,
+                publisher=publisher,
+                place=place,
+                edition=edition,
+                lccn=lccn,
+                language_code=language_code,
+                source="MARC",
+                source_id=source_id,
+                country_code=country_code,
+                country_classification=country_classification,
+            )
+
+            # Extract year from pub_date if not already set
+            if pub.year is None and pub_date:
+                pub.year = pub.extract_year()
+
+            return pub
+
+        except Exception:
+            return None
+
+    def _should_include_record(self, pub: Publication) -> bool:
+        """Check if record should be included based on year and country filters"""
+        include_record, _ = self._should_include_record_with_reason(pub)
+        return include_record
+
+    def _should_include_record_with_reason(self, pub: Publication) -> tuple[bool, str | None]:
+        """Check if record should be included and return reason if not
+
+        Returns:
+            tuple of (should_include, filter_reason)
+            filter_reason is one of: 'no_year', 'year_out_of_range', 'non_us', 'beyond_available_data', or None
+        """
+        # Check US-only filter first (most restrictive)
+        if self.us_only and pub.country_classification != CountryClassification.US:
+            return False, "non_us"
+
+        # Check year filters
+        if pub.year is None:
+            # When year filtering is active, exclude records without years
+            if self.min_year is not None or self.max_year is not None:
+                return False, "no_year"
+            return True, None  # Include if no year filtering
+
+        # Check if record is beyond our data coverage
+        # This check comes before min/max year to be more specific about why we're filtering
+        if self.max_data_year is not None and pub.year > self.max_data_year:
+            return False, "beyond_available_data"
+
+        # Check minimum year
+        if self.min_year is not None and pub.year < self.min_year:
+            return False, "year_out_of_range"
+
+        # Check maximum year
+        if self.max_year is not None and pub.year > self.max_year:
+            return False, "year_out_of_range"
+
+        return True, None

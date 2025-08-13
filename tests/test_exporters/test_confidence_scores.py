@@ -8,11 +8,11 @@ from os import unlink
 from tempfile import NamedTemporaryFile
 
 # Local imports
-from marc_pd_tool.data.publication import CountryClassification
-from marc_pd_tool.data.publication import MatchResult
-from marc_pd_tool.data.publication import Publication
-from marc_pd_tool.exporters.csv_exporter import CSVExporter
-from marc_pd_tool.exporters.json_exporter import save_matches_json
+from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
+from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.core.domain.match_result import MatchResult
+from marc_pd_tool.core.domain.publication import Publication
 
 # pytest imported automatically by test runner
 
@@ -79,7 +79,7 @@ class TestConfidenceScores:
             source_type="registration",
             matched_date="1950",
         )
-        pub.set_registration_match(match)
+        pub.registration_match = match
 
         pub_dict = pub.to_dict()
 
@@ -161,7 +161,7 @@ class TestConfidenceScores:
             source_type="renewal",
             matched_date="1950-01-01",
         )
-        pub.set_renewal_match(ren_match)
+        pub.renewal_match = ren_match
 
         # Determine copyright status
         pub.determine_copyright_status()
@@ -208,7 +208,7 @@ class TestConfidenceScores:
             source_type="registration",
             matched_date="1950",
         )
-        pub.set_registration_match(reg_match)
+        pub.registration_match = reg_match
 
         # Add renewal match
         ren_match = MatchResult(
@@ -222,7 +222,7 @@ class TestConfidenceScores:
             source_type="renewal",
             matched_date="1950-01-01",
         )
-        pub.set_renewal_match(ren_match)
+        pub.renewal_match = ren_match
 
         # Determine copyright status
         pub.determine_copyright_status()
@@ -317,7 +317,7 @@ class TestConfidenceScores:
             source_type="registration",
             matched_date="1955",
         )
-        pub.set_registration_match(match)
+        pub.registration_match = match
 
         # Determine copyright status
         pub.determine_copyright_status()

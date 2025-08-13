@@ -8,7 +8,7 @@ from os.path import join
 from tempfile import TemporaryDirectory
 
 # Local imports
-from marc_pd_tool.infrastructure.run_index_manager import RunIndexManager
+from marc_pd_tool.infrastructure import RunIndexManager
 
 
 class TestRunIndexManager:

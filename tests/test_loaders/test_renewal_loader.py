@@ -11,7 +11,7 @@ from unittest.mock import patch
 from pytest import fixture
 
 # Local imports
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
 
 
 @fixture
@@ -330,9 +330,9 @@ Tëst Bøøk\tAuthör, Tëst\tA12345\t1950-01-01\tR12345\t1978-01-01\tPublîsher
 
             assert len(publications) == 1
             pub = publications[0]
-            # Unicode characters are now folded to ASCII
-            assert pub.title == "test book"
-            assert pub.author == "author test"
+            # Unicode characters are preserved (minimal cleanup only)
+            assert pub.title == "Tëst Bøøk"
+            assert pub.author == "Authör, Tëst"
 
     def test_tsv_with_quoted_fields(self):
         """Test handling of TSV with quoted fields containing tabs"""
@@ -412,7 +412,7 @@ class TestRenewalDataLoaderPerformance:
         ]
         assert sorted_test_files == sorted(sorted_test_files)
 
-    @patch("marc_pd_tool.loaders.renewal_loader.logger")
+    @patch("marc_pd_tool.infrastructure.persistence._renewal_loader.logger")
     def test_logging_behavior(self, mock_logger, temp_renewal_dir):
         """Test that appropriate logging occurs during loading"""
         loader = RenewalDataLoader(temp_renewal_dir)
@@ -458,7 +458,7 @@ Test Book\tTest Author\tA12345\t1950-01-01\tR12345\t1978-01-01\tPublisher\tuuid-
             # Should handle gracefully, ignoring extra columns
             assert len(publications) == 1
             pub = publications[0]
-            assert pub.title == "test book"
+            assert pub.title == "Test Book"
 
     def test_tsv_with_inconsistent_column_counts(self):
         """Test handling of TSV where rows have different column counts"""

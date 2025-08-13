@@ -13,8 +13,8 @@ from unittest.mock import patch
 import pytest
 
 # Local imports
-from marc_pd_tool.data.enums import CountryClassification
-from marc_pd_tool.loaders.marc_loader import MarcLoader
+from marc_pd_tool.core.domain.enums import CountryClassification
+from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 
 class TestStreamingMarcLoader:
@@ -91,9 +91,9 @@ class TestStreamingMarcLoader:
         assert len(batches[1]) == 1
 
         # Verify the publications are correct
-        assert batches[0][0].title == "test title one"
-        assert batches[0][1].title == "test title two"
-        assert batches[1][0].title == "test title three"
+        assert batches[0][0].title == "Test title one"
+        assert batches[0][1].title == "Test title two"
+        assert batches[1][0].title == "Test title three"
 
     def test_iter_batches_memory_efficient(self, temp_marcxml_file: str):
         """Test that iter_batches doesn't accumulate all data in memory"""
@@ -132,14 +132,14 @@ class TestStreamingMarcLoader:
             with open(pickle_paths[0], "rb") as f:
                 batch = pickle_load(f)
                 assert len(batch) == 2
-                assert batch[0].title == "test title one"
-                assert batch[1].title == "test title two"
+                assert batch[0].title == "Test title one"
+                assert batch[1].title == "Test title two"
 
             # Load and verify second pickle file
             with open(pickle_paths[1], "rb") as f:
                 batch = pickle_load(f)
                 assert len(batch) == 1
-                assert batch[0].title == "test title three"
+                assert batch[0].title == "Test title three"
 
     def test_extract_batches_to_disk_with_filtering(self, temp_marcxml_file: str):
         """Test extract_batches_to_disk respects filtering options"""
@@ -443,7 +443,7 @@ class TestStreamingIntegration:
 
         # Verify first publication metadata
         pub1 = all_pubs[0]
-        assert pub1.title == "test title one"
+        assert pub1.title == "Test title one"
         assert pub1.year == 1975
         assert pub1.source_id == "12345"
         assert pub1.country_classification == CountryClassification.US

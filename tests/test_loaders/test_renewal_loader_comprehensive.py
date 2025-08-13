@@ -6,7 +6,7 @@
 from pathlib import Path
 
 # Local imports
-from marc_pd_tool.loaders.renewal_loader import RenewalDataLoader
+from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
 
 
 class TestRenewalLoaderEdgeCases:
@@ -82,7 +82,7 @@ Normal Row\tNormal Author\tA234567\t1951-01-01\tR00002\t1978-01-01\tAnother Clai
         pub = loader._extract_from_row(row)
 
         assert pub is not None
-        assert pub.title == "minimal entry"  # Title is normalized to lowercase
+        assert pub.title == "Minimal Entry"  # Minimal cleanup only
         assert pub.author == ""
         assert pub.source_id == "R00001"
         assert pub.year is None
@@ -178,7 +178,7 @@ Test Book\tTest Author\tA123456\t1950-01-01\tR00001\t1977-01-01\tTest Claimant\t
 
         # Should only load from TSV files
         assert len(publications) == 1
-        assert publications[0].title == "test book"  # Title normalized to lowercase
+        assert publications[0].title == "Test Book"  # Minimal cleanup only
 
     def test_load_all_renewal_data_year_filtered_edge_cases(self, tmp_path):
         """Test year filtering with edge cases"""
@@ -204,7 +204,7 @@ Book None\tAuthor\tA005\tinvalid\tR00005\t1990-01-01\tClaimant\tFull text None""
         assert len(pubs) == 2  # 1950 record + no-year record
         # Find the 1950 record
         book_1950 = [p for p in pubs if p.year == 1950][0]
-        assert book_1950.title == "book 1950"  # Title normalized to lowercase
+        assert book_1950.title == "Book 1950"  # Minimal cleanup only
 
         # Test range - includes records with no year
         pubs = loader.load_all_renewal_data(min_year=1950, max_year=1955)
@@ -241,13 +241,9 @@ Tōkyō Story\t小津 安二郎\tA234567\t1953-01-01\tR00002\t1980-01-01\t松竹
         publications = loader._extract_from_file(tsv_file)
 
         assert len(publications) == 2
-        assert (
-            publications[0].title == "la bibliotheque"
-        )  # Title normalized to lowercase and ASCII folded
-        assert (
-            publications[0].author == "rene descartes"
-        )  # Author normalized to lowercase and ASCII folded
-        assert publications[1].author == "xiao jin an er lang"  # Japanese characters transliterated
+        assert publications[0].title == "La Bibliothèque"  # Minimal cleanup only
+        assert publications[0].author == "René Descartes"  # Minimal cleanup only
+        assert publications[1].author == "小津 安二郎"  # Japanese characters preserved
 
     def test_extract_publisher_from_full_text(self):
         """Test publisher extraction from full_text field"""
@@ -315,7 +311,7 @@ Tōkyō Story\t小津 安二郎\tA234567\t1953-01-01\tR00002\t1980-01-01\t松竹
         publications = loader._extract_from_file(tsv_file)
 
         assert len(publications) == 1000
-        assert publications[500].title == "book 500"  # Title normalized to lowercase
+        assert publications[500].title == "Book 500"  # Minimal cleanup only
 
     def test_special_characters_in_fields(self, tmp_path):
         """Test handling of special characters in TSV fields"""
@@ -334,7 +330,7 @@ Book with\ttab\tAuthor\tName\tA234567\t1951\tR00002\t1978\tPublisher\tFull text 
 
         # Should handle special characters
         assert len(publications) >= 1
-        assert publications[0].title == "book with comma"  # Title normalized, punctuation removed
+        assert publications[0].title == "Book with, comma"  # Minimal cleanup only
 
     def test_get_year_range(self, tmp_path):
         """Test getting year range from renewal data"""

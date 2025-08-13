@@ -10,9 +10,9 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.api import AnalysisResults
-from marc_pd_tool.api import MarcCopyrightAnalyzer
-from marc_pd_tool.data.enums import CopyrightStatus
+from marc_pd_tool.adapters.api import AnalysisResults
+from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.core.domain.enums import CopyrightStatus
 from tests.fixtures.publications import PublicationBuilder
 
 
@@ -38,7 +38,7 @@ class TestMarcCopyrightAnalyzerAPI:
         assert analyzer.cache_dir == "/tmp/test_cache"
         assert analyzer.cache_manager.cache_dir == "/tmp/test_cache"
 
-    @patch("marc_pd_tool.api._analyzer.CacheManager")
+    @patch("marc_pd_tool.adapters.api._analyzer.CacheManager")
     def test_init_with_force_refresh(self, mock_cache_manager):
         """Test initialization with force refresh"""
         mock_cache_instance = MagicMock()
@@ -49,7 +49,7 @@ class TestMarcCopyrightAnalyzerAPI:
         # Verify cache was cleared
         mock_cache_instance.clear_all_caches.assert_called_once()
 
-    @patch("marc_pd_tool.api._analyzer.get_config")
+    @patch("marc_pd_tool.adapters.api._analyzer.get_config")
     def test_init_with_config_path(self, mock_get_config):
         """Test initialization with custom config path"""
         mock_config = Mock()
@@ -98,7 +98,7 @@ class TestMarcCopyrightAnalyzerAPI:
 
             # Mock the load_and_index_data to avoid full execution
             with patch.object(analyzer, "_load_and_index_data") as mock_load:
-                with patch("marc_pd_tool.api._analyzer.MarcLoader") as mock_loader:
+                with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader:
                     mock_instance = MagicMock()
                     mock_loader.return_value = mock_instance
                     mock_instance.load.return_value = []
@@ -121,8 +121,8 @@ class TestMarcCopyrightAnalyzerAPI:
 
         assert results == analyzer.results
         assert len(results.publications) == 1
-        assert results.statistics["total_records"] == 1
-        assert results.statistics["us_registered_not_renewed"] == 1
+        assert results.statistics.total_records == 1
+        assert results.statistics.get("us_registered_not_renewed", 0) == 1
 
     def test_results_isolation(self):
         """Test that results are isolated between analyses"""
@@ -138,7 +138,7 @@ class TestMarcCopyrightAnalyzerAPI:
         analyzer2 = MarcCopyrightAnalyzer()
 
         assert len(analyzer2.results.publications) == 0
-        assert analyzer2.results.statistics["total_records"] == 0
+        assert analyzer2.results.statistics.total_records == 0
 
     def test_export_results_workflow(self):
         """Test the export results workflow"""
@@ -150,7 +150,7 @@ class TestMarcCopyrightAnalyzerAPI:
 
         # The actual export would happen through analyze_marc_file
         # with the output_path parameter
-        assert analyzer.results.statistics["total_records"] == 1
+        assert analyzer.results.statistics.total_records == 1
 
     def test_analysis_options_storage(self):
         """Test that analysis options are stored"""
