@@ -1,101 +1,73 @@
-# MARC Copyright Analysis Tool - API Documentation
+# Python API Reference
 
-## Overview
-
-The marc_pd_tool package provides a Python API for analyzing MARC bibliographic records against US copyright registration and renewal data. The API is designed to be simple for basic use cases while allowing advanced users to access lower-level components.
+The MARC Copyright Status Analysis Tool provides a Python API for programmatic access to its functionality. This document covers the public API for using the tool as a library.
 
 ## Installation
 
-```bash
-# Install with PDM (recommended)
-pdm install
+```python
+# Install the package (once available on PyPI)
+pip install marc-pd-tool
 
-# Or with pip (once published to PyPI)
-pip install marc-pd-comparison-tool
+# Or install from source
+pdm install
 ```
 
 ## Quick Start
 
-### Basic Usage
-
 ```python
 from marc_pd_tool import MarcCopyrightAnalyzer
 
-# Create analyzer
+# Create analyzer instance
 analyzer = MarcCopyrightAnalyzer()
 
 # Analyze a MARC file
-analyzer.analyze_marc_file(
-    'data.marcxml',
-    copyright_dir='nypl-reg/xml/',
-    renewal_dir='nypl-ren/data/',
-    output_path='results.csv'
+results = analyzer.analyze_marc_file(
+    marc_path="catalog.xml",
+    copyright_dir="nypl-reg/xml/",
+    renewal_dir="nypl-ren/data/"
 )
+
+# Access results
+print(f"Total records: {results.statistics.total_records}")
+print(f"Public domain: {len(results.get_public_domain_publications())}")
+
+# Export results
+results.export_to_csv("output.csv")
 ```
 
-### Library Usage with Results
-
-```python
-from marc_pd_tool import MarcCopyrightAnalyzer, CopyrightStatus
-
-# Create analyzer
-analyzer = MarcCopyrightAnalyzer()
-
-# Analyze without automatic export
-results = analyzer.analyze_marc_file('data.marcxml')
-
-# Access results programmatically
-for pub in results.publications:
-    if pub.copyright_status == CopyrightStatus.PD_US_NOT_RENEWED:
-        print(f"Public domain: {pub.title} ({pub.year})")
-
-# Get statistics
-stats = results.statistics
-print(f"Total records: {stats['total_records']}")
-print(f"Public domain (no renewal): {stats['pd_no_renewal']}")
-
-# Export in different formats
-analyzer.export_results('results.csv', format='csv')
-analyzer.export_results('results.xlsx', format='xlsx')
-analyzer.export_results('results.json', format='json')
-```
-
-## Main API Class
+## Core Classes
 
 ### MarcCopyrightAnalyzer
 
-The primary interface for copyright analysis.
+Main analyzer class for processing MARC records against copyright data.
 
 ```python
-class MarcCopyrightAnalyzer:
-    def __init__(
-        self,
-        config_path: Optional[str] = None,
-        cache_dir: Optional[str] = None,
-        force_refresh: bool = False,
-        log_file: Optional[str] = None,
-    )
+class marc_pd_tool.MarcCopyrightAnalyzer(
+    config_path: str | None = None,
+    cache_dir: str | None = None,
+    force_refresh: bool = False,
+    log_file: str | None = None
+)
 ```
 
 **Parameters:**
 
 - `config_path`: Path to custom configuration JSON file
 - `cache_dir`: Directory for caching indexes (default: `.marcpd_cache`)
-- `force_refresh`: Force rebuild of all cached data
-- `log_file`: Path to log file (optional)
+- `force_refresh`: Force rebuild of cached indexes
+- `log_file`: Path to log file for analysis output
 
-### Key Methods
+#### Methods
 
-#### analyze_marc_file()
+##### analyze_marc_file
 
 ```python
 def analyze_marc_file(
-    self,
     marc_path: str,
-    copyright_dir: Optional[str] = None,
-    renewal_dir: Optional[str] = None,
-    output_path: Optional[str] = None,
-    **options: Any
+    copyright_dir: str | None = None,
+    renewal_dir: str | None = None,
+    output_path: str | None = None,
+    options: AnalysisOptions | None = None
 ) -> AnalysisResults
 ```
 
@@ -103,357 +75,486 @@ Analyze a MARC XML file for copyright status.
 
 **Parameters:**
 
-- `marc_path`: Path to MARC XML file
-- `copyright_dir`: Directory with copyright XML files (default: `nypl-reg/xml/`)
-- `renewal_dir`: Directory with renewal TSV files (default: `nypl-ren/data/`)
+- `marc_path`: Path to MARC XML file or directory
+- `copyright_dir`: Directory containing copyright registration XML files
+- `renewal_dir`: Directory containing renewal TSV files
 - `output_path`: Path for output file (optional)
-- `**options`: Analysis options (see below)
+- `options`: Analysis options dictionary (see AnalysisOptions below)
 
-**Analysis Options:**
+**Returns:** `AnalysisResults` object containing processed publications and statistics
 
-- `us_only`: Only analyze US publications (bool)
-- `min_year`: Minimum publication year (int)
-- `max_year`: Maximum publication year (int)
-- `year_tolerance`: Year matching tolerance (int, default: 1)
-- `title_threshold`: Title similarity threshold (int, default: 40)
-- `author_threshold`: Author similarity threshold (int, default: 30)
-- `early_exit_title`: Early exit title threshold (int, default: 95)
-- `early_exit_author`: Early exit author threshold (int, default: 90)
-- `score_everything`: Find best match regardless of thresholds (bool)
-- `minimum_combined_score`: Minimum score for score_everything mode (int)
-- `brute_force_missing_year`: Process records without years (bool)
-- `format`: Output format ('csv', 'xlsx', 'json')
-- `single_file`: Export all results to single file (bool)
-
-#### analyze_marc_records()
+##### load_and_index_data
 
 ```python
-def analyze_marc_records(
-    self,
-    publications: List[Publication],
-    **options: Any
-) -> List[Publication]
-```
-
-Analyze a list of already-loaded Publication objects.
-
-#### export_results()
-
-```python
-def export_results(
-    self,
-    output_path: str,
-    format: str = "csv",
-    single_file: bool = False
+def load_and_index_data(
+    copyright_dir: str | None = None,
+    renewal_dir: str | None = None,
+    min_year: int | None = None,
+    max_year: int | None = None,
+    use_cache: bool = True
 ) -> None
 ```
 
-Export results in the specified format.
+Pre-load and index copyright/renewal data. Useful when processing multiple MARC files.
 
-**Formats:**
+**Parameters:**
 
-- `csv`: CSV file(s) organized by copyright status
-- `xlsx`: Excel workbook with multiple sheets
-- `json`: JSON format
+- `copyright_dir`: Directory containing copyright XML files
+- `renewal_dir`: Directory containing renewal TSV files
+- `min_year`: Minimum year to load (filters data)
+- `max_year`: Maximum year to load (filters data)
+- `use_cache`: Whether to use cached indexes
 
-#### extract_ground_truth()
+##### extract_ground_truth
 
 ```python
 def extract_ground_truth(
-    self,
     marc_path: str,
-    copyright_dir: Optional[str] = None,
-    renewal_dir: Optional[str] = None,
-    min_year: Optional[int] = None,
-    max_year: Optional[int] = None,
-    lccn_prefix: Optional[str] = None,
-) -> Tuple[List[Publication], GroundTruthStats]
+    options: AnalysisOptions | None = None
+) -> tuple[list[GroundTruthPair], GroundTruthStats]
 ```
 
-Extract LCCN-verified ground truth pairs for algorithm validation.
+Extract LCCN-verified ground truth matches for threshold optimization.
 
 **Parameters:**
 
 - `marc_path`: Path to MARC XML file
-- `copyright_dir`: Directory containing copyright XML files
-- `renewal_dir`: Directory containing renewal TSV files
-- `min_year`: Minimum publication year filter
-- `max_year`: Maximum publication year filter
+- `options`: Analysis options
 
-**Returns:** Tuple of (marc_publications_with_lccn_matches, statistics)
+**Returns:** Tuple of (ground truth pairs, statistics)
 
-#### export_ground_truth_analysis()
+### AnalysisResults
+
+Container for analysis results with statistics and export capabilities.
 
 ```python
-def export_ground_truth_analysis(
-    self,
+class marc_pd_tool.AnalysisResults
+```
+
+#### Properties
+
+- `publications`: List of processed `Publication` objects
+- `statistics`: `AnalysisStatistics` object with counts
+- `ground_truth_stats`: Optional ground truth statistics
+
+#### Methods
+
+##### get_public_domain_publications
+
+```python
+def get_public_domain_publications() -> list[Publication]
+```
+
+Get all publications determined to be in the public domain.
+
+##### get_in_copyright_publications
+
+```python
+def get_in_copyright_publications() -> list[Publication]
+```
+
+Get all publications determined to be under copyright.
+
+##### get_undetermined_publications
+
+```python
+def get_undetermined_publications() -> list[Publication]
+```
+
+Get all publications with undetermined copyright status.
+
+##### export_to_csv
+
+```python
+def export_to_csv(
     output_path: str,
-    output_format: str = "csv",
+    single_file: bool = False
 ) -> None
 ```
 
-Export ground truth analysis results including score distributions.
+Export results to CSV format.
 
-## Data Models
+**Parameters:**
+
+- `output_path`: Path for output file
+- `single_file`: If True, export all results to one file; if False, separate by status
+
+##### export_to_xlsx
+
+```python
+def export_to_xlsx(
+    output_path: str
+) -> None
+```
+
+Export results to Excel format with multiple worksheets.
+
+##### export_to_json
+
+```python
+def export_to_json(
+    output_path: str
+) -> None
+```
+
+Export results to JSON format.
 
 ### Publication
 
-Represents a bibliographic record (MARC, copyright, or renewal).
+Domain entity representing a publication with bibliographic data.
 
 ```python
-from marc_pd_tool import Publication
-
-pub = Publication(
-    title="The Great Novel",
-    author="Smith, John",
-    year=1950,
-    publisher="Big Publishing Co.",
-    place="New York"
-)
+class marc_pd_tool.Publication
 ```
+
+#### Properties
+
+- `title`: Cleaned title text
+- `author`: Author statement (may include multiple authors)
+- `main_author`: Main entry author (controlled form)
+- `year`: Publication year as integer
+- `publisher`: Publisher name
+- `place`: Place of publication
+- `lccn`: Library of Congress Control Number
+- `normalized_lccn`: Normalized LCCN for matching
+- `country_code`: Three-letter country code
+- `country_classification`: `CountryClassification` enum value
+- `copyright_status`: Determined copyright status string
+- `status_rule`: `CopyrightStatusRule` enum explaining the determination
+
+#### Methods
+
+##### has_registration_match
+
+```python
+def has_registration_match() -> bool
+```
+
+Check if publication has a copyright registration match.
+
+##### has_renewal_match
+
+```python
+def has_renewal_match() -> bool
+```
+
+Check if publication has a copyright renewal match.
+
+##### get_best_match
+
+```python
+def get_best_match() -> MatchResult | None
+```
+
+Get the highest-scoring match result.
 
 ### MatchResult
 
-Contains information about a match between records.
+Represents a match between a MARC record and copyright/renewal data.
 
 ```python
-from marc_pd_tool import MatchResult
+class marc_pd_tool.MatchResult
+```
 
-# Access match results
-if pub.has_registration_match():
-    match = pub.get_registration_match()
-    print(f"Matched with {match.similarity_score}% confidence")
+#### Properties
+
+- `matched_title`: Title from copyright/renewal record
+- `matched_author`: Author from copyright/renewal record
+- `similarity_score`: Overall similarity score (0-100)
+- `title_score`: Title similarity score (0-100)
+- `author_score`: Author similarity score (0-100)
+- `publisher_score`: Publisher similarity score (0-100)
+- `year_difference`: Difference in publication years
+- `source_type`: "registration" or "renewal"
+- `source_id`: Identifier from source record
+- `match_type`: `MatchType` enum (LCCN, SIMILARITY, or BRUTE_FORCE_WITHOUT_YEAR)
+
+## Analysis Options
+
+The `AnalysisOptions` dictionary supports the following keys:
+
+```python
+options = {
+    # Filtering
+    "us_only": False,              # Only process US publications
+    "min_year": 1923,              # Minimum publication year
+    "max_year": 1977,              # Maximum publication year
+    "brute_force_missing_year": False,  # Process records without years
+    
+    # Matching thresholds
+    "title_threshold": 40,         # Title similarity threshold (0-100)
+    "author_threshold": 30,        # Author similarity threshold (0-100)
+    "publisher_threshold": 30,     # Publisher similarity threshold (0-100)
+    "year_tolerance": 1,           # Year difference tolerance
+    "early_exit_title": 95,        # High-confidence title threshold
+    "early_exit_author": 90,       # High-confidence author threshold
+    "early_exit_publisher": 85,    # High-confidence publisher threshold
+    
+    # Analysis modes
+    "score_everything_mode": False,     # Find best match regardless of thresholds
+    "minimum_combined_score": None,     # Minimum score for score_everything mode
+    
+    # Performance
+    "batch_size": 100,             # Records per batch
+    "num_processes": None,         # Worker processes (None = auto)
+    
+    # Output
+    "formats": ["csv", "json"],    # Output formats
+    "single_file": False,          # Single vs multiple output files
+}
+```
+
+## Enumerations
+
+### CountryClassification
+
+```python
+class marc_pd_tool.CountryClassification(Enum):
+    US = "US"
+    NON_US = "Non-US"
+    UNKNOWN = "Unknown"
 ```
 
 ### CopyrightStatus
 
-Enum representing copyright status determinations.
-
 ```python
-from marc_pd_tool import CopyrightStatus
-
-# Available statuses
-CopyrightStatus.PD_PRE_MIN_YEAR     # Published before current year - 96
-CopyrightStatus.PD_US_NOT_RENEWED   # Public domain - not renewed (min_year-1977)
-CopyrightStatus.PD_US_REG_NO_RENEWAL # Registered but no renewal (post-1977)
-CopyrightStatus.PD_US_NO_REG_DATA   # No registration data found
-CopyrightStatus.UNKNOWN_US_NO_DATA  # Renewal period work with no data
-CopyrightStatus.IN_COPYRIGHT        # Likely in copyright
-CopyrightStatus.IN_COPYRIGHT_US_RENEWED # Renewed during renewal period
-CopyrightStatus.RESEARCH_US_STATUS  # Foreign work - research needed
-CopyrightStatus.RESEARCH_US_ONLY_PD # Foreign work - may be PD in US only
-CopyrightStatus.COUNTRY_UNKNOWN     # Cannot determine - country unknown
+class marc_pd_tool.CopyrightStatus(Enum):
+    US_RENEWED = "US_RENEWED"
+    US_REGISTERED_NOT_RENEWED = "US_REGISTERED_NOT_RENEWED"
+    US_NO_MATCH = "US_NO_MATCH"
+    # ... additional statuses
 ```
 
-### AnalysisResults
+Note: Some statuses are dynamically generated (e.g., `US_PRE_1929`, `FOREIGN_RENEWED_GBR`)
 
-Container for analysis results with comprehensive statistics.
+### MatchType
 
 ```python
-# Access results after analysis
-results = analyzer.analyze()
-
-# Get statistics dictionary
-stats = results.statistics
-
-# Available statistics:
-print(f"Total records processed: {stats['total_records']}")
-print(f"Records skipped (no year): {stats['skipped_no_year']}")  # When not using --brute-force-missing-year
-print(f"US records: {stats['us_records']}")
-print(f"Non-US records: {stats['non_us_records']}")
-print(f"Unknown country: {stats['unknown_country']}")
-print(f"Registration matches: {stats['registration_matches']}")
-print(f"Renewal matches: {stats['renewal_matches']}")
-print(f"No matches found: {stats['no_matches']}")
-
-# Copyright status breakdown
-print(f"Public domain (pre-1928): {stats.get('pd_pre_1928', 0)}")
-print(f"Public domain (no renewal): {stats['pd_no_renewal']}")
-print(f"In copyright: {stats['in_copyright']}")
-# ... other status counts
+class marc_pd_tool.MatchType(Enum):
+    LCCN = "lccn"
+    SIMILARITY = "similarity"
+    BRUTE_FORCE_WITHOUT_YEAR = "brute_force_without_year"
 ```
-
-**Note**: The `skipped_no_year` statistic tracks MARC records that were skipped because they lack publication year data when not using the `--brute-force-missing-year` option. This helps identify potentially incomplete analysis coverage.
 
 ## Advanced Usage
 
 ### Custom Configuration
 
 ```python
-from marc_pd_tool import MarcCopyrightAnalyzer
+from marc_pd_tool import MarcCopyrightAnalyzer, ConfigLoader
 
-# Use custom configuration
-analyzer = MarcCopyrightAnalyzer(config_path='my_config.json')
+# Load custom configuration
+config = ConfigLoader("custom_config.json")
+
+# Create analyzer with custom config
+analyzer = MarcCopyrightAnalyzer(config_path="custom_config.json")
 ```
 
-### Direct Component Access
-
-For advanced use cases, you can access individual components:
+### Direct Data Loading
 
 ```python
 from marc_pd_tool import (
     MarcLoader,
     CopyrightDataLoader,
     RenewalDataLoader,
-    DataMatcher,
-    ConfigLoader
+    DataMatcher
 )
 
-# Load data manually
+# Load data directly
 marc_loader = MarcLoader()
-publications = marc_loader.load_marc_xml('data.xml')
+publications = marc_loader.load_marc_file("catalog.xml")
 
-# Create custom matching engine
-config = ConfigLoader('config.json')
-engine = DataMatcher(config=config)
+copyright_loader = CopyrightDataLoader("nypl-reg/xml/")
+copyright_data = copyright_loader.load_all_copyright_data(min_year=1950)
 
-# Process individual records
+renewal_loader = RenewalDataLoader("nypl-ren/data/")
+renewal_data = renewal_loader.load_all_renewal_data(min_year=1950)
+
+# Create matcher and process
+matcher = DataMatcher()
 for pub in publications:
-    match = engine.find_best_match(pub, copyright_pubs, 
-                                  title_threshold=40,
-                                  author_threshold=30,
-                                  year_tolerance=1)
+    matches = matcher.find_matches(pub, copyright_data, renewal_data)
 ```
 
-### Progress Monitoring
-
-The API logs progress information. Configure logging to monitor:
+### Cache Management
 
 ```python
-import logging
+from marc_pd_tool import CacheManager
 
-# Set up logging before creating analyzer
-logging.basicConfig(level=logging.INFO)
+# Create cache manager
+cache = CacheManager(".marcpd_cache")
+
+# Clear specific cache
+cache.clear_cache("registration_index")
+
+# Clear all caches
+cache.clear_all_caches()
+
+# Check cache status
+if cache.is_cached("registration_index"):
+    print("Registration index is cached")
+```
+
+### Ground Truth Analysis
+
+```python
+from marc_pd_tool import MarcCopyrightAnalyzer
 
 analyzer = MarcCopyrightAnalyzer()
-# Progress will be logged during analysis
+
+# Extract ground truth for threshold optimization
+ground_truth_pairs, stats = analyzer.extract_ground_truth(
+    marc_path="catalog.xml",
+    options={"score_everything_mode": True}
+)
+
+print(f"MARC records with LCCN: {stats.marc_with_lccn}")
+print(f"Registration matches: {stats.registration_matches}")
+print(f"Renewal matches: {stats.renewal_matches}")
+
+# Export ground truth for analysis
+analyzer.export_ground_truth_analysis(
+    ground_truth_pairs,
+    output_path="ground_truth.csv"
+)
+```
+
+### Streaming Large Datasets
+
+```python
+from marc_pd_tool import MarcCopyrightAnalyzer
+
+analyzer = MarcCopyrightAnalyzer()
+
+# Process large dataset with streaming
+results = analyzer.analyze_marc_file_streaming(
+    marc_path="huge_catalog.xml",
+    batch_size=1000,
+    temp_dir="/data/temp",
+    options={"us_only": True}
+)
 ```
 
 ## Examples
 
-### Filter by Year Range
-
-```python
-analyzer = MarcCopyrightAnalyzer()
-
-results = analyzer.analyze_marc_file(
-    'data.marcxml',
-    min_year=1950,
-    max_year=1960,
-    us_only=True
-)
-
-print(f"Analyzed {results.statistics['total_records']} US records from 1950-1960")
-```
-
-### Threshold Optimization Mode
-
-```python
-# Find best match for every record regardless of thresholds
-results = analyzer.analyze_marc_file(
-    'data.marcxml',
-    score_everything=True,
-    minimum_combined_score=40  # Still require 40% minimum
-)
-
-# Analyze score distribution
-scores = []
-for pub in results.publications:
-    if pub.has_registration_match():
-        match = pub.get_registration_match()
-        scores.append(match.similarity_score)
-
-print(f"Average match score: {sum(scores)/len(scores):.1f}%")
-```
-
 ### Batch Processing Multiple Files
 
 ```python
-import glob
+from pathlib import Path
+from marc_pd_tool import MarcCopyrightAnalyzer
 
 analyzer = MarcCopyrightAnalyzer()
 
-# Process multiple MARC files
-for marc_file in glob.glob('marc_files/*.xml'):
-    output_file = marc_file.replace('.xml', '_results.csv')
+# Pre-load indexes once
+analyzer.load_and_index_data(
+    copyright_dir="nypl-reg/xml/",
+    renewal_dir="nypl-ren/data/",
+    min_year=1950,
+    max_year=1970
+)
+
+# Process multiple files
+marc_files = Path("marc_data").glob("*.xml")
+for marc_file in marc_files:
+    results = analyzer.analyze_marc_file(str(marc_file))
+    output_name = marc_file.stem + "_results.csv"
+    results.export_to_csv(output_name)
+```
+
+### Custom Threshold Analysis
+
+```python
+from marc_pd_tool import MarcCopyrightAnalyzer
+
+# Test different threshold combinations
+thresholds = [
+    {"title": 30, "author": 20},
+    {"title": 40, "author": 30},
+    {"title": 50, "author": 40},
+]
+
+analyzer = MarcCopyrightAnalyzer()
+
+for threshold_set in thresholds:
+    options = {
+        "title_threshold": threshold_set["title"],
+        "author_threshold": threshold_set["author"],
+        "score_everything_mode": True
+    }
     
     results = analyzer.analyze_marc_file(
-        marc_file,
-        output_path=output_file
+        "test_data.xml",
+        options=options
     )
     
-    print(f"{marc_file}: {results.statistics['total_records']} records")
+    print(f"Thresholds {threshold_set}: "
+          f"{results.statistics.registration_matches} matches")
 ```
 
-### Threshold Analysis Modes
-
-The API provides two approaches for analyzing and tuning similarity thresholds:
-
-#### Score Everything Mode
-
-Find the best match for every record regardless of thresholds:
+### Filtering and Analysis
 
 ```python
+from marc_pd_tool import MarcCopyrightAnalyzer
+
+analyzer = MarcCopyrightAnalyzer()
+
+# Analyze only US books from 1950s
 results = analyzer.analyze_marc_file(
-    'data.marcxml',
-    score_everything=True,
-    minimum_combined_score=20  # Still require some minimum
+    "catalog.xml",
+    options={
+        "us_only": True,
+        "min_year": 1950,
+        "max_year": 1959,
+        "formats": ["csv", "xlsx", "json"]
+    }
 )
 
-# Analyze score distribution
-for pub in results.publications:
-    if pub.has_registration_match():
-        match = pub.get_registration_match()
-        print(f"{pub.title}: {match.similarity_score}%")
+# Get specific categories
+pd_books = results.get_public_domain_publications()
+for book in pd_books[:10]:
+    print(f"{book.title} ({book.year}): {book.copyright_status}")
 ```
 
-#### Ground Truth Analysis
-
-Extract LCCN-verified matches and analyze their similarity scores:
+## Error Handling
 
 ```python
-# Extract ground truth pairs based on LCCN matching
-ground_truth_pairs, stats = analyzer.extract_ground_truth(
-    'data.marcxml',
-    min_year=1950,
-    max_year=1960
-)
+from marc_pd_tool import MarcCopyrightAnalyzer
+import logging
 
-print(f"Found {len(ground_truth_pairs)} verified matches")
-print(f"MARC records with LCCN: {stats.marc_lccn_coverage:.1f}%")
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
-# Analyze similarity scores (without LCCN matching)
-analysis = analyzer.analyze_ground_truth_scores(ground_truth_pairs)
-
-# Export analysis results with score distributions
-analyzer.export_ground_truth_analysis(
-    'ground_truth_analysis.csv',
-    output_format='csv'
-)
+try:
+    analyzer = MarcCopyrightAnalyzer()
+    results = analyzer.analyze_marc_file("catalog.xml")
+except FileNotFoundError as e:
+    print(f"File not found: {e}")
+except Exception as e:
+    print(f"Analysis failed: {e}")
 ```
 
 ## Performance Considerations
 
-- **Caching**: The analyzer caches parsed data and indexes. First run will be slower.
-- **Memory**: Large datasets require significant memory. Use year filtering to reduce memory usage.
-- **Parallel Processing**: The analyzer uses multiple CPU cores automatically.
-- **Year Filtering**: Always specify `min_year`/`max_year` when possible for better performance.
+1. **Use caching**: First run builds indexes; subsequent runs are much faster
+1. **Filter by year**: Reduces data loading and processing time
+1. **Adjust batch size**: Larger batches can improve throughput
+1. **Set worker count**: Use `num_processes` based on available cores
+1. **Enable streaming**: For datasets over 1M records
 
-## Error Handling
+## Thread Safety
 
-The API raises standard Python exceptions:
+The `MarcCopyrightAnalyzer` class is not thread-safe. Create separate instances for concurrent processing or use multiprocessing instead of threading.
 
-```python
-try:
-    results = analyzer.analyze_marc_file('data.marcxml')
-except FileNotFoundError:
-    print("MARC file not found")
-except ValueError as e:
-    print(f"Invalid configuration: {e}")
-```
+## Memory Management
 
-## See Also
+For large datasets:
 
-- [CLI Documentation](../README.md) - Using the command-line interface
-- [Processing Pipeline](PIPELINE.md) - Detailed algorithm documentation
-- [Development Guide](DEVELOPMENT.md) - Contributing to the project
+- Use streaming mode with `analyze_marc_file_streaming()`
+- Set appropriate `batch_size` (100-500 records)
+- Clear caches between runs if processing different year ranges
+- Monitor memory with system tools
+
+## Compatibility
+
+- Python 3.13.5 or later required
+- No backward compatibility guarantees
