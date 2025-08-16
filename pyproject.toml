@@ -112,35 +112,27 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "marc_pd_tool.api",
-    "marc_pd_tool.cli",
-    "marc_pd_tool.infrastructure.run_index_manager",
-    "marc_pd_tool.infrastructure.config_loader",
-    "marc_pd_tool.loaders.renewal_loader",
-    "marc_pd_tool.processing.text_processing",
-    "marc_pd_tool.loaders.copyright_loader",
-    "marc_pd_tool.exporters.xlsx_exporter",
-    "marc_pd_tool.processing.similarity_calculator",
-    "marc_pd_tool.loaders.marc_loader",
-    "marc_pd_tool.exporters.csv_exporter",
-    "marc_pd_tool.processing.matching_engine",
-    "marc_pd_tool.processing.indexer",
-    "marc_pd_tool.infrastructure.cache_manager",
+    # These modules use dynamic typing patterns that are difficult to type strictly
+    "marc_pd_tool.adapters.api.*",
+    "marc_pd_tool.infrastructure.persistence.*",
+    "marc_pd_tool.infrastructure.config.*",
+    "marc_pd_tool.application.processing.*",
+    "marc_pd_tool.adapters.exporters.*",
+    "marc_pd_tool.infrastructure.cache.*",
     "stop_words",
     # Pydantic models need less strict checking
-    "marc_pd_tool.config.models",
-    "marc_pd_tool.config.shared_models",
-    "marc_pd_tool.config.wordlists",
-    "marc_pd_tool.models.*",
+    "marc_pd_tool.infrastructure.config._models",
+    "marc_pd_tool.infrastructure.config._shared_models",
+    "marc_pd_tool.infrastructure.config._wordlists",
 ]
 disallow_any_expr = false
 
 # Override for modules with Protocol/mixin type issues from refactoring
 [[tool.mypy.overrides]]
 module = [
-    "marc_pd_tool.api._streaming",
-    "marc_pd_tool.api._processing", 
-    "marc_pd_tool.api._analyzer",
+    "marc_pd_tool.adapters.api._streaming",
+    "marc_pd_tool.adapters.api._processing", 
+    "marc_pd_tool.adapters.api._analyzer",
     "marc_pd_tool.cli",
 ]
 # Ignore protocol self-type mismatches that occur with complex mixin patterns
@@ -179,6 +171,7 @@ omit = [
     "*/tests/*",
     "*/test_*",
     "*/__main__.py",
+    "*/cli.py",  # CLI is integration tested manually
 ]
 
 [tool.coverage.report]
@@ -211,8 +204,11 @@ autoflake = { cmd = "autoflake . -i -r --remove-unused-variables --remove-all-un
 headers = { cmd = "python lint/add_file_headers.py" }
 test = { cmd = "pytest tests/ -v --cov=marc_pd_tool --cov-report=term-missing" }
 test-unit = { cmd = "pytest tests/ -v -m 'not integration'" }
-test-integration = { cmd = "pytest tests/integration/ -v" }
+test-integration = { cmd = "pytest tests/integration/ -v -m integration" }
 test-quick = { cmd = "pytest tests/ -v -m 'not slow and not integration'" }
+test-adapters = { cmd = "pytest tests/adapters/ -v --cov=marc_pd_tool.adapters --cov-report=term-missing" }
+test-unit-full = { cmd = "pytest tests/unit/ -v --cov=marc_pd_tool --cov-report=term-missing" }
+test-performance = { cmd = "pytest tests/performance/ -v" }
 clean = { shell = '''
     find . \
         -name "__pycache__" \

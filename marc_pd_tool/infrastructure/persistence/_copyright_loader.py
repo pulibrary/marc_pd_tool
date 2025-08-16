@@ -86,7 +86,10 @@ class CopyrightDataLoader(YearFilterableMixin):
                 if pub:
                     publications.append(pub)
 
-        except Exception as e:
+        except (ET.ParseError, OSError, UnicodeDecodeError) as e:
+            # ET.ParseError: malformed XML
+            # OSError: file access issues
+            # UnicodeDecodeError: encoding problems
             logger.warning(f"Error parsing {xml_file}: {e}")
 
         return publications
@@ -166,7 +169,10 @@ class CopyrightDataLoader(YearFilterableMixin):
                 year=year,
             )
 
-        except Exception:
+        except (AttributeError, KeyError, ValueError):
+            # AttributeError: missing XML attributes
+            # KeyError: missing expected elements
+            # ValueError: invalid data in fields
             return None
 
     @cached_property
@@ -210,7 +216,8 @@ class CopyrightDataLoader(YearFilterableMixin):
                         elem.clear()
                         root.clear()
 
-            except Exception as e:
+            except (ET.ParseError, OSError, UnicodeDecodeError) as e:
+                # Same as above - XML parsing errors
                 logger.warning(f"Error analyzing years in {xml_file}: {e}")
                 continue
 
@@ -260,7 +267,9 @@ class CopyrightDataLoader(YearFilterableMixin):
             # Use centralized year extraction
             return extract_year(pub_date)
 
-        except Exception:
+        except (AttributeError, ValueError):
+            # AttributeError: element.text is None
+            # ValueError: invalid year format
             return None
 
     @cached_property

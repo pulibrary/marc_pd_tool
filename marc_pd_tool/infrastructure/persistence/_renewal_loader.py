@@ -3,6 +3,7 @@
 """Renewal data TSV loader for publications"""
 
 # Standard library imports
+import csv
 from csv import DictReader
 from functools import cached_property
 from logging import getLogger
@@ -81,7 +82,10 @@ class RenewalDataLoader(YearFilterableMixin):
                     if pub:
                         publications.append(pub)
 
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, csv.Error) as e:
+            # OSError: file access issues
+            # UnicodeDecodeError: encoding problems in TSV file
+            # csv.Error: malformed CSV/TSV data
             logger.warning(f"Error parsing {tsv_file}: {e}")
 
         return publications
@@ -134,7 +138,10 @@ class RenewalDataLoader(YearFilterableMixin):
 
             return pub
 
-        except Exception as e:
+        except (KeyError, ValueError, AttributeError) as e:
+            # KeyError: missing expected columns in row
+            # ValueError: invalid data format for year extraction
+            # AttributeError: None values in expected fields
             logger.debug(f"Error extracting from row: {e}")
             return None
 
@@ -177,7 +184,9 @@ class RenewalDataLoader(YearFilterableMixin):
 
             return ""
 
-        except Exception as e:
+        except (AttributeError, IndexError) as e:
+            # AttributeError: if match groups don't exist
+            # IndexError: if group index is out of range
             logger.debug(f"Error extracting publisher from full_text: {e}")
             return ""
 
@@ -216,7 +225,8 @@ class RenewalDataLoader(YearFilterableMixin):
                             if max_year is None or year > max_year:
                                 max_year = year
 
-            except Exception as e:
+            except (OSError, UnicodeDecodeError, csv.Error) as e:
+                # Same as above - file/CSV parsing errors
                 logger.warning(f"Error analyzing years in {tsv_file}: {e}")
                 continue
 

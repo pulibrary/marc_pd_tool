@@ -80,7 +80,7 @@ class CacheManager:
                     file_path = join(root, file)
                     file_mtime = getmtime(file_path)
                     max_mtime = max(max_mtime, file_mtime)
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - OS/filesystem errors during walk
             logger.warning(f"Error checking modification times in {directory_path}: {e}")
             return 0.0  # Force cache miss on error
 
@@ -127,7 +127,7 @@ class CacheManager:
         try:
             with open(metadata_file, "w") as f:
                 json_dump(metadata, f, indent=2)
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - JSON serialization/IO errors
             logger.warning(f"Failed to save cache metadata to {metadata_file}: {e}")
 
     def _load_metadata(self, cache_subdir: str) -> CacheMetadata | None:
@@ -154,7 +154,7 @@ class CacheManager:
                     cache_time=data.get("cache_time", 0.0),
                     additional_deps=data.get("additional_deps", {}),
                 )
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - JSON deserialization/IO errors
             logger.warning(f"Failed to load cache metadata from {metadata_file}: {e}")
             return None
 

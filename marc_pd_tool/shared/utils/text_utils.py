@@ -301,10 +301,25 @@ def extract_lccn_year(normalized_lccn: str) -> str:
 
     # For most LCCNs, the year is the first 2-4 digits
     # Handle different year formats:
-    if len(numeric_part) >= 4 and numeric_part[:4].isdigit():
-        # Full 4-digit year (e.g., "2001000002" -> "2001")
+    #
+    # According to Library of Congress standards:
+    # - LCCNs before 2001 use 2-digit years
+    # - LCCNs from 2001 onward use 4-digit years
+    #
+    # Special case: exactly 4 digits that could be a year (2000+)
+    if len(numeric_part) == 4 and numeric_part.isdigit():
+        year_int = int(numeric_part)
+        if year_int >= 2000:  # This is a 4-digit year
+            return numeric_part
+
+    # To distinguish between a 2-digit year like "19" padded to "19000001"
+    # and a true 4-digit year like "2001", we check if it's >= 2000
+    # since 4-digit years only started being used from 2001
+    if len(numeric_part) >= 10 and numeric_part[:4].isdigit():
+        # Check for 4-digit year format (10+ digits total means 4-digit year + 6-digit serial)
         year_candidate = numeric_part[:4]
-        if year_candidate.startswith("19") or year_candidate.startswith("20"):
+        year_int = int(year_candidate)
+        if year_int >= 2000:  # True 4-digit years only from 2000+
             return year_candidate
 
     if len(numeric_part) >= 2:
@@ -341,9 +356,17 @@ def extract_lccn_serial(normalized_lccn: str) -> str:
     numeric_part = normalized_lccn[digit_start:]
 
     # Handle different year formats to extract serial
-    if len(numeric_part) >= 4 and numeric_part[:4].isdigit():
+    # Special case: exactly 4 digits that could be a year (2000+)
+    if len(numeric_part) == 4 and numeric_part.isdigit():
+        year_int = int(numeric_part)
+        if year_int >= 2000:  # This is a 4-digit year with no serial
+            return ""
+
+    # Use same logic as extract_lccn_year to determine if it's a 4-digit year
+    if len(numeric_part) >= 10 and numeric_part[:4].isdigit():
         year_candidate = numeric_part[:4]
-        if year_candidate.startswith("19") or year_candidate.startswith("20"):
+        year_int = int(year_candidate)
+        if year_int >= 2000:  # True 4-digit years only from 2000+
             # 4-digit year, serial is remainder
             return numeric_part[4:]
 

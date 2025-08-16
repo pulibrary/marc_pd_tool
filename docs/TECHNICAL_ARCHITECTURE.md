@@ -17,9 +17,8 @@ Pure business logic and entities with no external dependencies.
 
 #### Application
 
-Use cases and application services that orchestrate domain logic.
+Use cases and application logic that orchestrate domain operations.
 
-- `application/services/`: High-level services (analysis, indexing, matching)
 - `application/processing/`: Core algorithms (matching engine, similarity calculator, indexer)
 - `application/models/`: Data transfer objects and application-specific models
 
@@ -56,6 +55,45 @@ Adapters → Application → Core
     ↓           ↓         ↑
 Infrastructure  Shared ───┘
 ```
+
+### Test Structure Alignment
+
+The test suite perfectly mirrors the hexagonal architecture, ensuring each layer can be tested independently:
+
+```
+Source Code Structure              Test Structure
+─────────────────────              ──────────────
+marc_pd_tool/                      tests/
+├── adapters/          →           ├── adapters/         (Ports layer tests)
+│   ├── api/                       │   ├── api/
+│   ├── cli/                       │   ├── cli/
+│   └── exporters/                 │   └── exporters/
+├── application/       →           ├── unit/application/ (Use case tests)
+│   ├── models/                    │   ├── models/
+│   └── processing/                │   └── processing/
+├── core/              →           ├── unit/core/        (Domain tests)
+│   ├── domain/                    │   ├── domain/
+│   └── types/                     │   └── types/
+├── infrastructure/    →           ├── unit/infrastructure/ (Adapter tests)
+│   ├── cache/                     │   ├── cache/
+│   ├── config/                    │   ├── config/
+│   └── persistence/               │   └── persistence/
+└── shared/            →           └── unit/shared/      (Cross-cutting tests)
+    ├── mixins/                        ├── mixins/
+    └── utils/                         └── utils/
+
+Additional Test Categories:
+├── integration/       (End-to-end workflow tests)
+├── performance/       (Performance benchmarks)
+└── fixtures/          (Shared test data)
+```
+
+This structure ensures:
+
+- **Easy Navigation**: Tests are located exactly where developers expect them
+- **Clear Ownership**: Each module's tests are colocated with similar tests
+- **Dependency Isolation**: Layers can be tested independently
+- **Comprehensive Coverage**: 92% test coverage with 1251 tests
 
 ## Text Normalization Pipeline
 

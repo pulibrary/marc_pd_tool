@@ -183,7 +183,16 @@ def sample_publications():
         edition="1st ed.",
         lccn="50012345",
     )
-    pub1 = PublicationBuilder.with_registration_match(pub1)
+    # Set original fields for testing
+    pub1.original_title = "Test Book One"
+    pub1.original_author = "Test Author One"
+    pub1.original_main_author = "Test Author One"
+    pub1.original_publisher = "Test Publisher"
+    pub1.original_place = "New York"
+    pub1.original_edition = "1st ed."
+    pub1.year = 1950
+    pub1.normalized_lccn = "50000001"
+    pub1 = PublicationBuilder.with_registration_match(pub1, matched_title="Test Book One")
     pub1.copyright_status = CopyrightStatus.US_REGISTERED_NOT_RENEWED.value
     pubs.append(pub1)
 
@@ -199,7 +208,18 @@ def sample_publications():
         edition="",
         lccn="",
     )
-    pub2 = PublicationBuilder.with_renewal_match(pub2, matched_publisher="")
+    # Set original fields for testing
+    pub2.original_title = "Test Book Two"
+    pub2.original_author = "Test Author Two"
+    pub2.original_main_author = "Test Author Two"
+    pub2.original_publisher = "Another Publisher"
+    pub2.original_place = "Chicago"
+    pub2.original_edition = ""
+    pub2.year = 1955
+    pub2.normalized_lccn = ""
+    pub2 = PublicationBuilder.with_renewal_match(
+        pub2, matched_title="Test Book Two", matched_publisher=""
+    )
     pub2.copyright_status = CopyrightStatus.US_RENEWED.value
     pubs.append(pub2)
 
@@ -217,6 +237,15 @@ def sample_publications():
         country_code="xxk",
         country_classification=CountryClassification.NON_US,
     )
+    # Set original fields for testing
+    pub3.original_title = "Test Book Three"
+    pub3.original_author = "Test Author Three"
+    pub3.original_main_author = "Test Author Three"
+    pub3.original_publisher = "Unknown Publisher"
+    pub3.original_place = "London"
+    pub3.original_edition = ""
+    pub3.year = 1960
+    pub3.normalized_lccn = ""
     # Non-US publication should have foreign status
     pub3.copyright_status = f"{CopyrightStatus.FOREIGN_NO_MATCH.value}_xxk"
     pubs.append(pub3)
