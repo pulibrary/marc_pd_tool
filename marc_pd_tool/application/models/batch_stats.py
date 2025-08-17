@@ -45,6 +45,8 @@ class BatchStats(BaseModel):
     unknown_country_records: int = Field(0, description="Records with unknown country")
     processing_time: float = Field(0.0, description="Processing time in seconds")
     skipped_no_year: int = Field(0, description="Records skipped due to missing year")
+    skipped_out_of_range: int = Field(0, description="Records skipped due to year out of range")
+    skipped_non_us: int = Field(0, description="Records skipped due to non-US classification")
     records_with_errors: int = Field(0, description="Records that had processing errors")
 
     def increment(self, field: str, value: int = 1) -> None:

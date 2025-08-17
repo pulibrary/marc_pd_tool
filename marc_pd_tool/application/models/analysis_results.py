@@ -127,6 +127,24 @@ class AnalysisResults(BaseModel):
         else:
             raise ValueError("add_result_file expects 1 or 2 arguments")
 
+    def cleanup_temp_files(self) -> None:
+        """Clean up temporary result files and directory"""
+        if self.result_temp_dir:
+            # Standard library imports
+            from pathlib import Path
+            import shutil
+
+            temp_path = Path(self.result_temp_dir)
+            if temp_path.exists():
+                try:
+                    shutil.rmtree(temp_path)
+                    logger.debug(f"Cleaned up temporary directory: {self.result_temp_dir}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temp directory {self.result_temp_dir}: {e}")
+
+            self.result_temp_dir = None
+            self.result_file_paths.clear()
+
     def update_statistics_from_batch(self, publications: list[Publication]) -> None:
         """Update statistics from a batch of publications without storing them"""
         for pub in publications:

@@ -443,6 +443,27 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
     with open(result_file_path, "wb") as f:
         dump(processed_publications, f, protocol=HIGHEST_PROTOCOL)
 
+    # Create detailed statistics dictionary for the stats file
+    detailed_stats = {
+        "total_records": stats.marc_count,
+        "registration_matches": stats.registration_matches_found,
+        "renewal_matches": stats.renewal_matches_found,
+        "skipped_no_year": stats.skipped_no_year,
+        "skipped_out_of_range": stats.skipped_out_of_range,
+        "skipped_non_us": stats.skipped_non_us,
+    }
+
+    # Count copyright statuses
+    for pub in processed_publications:
+        if hasattr(pub, "copyright_status") and pub.copyright_status:
+            status_key = pub.copyright_status.lower()
+            detailed_stats[status_key] = detailed_stats.get(status_key, 0) + 1
+
+    # Save statistics to separate file
+    stats_file_path = join(result_temp_dir, f"batch_{batch_num}_stats.pkl")
+    with open(stats_file_path, "wb") as f:
+        dump(detailed_stats, f, protocol=HIGHEST_PROTOCOL)
+
     # Get memory usage
     process = psutil.Process(getpid())
     process.memory_info().rss / 1024 / 1024

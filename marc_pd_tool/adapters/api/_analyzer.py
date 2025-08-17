@@ -245,6 +245,10 @@ class MarcCopyrightAnalyzer(
             self.export_results(output_path, formats=output_formats, single_file=single_file)
             logger.info("✓ Export complete")
 
+            # Clean up temporary files after successful export
+            if hasattr(self.results, "cleanup_temp_files"):
+                self.results.cleanup_temp_files()
+
         return self.results
 
     def analyze_marc_records(
