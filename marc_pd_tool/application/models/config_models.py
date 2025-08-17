@@ -36,9 +36,7 @@ class AnalysisOptions(BaseModel):
     minimum_combined_score: int | None = None
     parallel_loading: bool = True  # Use parallel loading for copyright/renewal data
 
-    def get(
-        self, key: str, default: str | int | float | bool | list | None = None
-    ) -> str | int | float | bool | list | None:
+    def get[T](self, key: str, default: T | None = None) -> T | None:
         """Get option value with default
 
         Args:
@@ -50,7 +48,7 @@ class AnalysisOptions(BaseModel):
         """
         return getattr(self, key, default)
 
-    def to_dict(self) -> dict[str, str | int | float | bool | list | None]:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary
 
         Returns:

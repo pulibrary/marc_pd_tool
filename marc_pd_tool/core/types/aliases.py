@@ -1,23 +1,22 @@
 # marc_pd_tool/core/types/aliases.py
 
-"""Type aliases for domain-specific dictionaries"""
+"""Type aliases for domain-specific dictionaries using Python 3.13 type statements."""
 
 # Standard library imports
-from typing import TYPE_CHECKING
 from typing import TypeVar
 
-if TYPE_CHECKING:
-    # Local imports
-    pass
+# Local imports
+# Local imports - import protocol directly to avoid forward reference
+from marc_pd_tool.core.types.protocols import StemmerProtocol
 
-# Domain-specific dictionaries that add clarity
-StopwordDict = dict[str, list[str]]  # Category -> stopwords
-PatternDict = dict[str, list[str]]  # Pattern type -> patterns
-AbbreviationDict = dict[str, str]  # Abbreviation -> expansion
-StemmerDict = dict[str, "StemmerProtocol"]  # Language -> Stemmer object
+# Modern type statements (Python 3.13)
+type StopwordDict = dict[str, list[str]]  # Category -> stopwords
+type PatternDict = dict[str, list[str]]  # Pattern type -> patterns
+type AbbreviationDict = dict[str, str]  # Abbreviation -> expansion
+type StemmerDict = dict[str, StemmerProtocol]  # Language -> Stemmer object (no quotes needed!)
 
-# Batch processing info type
-BatchProcessingInfo = tuple[
+# Batch processing info type - using type statement for clarity
+type BatchProcessingInfo = tuple[
     int,  # batch_id (i + 1)
     str,  # batch_path (path to pickled batch file)
     str,  # worker_cache_dir

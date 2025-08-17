@@ -12,6 +12,7 @@ from unittest.mock import patch
 # Local imports
 from marc_pd_tool.adapters.api import AnalysisResults
 from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.core.domain.enums import CopyrightStatus
 from tests.fixtures.publications import PublicationBuilder
 
@@ -87,14 +88,14 @@ class TestMarcCopyrightAnalyzerAPI:
             marc_path = str(Path(temp_dir) / "test.xml")
             Path(marc_path).write_text("<marc>test</marc>")
 
-            options = {
-                "us_only": True,
-                "min_year": 1950,
-                "max_year": 1970,
-                "title_threshold": 45,
-                "author_threshold": 35,
-                "year_tolerance": 2,
-            }
+            options = AnalysisOptions(
+                us_only=True,
+                min_year=1950,
+                max_year=1970,
+                title_threshold=45,
+                author_threshold=35,
+                year_tolerance=2,
+            )
 
             # Mock the load_and_index_data to avoid full execution
             with patch.object(analyzer, "_load_and_index_data") as mock_load:
@@ -162,7 +163,7 @@ class TestMarcCopyrightAnalyzerAPI:
         assert analyzer.analysis_options is None
 
         # Options would be set when calling analyze_marc_file
-        test_options = {"us_only": True, "title_threshold": 45}
+        test_options = AnalysisOptions(us_only=True, title_threshold=45)
         analyzer.analysis_options = test_options
 
         assert analyzer.analysis_options == test_options

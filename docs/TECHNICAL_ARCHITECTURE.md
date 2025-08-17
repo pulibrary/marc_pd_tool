@@ -253,17 +253,57 @@ with Pool(max_workers) as pool:
 
 Each worker processes an independent batch, eliminating inter-process communication overhead.
 
+## Type System Architecture
+
+### Modern Python 3.13 Features
+
+The codebase leverages Python 3.13's advanced type system:
+
+- **Type Aliases**: Using the `type` statement for cleaner type definitions
+- **Generic Protocols**: Protocols with type parameters for flexible interfaces
+- **Pydantic Models**: Replacing TypedDicts with validated Pydantic models
+- **Consolidated Protocols**: All Protocol definitions in `core/types/protocols.py`
+- **No `Any` Types**: Full type safety with specific types throughout
+
+### Protocol Organization
+
+Protocols are organized into logical groups in a single file:
+
+```python
+# core/types/protocols.py
+
+# External Library Protocols
+class CSVWriter(Protocol): ...
+class StemmerProtocol(Protocol): ...
+
+# Loader Protocols
+class LoaderProtocol[T: BaseModel](Protocol): ...
+class MarcLoaderProtocol(Protocol): ...
+
+# Processing Protocols
+class ProcessorProtocol[T, R](Protocol): ...
+class MatcherProtocol(Protocol): ...
+
+# API Component Protocols
+class StreamingAnalyzerProtocol(Protocol): ...
+class AnalyzerProtocol(Protocol): ...
+```
+
 ## Configuration System
 
 ### Pydantic Models
 
-Configuration uses Pydantic for validation and type safety:
+All configuration now uses Pydantic models for validation and type safety:
 
 ```python
-class ThresholdConfig(BaseModel):
-    title: int = Field(40, ge=0, le=100)
-    author: int = Field(30, ge=0, le=100)
-    year_tolerance: int = Field(1, ge=0, le=5)
+class AnalysisOptions(BaseModel):
+    """Options for analysis with full Pydantic validation"""
+    batch_size: int = Field(default=100, ge=1)
+    title_threshold: int = Field(default=40, ge=0, le=100)
+    author_threshold: int = Field(default=30, ge=0, le=100)
+    year_tolerance: int = Field(default=1, ge=0, le=10)
+    formats: list[str] = Field(default_factory=lambda: ["csv"])
+    # ... many more validated fields
 ```
 
 ### Hierarchical Configuration
@@ -271,6 +311,7 @@ class ThresholdConfig(BaseModel):
 - Default values in Pydantic models
 - Override via config.json
 - Override via command-line arguments (highest priority)
+- Full validation at each level
 
 ### Wordlists Integration
 

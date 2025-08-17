@@ -190,4 +190,5 @@ class AppConfig(BaseModel):
             Threshold value or 80 as default
         """
         thresholds = self.default_thresholds.model_dump()
-        return thresholds.get(name, 80)
+        result = thresholds.get(name, 80)
+        return int(result) if result is not None else 80

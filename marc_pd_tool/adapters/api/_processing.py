@@ -17,47 +17,24 @@ from pickle import load
 import signal
 from tempfile import TemporaryDirectory
 from tempfile import mkdtemp
-from typing import Protocol
 from typing import TYPE_CHECKING
 from typing import cast
 
 # Local imports
 from marc_pd_tool.application.processing import matching_engine as me
-from marc_pd_tool.application.processing.indexer import DataIndexer
 from marc_pd_tool.application.processing.matching_engine import DataMatcher
 from marc_pd_tool.application.processing.matching_engine import init_worker
 from marc_pd_tool.application.processing.matching_engine import process_batch
 from marc_pd_tool.core.domain.publication import Publication
 from marc_pd_tool.core.types.aliases import BatchProcessingInfo
 from marc_pd_tool.core.types.json import JSONType
+from marc_pd_tool.core.types.protocols import AnalyzerProtocol
 
 if TYPE_CHECKING:
     # Local imports
-    from marc_pd_tool.application.models.analysis_results import AnalysisResults
-    from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
-    from marc_pd_tool.infrastructure import CacheManager
-    from marc_pd_tool.infrastructure.config import ConfigLoader
+    pass
 
 logger = getLogger(__name__)
-
-
-class AnalyzerProtocol(Protocol):
-    """Protocol defining required attributes for ProcessingComponent"""
-
-    results: "AnalysisResults"
-    config: "ConfigLoader"
-    cache_manager: "CacheManager"
-    cache_dir: str | None
-    copyright_dir: str
-    renewal_dir: str
-    copyright_data: list[Publication] | None
-    renewal_data: list[Publication] | None
-    registration_index: DataIndexer | None
-    renewal_index: DataIndexer | None
-    generic_detector: "GenericTitleDetector | None"
-
-    def _compute_config_hash(self, config_dict: dict[str, JSONType]) -> str: ...
-    def _load_and_index_data(self, options: dict[str, JSONType]) -> None: ...
 
 
 class ProcessingComponent:
@@ -275,12 +252,17 @@ class ProcessingComponent:
                     )
 
                     if not self.registration_index or not self.renewal_index:
+                        # Local imports
+                        from marc_pd_tool.application.models.config_models import (
+                            AnalysisOptions,
+                        )
+
                         self._load_and_index_data(
-                            {
-                                "min_year": min_year,
-                                "max_year": max_year,
-                                "brute_force_missing_year": brute_force_missing_year,
-                            }
+                            AnalysisOptions(
+                                min_year=min_year,
+                                max_year=max_year,
+                                brute_force_missing_year=brute_force_missing_year,
+                            )
                         )
 
                     registration_index = self.registration_index
@@ -288,7 +270,7 @@ class ProcessingComponent:
                     generic_detector = self.generic_detector
 
                     # Store in global for fork to inherit
-                    me._shared_data = {
+                    me._shared_data = {  # type: ignore[attr-defined]
                         "registration_index": registration_index,
                         "renewal_index": renewal_index,
                         "generic_detector": generic_detector,
@@ -298,7 +280,7 @@ class ProcessingComponent:
                     # Use minimal initializer that just sets up worker data from shared
                     def init_worker_fork() -> None:
                         """Initialize worker on Linux - use pre-loaded shared data"""
-                        me._worker_data = me._shared_data
+                        me._worker_data = me._shared_data  # type: ignore[attr-defined]
                         logger.info(f"Worker {getpid()} using shared memory indexes")
 
                     pool_args = {

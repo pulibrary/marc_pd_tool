@@ -120,7 +120,7 @@ _worker_registration_index = None
 _worker_renewal_index = None
 _worker_generic_detector = None
 _worker_config = None
-_worker_options = None
+_worker_options: dict[str, object] | None = None
 
 
 def init_worker(

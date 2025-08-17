@@ -117,6 +117,7 @@ class Publication:
 
         # Year and country
         # Extract year from pub_date if not explicitly provided
+        self.year: int | None
         if year is not None:
             self.year = year
         else:
@@ -356,7 +357,11 @@ class Publication:
 
     def __getstate__(self) -> dict[str, object]:
         """Support for pickle serialization with __slots__"""
-        return {slot: getattr(self, slot, None) for slot in self.__slots__}
+        state: dict[str, object] = {}
+        for slot in self.__slots__:
+            # Type checker can't verify attribute existence with dynamic __slots__ access
+            state[slot] = getattr(self, slot, None)
+        return state
 
     def __setstate__(self, state: dict[str, object]) -> None:
         """Support for pickle deserialization with __slots__"""

@@ -28,7 +28,7 @@ class MemoryMonitor:
         Args:
             log_interval: Seconds between memory usage logs (default: 60)
         """
-        self.process = Process()  # type: ignore[misc]
+        self.process = Process()
         self.log_interval = log_interval
         self.last_log_time = 0.0
         self.logger = getLogger(__name__)
@@ -82,15 +82,15 @@ class MemoryMonitor:
             - peak_gb: Peak process memory usage in GB
         """
         try:
-            mem_info = self.process.memory_info()  # type: ignore[misc]
-            process_gb = mem_info.rss / (1024**3)  # type: ignore[misc]
-            self.peak_memory = max(self.peak_memory, process_gb)  # type: ignore[misc]
+            mem_info = self.process.memory_info()
+            process_gb = mem_info.rss / (1024**3)
+            self.peak_memory = max(self.peak_memory, process_gb)
 
-            system_mem = virtual_memory()  # type: ignore[misc]
+            system_mem = virtual_memory()
             return {
-                "process_gb": process_gb,  # type: ignore[misc]
-                "system_percent": system_mem.percent,  # type: ignore[misc]
-                "available_gb": system_mem.available / (1024**3),  # type: ignore[misc]
+                "process_gb": process_gb,
+                "system_percent": system_mem.percent,
+                "available_gb": system_mem.available / (1024**3),
                 "peak_gb": self.peak_memory,
             }
         except Exception as e:

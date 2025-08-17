@@ -78,7 +78,7 @@ class AnalysisStatistics(BaseModel):
             Field value or default
         """
         if hasattr(self, field):
-            return getattr(self, field)
+            return int(getattr(self, field))
         return self.extra_fields.get(field, default)
 
     def to_dict(self) -> dict[str, int]:
@@ -316,7 +316,7 @@ class AnalysisResults(BaseModel):
 
         return result_paths
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def match_rate(self) -> float:
         """Calculate the match rate as a percentage"""
@@ -326,7 +326,7 @@ class AnalysisResults(BaseModel):
         matches = self.statistics.registration_matches + self.statistics.renewal_matches
         return (matches / total) * 100
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def public_domain_rate(self) -> float:
         """Calculate the public domain rate as a percentage"""

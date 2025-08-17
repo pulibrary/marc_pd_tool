@@ -171,7 +171,7 @@ PRESERVE_WORDS = {
 class CustomStopwordRemover:
     """Language and field-specific stopword removal based on ground truth analysis"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize with custom stopword lists"""
         self.stopwords = CUSTOM_STOPWORDS
         self.preserve_words = PRESERVE_WORDS

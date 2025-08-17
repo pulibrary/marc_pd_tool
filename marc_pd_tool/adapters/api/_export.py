@@ -5,24 +5,18 @@
 # Standard library imports
 from logging import getLogger
 from pathlib import Path
-from typing import Protocol
 from typing import TYPE_CHECKING
 
 # Local imports
 from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
 from marc_pd_tool.adapters.exporters.xlsx_exporter import XLSXExporter
+from marc_pd_tool.core.types.protocols import ExportAnalyzerProtocol
 
 if TYPE_CHECKING:
     # Local imports
-    from marc_pd_tool.application.models.analysis_results import AnalysisResults
+    pass
 
 logger = getLogger(__name__)
-
-
-class ExportAnalyzerProtocol(Protocol):
-    """Protocol defining required attributes for ExportComponent"""
-
-    results: "AnalysisResults"
 
 
 class ExportComponent:

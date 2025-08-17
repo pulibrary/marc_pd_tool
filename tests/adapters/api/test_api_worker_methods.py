@@ -335,11 +335,7 @@ class TestWorkerCalledMethods:
                     dump([pub], f, protocol=HIGHEST_PROTOCOL)
                 batch_files.append(batch_file)
 
-            options: AnalysisOptions = {
-                "formats": ["json"],
-                "single_file": True,
-                "num_processes": 1,
-            }
+            options = AnalysisOptions(formats=["json"], single_file=True, num_processes=1)
 
             # Mock the heavy processing
             with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
@@ -385,11 +381,7 @@ class TestWorkerCalledMethods:
         """Test _load_and_index_data when cache misses and loads fresh data"""
         analyzer = MarcCopyrightAnalyzer()
 
-        options: AnalysisOptions = {
-            "min_year": 1950,
-            "max_year": 1960,
-            "brute_force_missing_year": False,
-        }
+        options = AnalysisOptions(min_year=1950, max_year=1960, brute_force_missing_year=False)
 
         # Force cache miss - this should trigger actual loading
         with patch.object(analyzer.cache_manager, "get_cached_indexes", return_value=None):

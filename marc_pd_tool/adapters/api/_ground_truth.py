@@ -5,7 +5,6 @@
 # Standard library imports
 from json import dump
 from logging import getLogger
-from typing import Protocol
 from typing import TYPE_CHECKING
 
 # Local imports
@@ -14,32 +13,14 @@ from marc_pd_tool.application.processing.ground_truth_extractor import (
     GroundTruthExtractor,
 )
 from marc_pd_tool.core.domain.publication import Publication
-from marc_pd_tool.core.types.json import JSONType
+from marc_pd_tool.core.types.protocols import GroundTruthAnalyzerProtocol
 from marc_pd_tool.infrastructure.persistence import MarcLoader
 
 if TYPE_CHECKING:
     # Local imports
-    from marc_pd_tool.application.models.analysis_results import AnalysisResults
-    from marc_pd_tool.application.processing.indexer import DataIndexer
-    from marc_pd_tool.infrastructure.config import ConfigLoader
+    pass
 
 logger = getLogger(__name__)
-
-
-class GroundTruthAnalyzerProtocol(Protocol):
-    """Protocol defining required attributes for GroundTruthComponent"""
-
-    results: "AnalysisResults"
-    copyright_dir: str
-    renewal_dir: str
-    copyright_data: list[Publication] | None
-    renewal_data: list[Publication] | None
-    config: "ConfigLoader"
-    registration_index: "DataIndexer | None"
-    renewal_index: "DataIndexer | None"
-
-    def _load_and_index_data(self, options: dict[str, JSONType]) -> None: ...
-    def _export_ground_truth_json(self, output_path: str) -> None: ...
 
 
 class GroundTruthComponent:
@@ -82,7 +63,10 @@ class GroundTruthComponent:
 
         # Load copyright and renewal data if not already loaded
         if not self.copyright_data or not self.renewal_data:
-            self._load_and_index_data({"min_year": min_year, "max_year": max_year})
+            # Local imports
+            from marc_pd_tool.application.models.config_models import AnalysisOptions
+
+            self._load_and_index_data(AnalysisOptions(min_year=min_year, max_year=max_year))
 
         # If indexes were loaded from cache, extract the publications from them
         if self.registration_index and not self.copyright_data:

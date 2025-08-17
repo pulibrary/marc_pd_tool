@@ -127,7 +127,11 @@ def main() -> None:
             logger.info("=== GROUND TRUTH EXTRACTION MODE ===")
 
             # Extract ground truth pairs
-            ground_truth_pairs, gt_stats = analyzer.extract_ground_truth(
+            # Local imports
+            from marc_pd_tool.adapters.api._ground_truth import GroundTruthComponent
+
+            ground_truth_pairs, gt_stats = GroundTruthComponent.extract_ground_truth(
+                analyzer,  # type: ignore[arg-type]
                 args.marcxml,
                 copyright_dir=args.copyright_dir,
                 renewal_dir=args.renewal_dir,
@@ -166,25 +170,25 @@ def main() -> None:
             return  # Exit early for ground truth mode
 
         # Normal analysis mode or streaming mode
-        options: AnalysisOptions = {
-            "us_only": args.us_only,
-            "min_year": args.min_year,
-            "max_year": args.max_year,
-            "year_tolerance": args.year_tolerance,
-            "title_threshold": args.title_threshold,
-            "author_threshold": args.author_threshold,
-            "publisher_threshold": args.publisher_threshold,
-            "early_exit_title": args.early_exit_title,
-            "early_exit_author": args.early_exit_author,
-            "early_exit_publisher": args.early_exit_publisher,
-            "score_everything": args.score_everything,
-            "minimum_combined_score": args.minimum_combined_score,
-            "brute_force_missing_year": args.brute_force_missing_year,
-            "formats": args.output_formats,
-            "single_file": args.single_file,
-            "batch_size": args.batch_size,
-            "num_processes": args.max_workers,
-        }
+        options = AnalysisOptions(
+            us_only=args.us_only,
+            min_year=args.min_year,
+            max_year=args.max_year,
+            year_tolerance=args.year_tolerance,
+            title_threshold=args.title_threshold,
+            author_threshold=args.author_threshold,
+            publisher_threshold=args.publisher_threshold,
+            early_exit_title=args.early_exit_title,
+            early_exit_author=args.early_exit_author,
+            early_exit_publisher=args.early_exit_publisher,
+            score_everything_mode=args.score_everything,
+            minimum_combined_score=args.minimum_combined_score,
+            brute_force_missing_year=args.brute_force_missing_year,
+            formats=args.output_formats,
+            single_file=args.single_file,
+            batch_size=args.batch_size,
+            num_processes=args.max_workers,
+        )
 
         # Log memory before processing
         if memory_monitor:
@@ -205,25 +209,29 @@ def main() -> None:
             memory_monitor.force_log("after processing")
 
         # Get statistics as dict (handle both object and dict cases)
-        stats = results.statistics
-        if hasattr(stats, "to_dict"):
-            stats = stats.to_dict()
+        stats_obj = results.statistics
+        if hasattr(stats_obj, "to_dict"):
+            stats = stats_obj.to_dict()
+        else:
+            stats = stats_obj  # type: ignore[assignment]
 
         # Compute aggregated statistics for backward compatibility
         pd_records = (
-            stats.get("pd_pre_min_year", 0)
-            + stats.get("pd_us_not_renewed", 0)
-            + stats.get("pd_us_no_reg_data", 0)
-            + stats.get("pd_us_reg_no_renewal", 0)
-            + stats.get("research_us_only_pd", 0)
+            int(stats.get("pd_pre_min_year", 0))
+            + int(stats.get("pd_us_not_renewed", 0))
+            + int(stats.get("pd_us_no_reg_data", 0))
+            + int(stats.get("pd_us_reg_no_renewal", 0))
+            + int(stats.get("research_us_only_pd", 0))
         )
 
-        not_pd_records = stats.get("in_copyright", 0) + stats.get("in_copyright_us_renewed", 0)
+        not_pd_records = int(stats.get("in_copyright", 0)) + int(
+            stats.get("in_copyright_us_renewed", 0)
+        )
 
         undetermined_records = (
-            stats.get("unknown_us_no_data", 0)
-            + stats.get("research_us_status", 0)
-            + stats.get("country_unknown", 0)
+            int(stats.get("unknown_us_no_data", 0))
+            + int(stats.get("research_us_status", 0))
+            + int(stats.get("country_unknown", 0))
         )
 
         # Log summary (using new function signature)
@@ -233,14 +241,15 @@ def main() -> None:
             log_file=log_file_path,
             start_time=start_time,
             end_time=end_time,
-            total_records=stats.get("total_records", 0),
-            matched_records=stats.get("registration_matches", 0) + stats.get("renewal_matches", 0),
-            no_match_records=stats.get("no_matches", 0),
+            total_records=int(stats.get("total_records", 0)),
+            matched_records=int(stats.get("registration_matches", 0))
+            + int(stats.get("renewal_matches", 0)),
+            no_match_records=int(stats.get("no_matches", 0)),
             pd_records=pd_records,
             not_pd_records=not_pd_records,
             undetermined_records=undetermined_records,
-            error_records=stats.get("errors", 0),
-            skipped_no_year=stats.get("skipped_no_year", 0),
+            error_records=int(stats.get("errors", 0)),
+            skipped_no_year=int(stats.get("skipped_no_year", 0)),
         )
 
         # Log final memory summary
@@ -248,9 +257,11 @@ def main() -> None:
             logger.info(memory_monitor.get_final_summary())
 
         # Update run index with final statistics
-        run_info["marc_count"] = str(stats["total_records"])
+        run_info["marc_count"] = str(stats.get("total_records", 0))
         run_info["duration_seconds"] = str(int(time() - start_time))
-        run_info["matches_found"] = str(stats["registration_matches"] + stats["renewal_matches"])
+        reg_matches = int(stats.get("registration_matches", 0))
+        ren_matches = int(stats.get("renewal_matches", 0))
+        run_info["matches_found"] = str(reg_matches + ren_matches)
         run_info["status"] = "completed"
         run_index_manager.update_run(run_info["log_file"], run_info)
 

@@ -8,7 +8,7 @@ from logging import getLogger
 # Local imports
 from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
 from marc_pd_tool.core.domain.publication import Publication
-from marc_pd_tool.core.types.json import JSONDict
+from marc_pd_tool.core.types.results import GenericTitleInfoDict
 from marc_pd_tool.core.types.results import MatchResultDict
 
 logger = getLogger(__name__)
@@ -51,6 +51,7 @@ class MatchResultBuilder:
             )
 
         return {
+            "match": None,  # Will be populated later if used
             "copyright_record": {
                 "title": copyright_pub.title,
                 "author": copyright_pub.author,
@@ -58,7 +59,12 @@ class MatchResultBuilder:
                 "pub_date": copyright_pub.pub_date or "",
                 "year": copyright_pub.year,
                 "source_id": copyright_pub.source_id or "",
-                "full_text": copyright_pub.full_text,
+                "full_text": copyright_pub.full_text or "",
+                "normalized_title": copyright_pub.title.lower() if copyright_pub.title else "",
+                "normalized_author": copyright_pub.author.lower() if copyright_pub.author else "",
+                "normalized_publisher": (
+                    copyright_pub.publisher.lower() if copyright_pub.publisher else ""
+                ),
             },
             "similarity_scores": {
                 "title": title_score,
@@ -73,7 +79,7 @@ class MatchResultBuilder:
     @staticmethod
     def _check_generic_titles(
         marc_pub: Publication, copyright_pub: Publication, generic_detector: GenericTitleDetector
-    ) -> JSONDict | None:
+    ) -> GenericTitleInfoDict | None:
         """Check if titles are generic
 
         Args:
@@ -88,20 +94,19 @@ class MatchResultBuilder:
         copyright_is_generic = generic_detector.is_generic(copyright_pub.title)
 
         if marc_is_generic or copyright_is_generic:
-            return {
+            result: GenericTitleInfoDict = {
                 "has_generic_title": True,
                 "marc_title_is_generic": marc_is_generic,
                 "marc_detection_reason": (
-                    generic_detector.get_detection_reason(marc_pub.title)
-                    if marc_is_generic
-                    else None
+                    generic_detector.get_detection_reason(marc_pub.title) if marc_is_generic else ""
                 ),
                 "copyright_title_is_generic": copyright_is_generic,
                 "copyright_detection_reason": (
                     generic_detector.get_detection_reason(copyright_pub.title)
                     if copyright_is_generic
-                    else None
+                    else ""
                 ),
             }
+            return result
 
         return None

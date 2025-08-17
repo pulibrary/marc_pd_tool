@@ -111,7 +111,8 @@ class WordlistsConfig(BaseModel):
             List of stopwords
         """
         stopwords_dict = self.stopwords.model_dump()
-        return stopwords_dict.get(category, [])
+        result = stopwords_dict.get(category, [])
+        return result if isinstance(result, list) else []
 
     def get_all_stopwords(self) -> set[str]:
         """Get all stopwords from all categories
@@ -135,7 +136,8 @@ class WordlistsConfig(BaseModel):
             List of patterns
         """
         patterns_dict = self.patterns.model_dump()
-        return patterns_dict.get(pattern_type, [])
+        result = patterns_dict.get(pattern_type, [])
+        return result if isinstance(result, list) else []
 
     def get_abbreviations(self) -> dict[str, str]:
         """Get bibliographic abbreviations

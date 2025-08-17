@@ -57,10 +57,10 @@ class BatchStats(BaseModel):
             value: Amount to increment by
         """
         if hasattr(self, field):
-            current = getattr(self, field)
+            current: int = getattr(self, field)
             setattr(self, field, current + value)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Convert to dictionary
 
         Returns:

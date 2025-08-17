@@ -11,6 +11,8 @@ from unittest.mock import patch
 # Local imports
 from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
 
+#
+
 
 class TestBatchSizeConsistency:
     """Test that batch_size defaults are consistent across all components"""
@@ -87,11 +89,16 @@ class TestBatchSizeConsistency:
 
                         analyzer = MarcCopyrightAnalyzer()
                         # Call with explicit batch_size
+                        # Local imports
+                        from marc_pd_tool.application.models.config_models import (
+                            AnalysisOptions,
+                        )
+
                         analyzer.analyze_marc_file(
                             marc_path=marc_path,
                             copyright_dir="test_copyright",
                             renewal_dir="test_renewal",
-                            options={"batch_size": 50},
+                            options=AnalysisOptions(batch_size=50),
                         )
 
                         # Verify MarcLoader was called with batch_size=50
@@ -105,40 +112,56 @@ class TestBatchSizeConsistency:
         """Test that processing phase uses same batch_size as loading phase"""
         analyzer = MarcCopyrightAnalyzer()
 
-        # Mock the required data
-        analyzer.registration_index = MagicMock()
-        analyzer.renewal_index = MagicMock()
-
-        # Create real Publication objects instead of MagicMocks (they need to be pickleable)
+        # Create real Publication objects
         # Local imports
+        from marc_pd_tool.application.models.config_models import AnalysisOptions
         from marc_pd_tool.core.domain.publication import Publication
 
         publications = [
             Publication(title=f"Book {i}", pub_date="1960", source_id=str(i)) for i in range(150)
         ]
 
-        with patch.object(analyzer, "_load_and_index_data"):
-            with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
-                # Mock to populate results
-                def mock_streaming(*args, **kwargs):
-                    analyzer.results.publications = publications
+        # Set up indexes to avoid reload attempts
+        analyzer.registration_index = MagicMock()
+        analyzer.renewal_index = MagicMock()
 
-                mock_stream.side_effect = mock_streaming
+        # Mock all the file/processing operations to verify batch_size usage
+        with patch("tempfile.mkdtemp") as mock_mkdtemp:
+            mock_mkdtemp.return_value = "/tmp/test_batches"
 
-                # Test with default (should use config value of 100)
-                analyzer.analyze_marc_records(publications, options={})
+            with patch("builtins.open", MagicMock()):
+                with patch("pickle.dump") as mock_dump:
+                    # Patch logger to avoid logging during test
+                    with patch("marc_pd_tool.adapters.api._analyzer.logger"):
+                        # Patch the streaming component to avoid real processing
+                        with patch(
+                            "marc_pd_tool.adapters.api._analyzer.StreamingComponent._analyze_marc_file_streaming"
+                        ) as mock_stream:
 
-                # Verify streaming was called
-                mock_stream.assert_called_once()
+                            # Test with default batch_size (should be 100 from config)
+                            analyzer.analyze_marc_records(publications, options=AnalysisOptions())
 
-                # Reset mock
-                mock_stream.reset_mock()
+                            # Check that pickle.dump was called correct number of times
+                            # 150 publications with batch_size=100 should create 2 batches
+                            assert mock_dump.call_count == 2
+                            mock_dump.reset_mock()
 
-                # Test with explicit batch_size
-                analyzer.analyze_marc_records(publications, options={"batch_size": 200})
+                            # Test with explicit batch_size=50
+                            analyzer.analyze_marc_records(
+                                publications, options=AnalysisOptions(batch_size=50)
+                            )
 
-                # Verify streaming was called again
-                mock_stream.assert_called_once()
+                            # 150 publications with batch_size=50 should create 3 batches
+                            assert mock_dump.call_count == 3
+                            mock_dump.reset_mock()
+
+                            # Test with explicit batch_size=200
+                            analyzer.analyze_marc_records(
+                                publications, options=AnalysisOptions(batch_size=200)
+                            )
+
+                            # 150 publications with batch_size=200 should create 1 batch
+                            assert mock_dump.call_count == 1
 
     def test_no_hardcoded_batch_sizes(self):
         """Ensure we're not using hardcoded 1000 or 200 anywhere in analyzer"""

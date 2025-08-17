@@ -7,12 +7,16 @@ from functools import cached_property
 from logging import getLogger
 from pathlib import Path
 
-# Third party imports
-from pydantic import BaseModel
-
 # Local imports
 from marc_pd_tool.core.types.json import JSONDict
 from marc_pd_tool.infrastructure.config._models import AppConfig
+from marc_pd_tool.infrastructure.config._models import CachingConfig
+from marc_pd_tool.infrastructure.config._models import FilteringConfig
+from marc_pd_tool.infrastructure.config._models import LoggingConfig
+from marc_pd_tool.infrastructure.config._models import OutputConfig
+from marc_pd_tool.infrastructure.config._models import ProcessingConfig
+from marc_pd_tool.infrastructure.config._shared_models import GenericDetectorConfig
+from marc_pd_tool.infrastructure.config._shared_models import MatchingConfig
 from marc_pd_tool.infrastructure.config._wordlists import WordlistsConfig
 
 logger = getLogger(__name__)
@@ -61,37 +65,37 @@ class ConfigLoader:
         return self._app_config.model_dump()
 
     @property
-    def processing(self) -> BaseModel:
+    def processing(self) -> ProcessingConfig:
         """Processing configuration"""
         return self._app_config.processing
 
     @property
-    def filtering(self) -> BaseModel:
+    def filtering(self) -> FilteringConfig:
         """Filtering configuration"""
         return self._app_config.filtering
 
     @property
-    def output(self) -> BaseModel:
+    def output(self) -> OutputConfig:
         """Output configuration"""
         return self._app_config.output
 
     @property
-    def caching(self) -> BaseModel:
+    def caching(self) -> CachingConfig:
         """Caching configuration"""
         return self._app_config.caching
 
     @property
-    def logging(self) -> BaseModel:
+    def logging(self) -> LoggingConfig:
         """Logging configuration"""
         return self._app_config.logging
 
     @property
-    def matching(self) -> BaseModel:
+    def matching(self) -> MatchingConfig:
         """Matching configuration"""
         return self._app_config.matching
 
     @property
-    def generic_detector(self) -> BaseModel:
+    def generic_detector(self) -> GenericDetectorConfig:
         """Generic detector configuration"""
         return self._app_config.generic_title_detector
 
@@ -108,7 +112,8 @@ class ConfigLoader:
     def get_scoring_weights(self, scenario: str) -> dict[str, float]:
         """Get scoring weights for a scenario"""
         weights_config = self._app_config.scoring_weights.model_dump()
-        return weights_config.get(scenario, {})
+        result = weights_config.get(scenario, {})
+        return result if isinstance(result, dict) else {}
 
     # Cached computed properties for commonly used values
     @cached_property

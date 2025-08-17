@@ -8,7 +8,6 @@ from multiprocessing import Pool
 from multiprocessing import get_start_method
 from tempfile import mkdtemp
 from time import time
-from typing import Protocol
 from typing import TYPE_CHECKING
 
 # Third party imports
@@ -16,44 +15,19 @@ import psutil
 
 # Local imports
 from marc_pd_tool.application.models.config_models import AnalysisOptions
-from marc_pd_tool.application.processing.indexer import DataIndexer
 from marc_pd_tool.application.processing.matching_engine import init_worker
 from marc_pd_tool.application.processing.matching_engine import process_batch
 from marc_pd_tool.core.domain.publication import Publication
 from marc_pd_tool.core.types.aliases import BatchProcessingInfo
-from marc_pd_tool.core.types.json import JSONType
+from marc_pd_tool.core.types.protocols import StreamingAnalyzerProtocol
 from marc_pd_tool.infrastructure import CacheManager
 from marc_pd_tool.shared.utils.time_utils import format_time_duration
 
 if TYPE_CHECKING:
     # Local imports
     from marc_pd_tool.application.models.analysis_results import AnalysisResults
-    from marc_pd_tool.application.processing.text_processing import GenericTitleDetector
-    from marc_pd_tool.infrastructure.config import ConfigLoader
 
 logger = getLogger(__name__)
-
-
-class StreamingAnalyzerProtocol(Protocol):
-    """Protocol defining required attributes for StreamingComponent"""
-
-    results: "AnalysisResults"
-    config: "ConfigLoader"
-    cache_manager: "CacheManager"
-    cache_dir: str | None
-    copyright_dir: str
-    renewal_dir: str
-    copyright_data: list[Publication] | None
-    renewal_data: list[Publication] | None
-    registration_index: DataIndexer | None
-    renewal_index: DataIndexer | None
-    generic_detector: "GenericTitleDetector | None"
-
-    def _compute_config_hash(self, config_dict: dict[str, JSONType]) -> str: ...
-    def _load_and_index_data(self, options: dict[str, JSONType]) -> None: ...
-    def export_results(
-        self, output_path: str, formats: list[str] | None, single_file: bool
-    ) -> None: ...
 
 
 class StreamingComponent:
@@ -75,12 +49,10 @@ class StreamingComponent:
         self.results = type(self.results)()  # Create new instance
 
         # Log filtering information if applicable
-        if options.get("us_only"):
+        if options.us_only:
             logger.info("  Filter applied: US publications only")
-        if options.get("min_year") or options.get("max_year"):
-            year_range = (
-                f"{options.get('min_year') or 'earliest'} to {options.get('max_year') or 'present'}"
-            )
+        if options.min_year or options.max_year:
+            year_range = f"{options.min_year or 'earliest'} to {options.max_year or 'present'}"
             logger.info(f"  Year range filter: {year_range}")
 
         # Process batches using existing parallel infrastructure but with pre-pickled batches
@@ -90,30 +62,30 @@ class StreamingComponent:
         logger.info("=" * 80)
 
         # Extract options
-        year_tolerance = options.get("year_tolerance", 1)
-        title_threshold = options.get("title_threshold", 40)
-        author_threshold = options.get("author_threshold", 30)
-        publisher_threshold = options.get("publisher_threshold", 0)
-        early_exit_title = options.get("early_exit_title", 95)
-        early_exit_author = options.get("early_exit_author", 90)
-        early_exit_publisher = options.get("early_exit_publisher", 85)
-        score_everything_mode = options.get("score_everything_mode", False)
-        minimum_combined_score_raw = options.get("minimum_combined_score")
+        year_tolerance = options.year_tolerance
+        title_threshold = options.title_threshold
+        author_threshold = options.author_threshold
+        publisher_threshold = options.publisher_threshold if options.publisher_threshold else 0
+        early_exit_title = options.early_exit_title
+        early_exit_author = options.early_exit_author
+        early_exit_publisher = options.early_exit_publisher if options.early_exit_publisher else 85
+        score_everything_mode = options.score_everything_mode
+        minimum_combined_score_raw = options.minimum_combined_score
         minimum_combined_score: int | None = (
             minimum_combined_score_raw
             if isinstance(minimum_combined_score_raw, (int, type(None)))
             else None
         )
-        brute_force_missing_year = options.get("brute_force_missing_year", False)
+        brute_force_missing_year = options.brute_force_missing_year
         # num_processes should be set by CLI, but provide a fallback
-        num_processes = options.get("num_processes")
+        num_processes = options.num_processes
         if num_processes is None:
             # Standard library imports
             from multiprocessing import cpu_count
 
             num_processes = max(1, cpu_count() - 4)
-        min_year = options.get("min_year")
-        max_year = options.get("max_year")
+        min_year = options.min_year
+        max_year = options.max_year
 
         logger.info(f"Processing {len(batch_paths)} pre-pickled batches in streaming mode")
         logger.info(f"  Workers: {num_processes}")
@@ -143,8 +115,8 @@ class StreamingComponent:
             logger.info("=" * 80)
             logger.info("=== PHASE 5: EXPORTING RESULTS ===")
             logger.info("=" * 80)
-            output_formats = options.get("formats", ["json", "csv"])
-            single_file = options.get("single_file", False)
+            output_formats = options.formats if options.formats else ["json", "csv"]
+            single_file = options.single_file
             logger.info(f"Exporting results to: {output_path}")
             logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
             logger.info(

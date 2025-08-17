@@ -180,33 +180,37 @@ class TestMainCLI:
                     with patch("marc_pd_tool.adapters.cli.main.RunIndexManager") as mock_run_index:
                         with patch("marc_pd_tool.adapters.cli.main.logger"):
                             mock_analyzer = create_mock_analyzer()
-                            # Mock ground truth methods
-                            mock_stats = Mock()
-                            mock_stats.marc_with_lccn = 100
-                            mock_stats.marc_lccn_coverage = 50.0
-                            mock_stats.registration_matches = 20
-                            mock_stats.renewal_matches = 10
-                            mock_stats.total_marc_records = 200
-
-                            # Return some mock ground truth pairs so export gets called
-                            mock_pair = Mock()
-                            mock_analyzer.extract_ground_truth.return_value = (
-                                [mock_pair],
-                                mock_stats,
-                            )
-                            mock_analyzer.export_ground_truth_analysis = Mock()
                             mock_analyzer.results = Mock()  # Add results attribute
                             mock_analyzer_class.return_value = mock_analyzer
                             mock_logging.return_value = None
                             mock_run_index.return_value = create_mock_run_index_manager()
 
-                            # Mock that ground truth file exists
-                            with patch("os.path.exists", return_value=True):
-                                main()
+                            # Mock ground truth extraction at the class method level
+                            with patch(
+                                "marc_pd_tool.adapters.api._ground_truth.GroundTruthComponent.extract_ground_truth"
+                            ) as mock_extract_gt:
+                                # Mock ground truth stats
+                                mock_stats = Mock()
+                                mock_stats.marc_with_lccn = 100
+                                mock_stats.marc_lccn_coverage = 50.0
+                                mock_stats.registration_matches = 20
+                                mock_stats.renewal_matches = 10
+                                mock_stats.total_marc_records = 200
 
-                            # Verify ground truth methods were called
-                            mock_analyzer.extract_ground_truth.assert_called_once()
-                            # Note: export_ground_truth_analysis is not called in the new implementation
+                                # Return some mock ground truth pairs
+                                mock_pair = Mock()
+                                mock_extract_gt.return_value = ([mock_pair], mock_stats)
+
+                                # Mock that ground truth file exists
+                                with patch("os.path.exists", return_value=True):
+                                    main()
+
+                                # Verify ground truth extraction was called
+                                mock_extract_gt.assert_called_once()
+
+                                # Verify results were stored correctly
+                                assert mock_analyzer.results.ground_truth_pairs == [mock_pair]
+                                assert mock_analyzer.results.ground_truth_stats == mock_stats
 
 
 class TestLogRunSummaryFunction:

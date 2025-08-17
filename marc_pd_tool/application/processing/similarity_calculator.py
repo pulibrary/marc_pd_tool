@@ -281,42 +281,6 @@ class SimilarityCalculator(ConfigurableMixin):
             score = fuzz.ratio(text1.lower(), text2.lower())
             return float(score)
 
-    def _preprocess_author(self, author: str, language: str = "eng") -> str:
-        """Preprocess author name with full normalization pipeline
-
-        Args:
-            author: Raw author name (now minimally processed)
-            language: Language code for processing (eng, fre, ger, spa, ita)
-
-        Returns:
-            Preprocessed author name ready for fuzzy matching
-        """
-        if not author:
-            return ""
-
-        # Apply full normalization pipeline
-        # Unicode normalization and ASCII folding
-        # Local imports
-        from marc_pd_tool.shared.utils.text_utils import normalize_unicode
-
-        normalized = normalize_unicode(author)
-
-        # Convert to lowercase
-        normalized = normalized.lower()
-
-        # Expand abbreviations if enabled
-        if self.enable_abbreviation_expansion:
-            normalized = expand_abbreviations(normalized)
-
-        # Normalize numbers (for cases like "John Smith III" → "John Smith 3")
-        normalized = self.number_normalizer.normalize_numbers(normalized, language)
-
-        # Use custom field-specific stopwords from ground truth analysis
-        # The analysis showed minimal stopwords work best for authors
-        words = self.stopword_remover.remove_stopwords(normalized, language, "author")
-
-        return " ".join(words)
-
     def _preprocess_publisher(self, publisher: str, language: str = "eng") -> str:
         """Preprocess publisher name with full normalization pipeline
 

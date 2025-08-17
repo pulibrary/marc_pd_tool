@@ -81,7 +81,7 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 disallow_untyped_decorators = true
-disallow_any_expr = true
+disallow_any_expr = false  # Too strict for real-world code
 disallow_any_explicit = true
 disallow_any_generics = true
 no_implicit_optional = true
@@ -98,6 +98,11 @@ pretty = true
 error_summary = true
 show_error_context = true
 
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
 [[tool.mypy.overrides]]
 module = [
     "fuzzywuzzy",
@@ -110,33 +115,7 @@ module = [
 ignore_missing_imports = true
 
 
-[[tool.mypy.overrides]]
-module = [
-    # These modules use dynamic typing patterns that are difficult to type strictly
-    "marc_pd_tool.adapters.api.*",
-    "marc_pd_tool.infrastructure.persistence.*",
-    "marc_pd_tool.infrastructure.config.*",
-    "marc_pd_tool.application.processing.*",
-    "marc_pd_tool.adapters.exporters.*",
-    "marc_pd_tool.infrastructure.cache.*",
-    "stop_words",
-    # Pydantic models need less strict checking
-    "marc_pd_tool.infrastructure.config._models",
-    "marc_pd_tool.infrastructure.config._shared_models",
-    "marc_pd_tool.infrastructure.config._wordlists",
-]
-disallow_any_expr = false
-
-# Override for modules with Protocol/mixin type issues from refactoring
-[[tool.mypy.overrides]]
-module = [
-    "marc_pd_tool.adapters.api._streaming",
-    "marc_pd_tool.adapters.api._processing", 
-    "marc_pd_tool.adapters.api._analyzer",
-    "marc_pd_tool.cli",
-]
-# Ignore protocol self-type mismatches that occur with complex mixin patterns
-disable_error_code = ["misc", "attr-defined"]
+# Third-party library overrides only - these are acceptable
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

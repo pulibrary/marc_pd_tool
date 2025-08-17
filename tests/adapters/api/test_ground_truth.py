@@ -236,9 +236,12 @@ class TestGroundTruthComponent:
             # Call the method
             result_pubs, result_stats = mock_analyzer.extract_ground_truth(marc_path="test.xml")
 
-            # Verify _load_and_index_data was called
+            # Verify _load_and_index_data was called with AnalysisOptions
+            # Local imports
+            from marc_pd_tool.application.models.config_models import AnalysisOptions
+
             mock_analyzer._load_and_index_data.assert_called_once_with(
-                {"min_year": None, "max_year": None}
+                AnalysisOptions(min_year=None, max_year=None)
             )
 
             # Verify empty results

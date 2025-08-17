@@ -20,6 +20,7 @@ import pytest
 # Local imports
 from marc_pd_tool import MarcCopyrightAnalyzer
 from marc_pd_tool.application.models.analysis_results import AnalysisResults
+from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.core.domain.enums import CountryClassification
 from marc_pd_tool.core.domain.publication import Publication
 
@@ -346,7 +347,7 @@ class TestSignalHandling:
                                 copyright_dir="/test/copyright",
                                 renewal_dir="/test/renewal",
                                 output_path="/test/output",
-                                options={},
+                                options=AnalysisOptions(),
                             )
 
             # Cleanup should have been called

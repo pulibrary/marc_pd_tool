@@ -51,6 +51,7 @@ class LCCNMatcher:
 
                 # Return perfect match result for LCCN
                 return {
+                    "match": None,  # Will be populated later if used
                     "copyright_record": {
                         "title": copyright_pub.title,
                         "author": copyright_pub.author,
@@ -58,7 +59,16 @@ class LCCNMatcher:
                         "pub_date": copyright_pub.pub_date or "",
                         "year": copyright_pub.year,
                         "source_id": copyright_pub.source_id or "",
-                        "full_text": copyright_pub.full_text,
+                        "full_text": copyright_pub.full_text or "",
+                        "normalized_title": (
+                            copyright_pub.title.lower() if copyright_pub.title else ""
+                        ),
+                        "normalized_author": (
+                            copyright_pub.author.lower() if copyright_pub.author else ""
+                        ),
+                        "normalized_publisher": (
+                            copyright_pub.publisher.lower() if copyright_pub.publisher else ""
+                        ),
                     },
                     "similarity_scores": {
                         "title": field_score,

@@ -12,6 +12,7 @@ from unittest.mock import patch
 # Local imports
 from marc_pd_tool.adapters.api import AnalysisResults
 from marc_pd_tool.adapters.api import MarcCopyrightAnalyzer
+from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.core.domain.enums import CopyrightStatus
 from tests.fixtures.publications import PublicationBuilder
 
@@ -23,8 +24,8 @@ class TestMarcCopyrightAnalyzerProper:
         """Test analyzer initializes with default values"""
         analyzer = MarcCopyrightAnalyzer()
 
-        assert analyzer.copyright_data is None
-        assert analyzer.renewal_data is None
+        assert analyzer.copyright_data == []
+        assert analyzer.renewal_data == []
         assert analyzer.registration_index is None
         assert analyzer.renewal_index is None
         assert analyzer.analysis_options is None
@@ -134,13 +135,9 @@ class TestMarcCopyrightAnalyzerProper:
             </collection>"""
             )
 
-            options = {
-                "us_only": True,
-                "min_year": 1950,
-                "max_year": 1977,
-                "title_threshold": 45,
-                "author_threshold": 35,
-            }
+            options = AnalysisOptions(
+                us_only=True, min_year=1950, max_year=1977, title_threshold=45, author_threshold=35
+            )
 
             with (
                 patch.object(analyzer, "_load_and_index_data") as mock_load,
@@ -192,7 +189,7 @@ class TestMarcCopyrightAnalyzerProper:
                 # Verify export was called with correct arguments
                 mock_export.assert_called_once_with(
                     output_path,
-                    formats=["json", "csv"],  # Default formats
+                    formats=["csv"],  # Default formats from AnalysisOptions
                     single_file=False,  # Default value
                 )
 
@@ -290,23 +287,41 @@ class TestMarcCopyrightAnalyzerProper:
             PublicationBuilder.basic_us_publication(source_id="test2"),
         ]
 
-        # Mock necessary components
+        # Mock necessary components BEFORE calling the method
         analyzer.registration_index = Mock()
         analyzer.renewal_index = Mock()
         analyzer.generic_detector = Mock()
 
-        with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
-            # Mock to add publications to results and return them
-            def stream_pubs(*args, **kwargs):
-                for pub in pubs:
-                    analyzer.results.add_publication(pub)
-                return pubs
+        # Patch logger to avoid logging issues
+        with patch("marc_pd_tool.adapters.api._analyzer.logger"):
+            # Patch mkdtemp to avoid creating real temp directories
+            with patch("tempfile.mkdtemp") as mock_mkdtemp:
+                mock_mkdtemp.return_value = "/tmp/test_temp"
 
-            mock_stream.side_effect = stream_pubs
+                # Patch dump to avoid pickling
+                with patch("pickle.dump"):
+                    # Create a mock that supports context manager protocol
+                    mock_open = Mock()
+                    mock_file = Mock()
+                    mock_open.return_value.__enter__ = Mock(return_value=mock_file)
+                    mock_open.return_value.__exit__ = Mock(return_value=None)
 
-            # Call analyze_marc_records
-            result_pubs = analyzer.analyze_marc_records(pubs, {})
+                    # Patch open to avoid file operations
+                    with patch("builtins.open", mock_open):
+                        # Also patch StreamingComponent._analyze_marc_file_streaming to avoid real processing
+                        with patch(
+                            "marc_pd_tool.adapters.api._analyzer.StreamingComponent._analyze_marc_file_streaming"
+                        ) as mock_stream:
+                            # Mock to add publications to results
+                            def stream_pubs(self, *args, **kwargs):
+                                for pub in pubs:
+                                    self.results.add_publication(pub)
 
-            # Verify processing occurred
-            assert len(analyzer.results.publications) == 2
-            assert result_pubs == pubs  # Should return the publications passed in
+                            mock_stream.side_effect = stream_pubs
+
+                            # Call analyze_marc_records
+                            result_pubs = analyzer.analyze_marc_records(pubs, AnalysisOptions())
+
+                            # Verify processing occurred
+                            assert len(analyzer.results.publications) == 2
+                            assert result_pubs == pubs  # Should return the publications passed in

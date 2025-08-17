@@ -87,12 +87,9 @@ class TestStreamingComponent:
                 dump(publications, f)
             batch_paths.append(str(batch_path))
 
-        options: AnalysisOptions = {
-            "year_tolerance": 1,
-            "title_threshold": 40,
-            "author_threshold": 30,
-            "num_processes": 2,
-        }
+        options = AnalysisOptions(
+            year_tolerance=1, title_threshold=40, author_threshold=30, num_processes=2
+        )
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -122,15 +119,15 @@ class TestStreamingComponent:
 
         batch_paths = ["/test/batch_00000.pkl"]
 
-        options: AnalysisOptions = {
-            "us_only": True,
-            "min_year": 1950,
-            "max_year": 1980,
-            "year_tolerance": 2,
-            "title_threshold": 45,
-            "author_threshold": 35,
-            "num_processes": 4,
-        }
+        options = AnalysisOptions(
+            us_only=True,
+            min_year=1950,
+            max_year=1980,
+            year_tolerance=2,
+            title_threshold=45,
+            author_threshold=35,
+            num_processes=4,
+        )
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -154,11 +151,9 @@ class TestStreamingComponent:
         batch_paths = ["/test/batch_00000.pkl"]
         output_path = str(tmp_path / "output")
 
-        options: AnalysisOptions = {
-            "formats": ["json", "csv", "xlsx"],
-            "single_file": True,
-            "num_processes": 1,
-        }
+        options = AnalysisOptions(
+            formats=["json", "csv", "xlsx"], single_file=True, num_processes=1
+        )
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -182,24 +177,24 @@ class TestStreamingComponent:
 
         batch_paths = [f"/test/batch_{i:05d}.pkl" for i in range(5)]
 
-        options: AnalysisOptions = {
-            "us_only": True,
-            "min_year": 1923,
-            "max_year": 1977,
-            "year_tolerance": 3,
-            "title_threshold": 50,
-            "author_threshold": 40,
-            "publisher_threshold": 30,
-            "early_exit_title": 98,
-            "early_exit_author": 95,
-            "early_exit_publisher": 90,
-            "score_everything_mode": True,
-            "minimum_combined_score": 70,
-            "brute_force_missing_year": True,
-            "num_processes": 8,
-            "formats": ["json"],
-            "single_file": False,
-        }
+        options = AnalysisOptions(
+            us_only=True,
+            min_year=1923,
+            max_year=1977,
+            year_tolerance=3,
+            title_threshold=50,
+            author_threshold=40,
+            publisher_threshold=30,
+            early_exit_title=98,
+            early_exit_author=95,
+            early_exit_publisher=90,
+            score_everything_mode=True,
+            minimum_combined_score=70,
+            brute_force_missing_year=True,
+            num_processes=8,
+            formats=["json"],
+            single_file=False,
+        )
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -783,9 +778,17 @@ class TestStreamingComponent:
         from marc_pd_tool.application.models.analysis_results import (  # noqa: F401
             AnalysisResults,
         )
+        from marc_pd_tool.application.models.config_models import (  # noqa: F401
+            AnalysisOptions,
+        )
+        from marc_pd_tool.application.processing.indexer import (  # noqa: F401
+            DataIndexer,
+        )
         from marc_pd_tool.application.processing.text_processing import (  # noqa: F401
             GenericTitleDetector,
         )
+        from marc_pd_tool.core.types.json import JSONType  # noqa: F401
+        from marc_pd_tool.infrastructure import CacheManager  # noqa: F401
         from marc_pd_tool.infrastructure.config import ConfigLoader  # noqa: F401
 
         hints = get_type_hints(StreamingAnalyzerProtocol, localns=locals())
@@ -891,7 +894,7 @@ class TestStreamingComponent:
         batch_paths = ["/test/batch_00000.pkl"]
 
         # Minimal options - test defaults
-        options: AnalysisOptions = {}
+        options = AnalysisOptions()
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -1092,7 +1095,7 @@ class TestStreamingComponent:
         batch_paths = ["/test/batch_00000.pkl"]
 
         # Test with integer value
-        options: AnalysisOptions = {"minimum_combined_score": 75}
+        options = AnalysisOptions(minimum_combined_score=75)
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -1108,7 +1111,7 @@ class TestStreamingComponent:
             assert call_args[10] == 75
 
         # Test with None value
-        options = {"minimum_combined_score": None}
+        options = AnalysisOptions(minimum_combined_score=None)
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []
@@ -1124,7 +1127,7 @@ class TestStreamingComponent:
             assert call_args[10] is None
 
         # Test with invalid type (should default to None)
-        options = {"minimum_combined_score": "invalid"}  # type: ignore
+        options = AnalysisOptions()  # Can't set invalid type in Pydantic model
 
         with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
             mock_process.return_value = []

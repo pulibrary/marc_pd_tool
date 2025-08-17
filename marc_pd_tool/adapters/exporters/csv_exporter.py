@@ -39,7 +39,8 @@ class CSVExporter(BaseJSONExporter):
 
             for record in sorted_records:
                 # JSON structure already validated
-                self._write_record(csv_writer, record)
+                if isinstance(record, dict):
+                    self._write_record(csv_writer, record)
 
     def _export_organized_structure(self) -> None:
         """Export records to organized folder structure with summary"""
@@ -102,7 +103,8 @@ class CSVExporter(BaseJSONExporter):
 
                 for record in sorted_records:
                     # JSON structure already validated
-                    self._write_record(csv_writer, record)
+                    if isinstance(record, dict):
+                        self._write_record(csv_writer, record)
 
         # Export foreign records grouped by status type (all countries together)
         for status_type, records in foreign_by_status_type.items():
@@ -116,7 +118,8 @@ class CSVExporter(BaseJSONExporter):
 
                 for record in sorted_records:
                     # JSON structure already validated
-                    self._write_record_with_country_code(csv_writer, record)
+                    if isinstance(record, dict):
+                        self._write_record_with_country_code(csv_writer, record)
 
         # Export unknown country statuses to separate files
         for status, records in unknown_statuses.items():
@@ -130,7 +133,8 @@ class CSVExporter(BaseJSONExporter):
 
                 for record in sorted_records:
                     # JSON structure already validated
-                    self._write_record(csv_writer, record)
+                    if isinstance(record, dict):
+                        self._write_record(csv_writer, record)
 
     def _write_header(self, csv_writer: CSVWriter) -> None:
         """Write CSV header row"""

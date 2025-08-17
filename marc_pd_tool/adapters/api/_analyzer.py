@@ -6,7 +6,6 @@
 from hashlib import md5
 from json import dumps
 from logging import getLogger
-from typing import cast
 
 # Local imports
 from marc_pd_tool.adapters.api._export import ExportComponent
@@ -75,8 +74,8 @@ class MarcCopyrightAnalyzer(
         self.results = AnalysisResults()
 
         # Storage for loaded data and indexes
-        self.copyright_data: list[Publication] | None = None
-        self.renewal_data: list[Publication] | None = None
+        self.copyright_data: list[Publication] = []
+        self.renewal_data: list[Publication] = []
         self.registration_index: DataIndexer | None = None
         self.renewal_index: DataIndexer | None = None
         self.generic_detector: GenericTitleDetector | None = None
@@ -134,7 +133,7 @@ class MarcCopyrightAnalyzer(
 
         # Initialize options if not provided
         if options is None:
-            options = {}
+            options = AnalysisOptions()
 
         # Store options for later use
         self.analysis_options = options
@@ -171,13 +170,13 @@ class MarcCopyrightAnalyzer(
 
         # Create MARC loader with max_data_year
         # Use batch_size from options, which defaults to config.json value
-        batch_size = options.get("batch_size", self.config.processing.batch_size)
+        batch_size = options.batch_size if options.batch_size else self.config.processing.batch_size
         marc_loader = MarcLoader(
             marc_path=marc_path,
             batch_size=batch_size,
-            min_year=options.get("min_year"),
-            max_year=options.get("max_year"),
-            us_only=options.get("us_only", False),
+            min_year=options.min_year,
+            max_year=options.max_year,
+            us_only=options.us_only,
             max_data_year=max_data_year,
         )
 
@@ -188,10 +187,10 @@ class MarcCopyrightAnalyzer(
         logger.info(f"Loading MARC records from: {marc_path}")
 
         # Build parameters for MARC caching
-        min_year = options.get("min_year")
-        max_year = options.get("max_year")
+        min_year = options.min_year
+        max_year = options.max_year
         year_ranges = {"copyright": (min_year, max_year), "renewal": (min_year, max_year)}
-        filtering_options: dict[str, bool | int] = {"us_only": bool(options.get("us_only", False))}
+        filtering_options: dict[str, bool | int] = {"us_only": bool(options.us_only)}
         if min_year is not None:
             filtering_options["min_year"] = min_year
         if max_year is not None:
@@ -210,12 +209,10 @@ class MarcCopyrightAnalyzer(
             logger.info(f"  Filtered out {filtered_count:,} records")
 
         # Log filtering information if applicable
-        if options.get("us_only"):
+        if options.us_only:
             logger.info("  Filter applied: US publications only")
-        if options.get("min_year") or options.get("max_year"):
-            year_range = (
-                f"{options.get('min_year') or 'earliest'} to {options.get('max_year') or 'present'}"
-            )
+        if options.min_year or options.max_year:
+            year_range = f"{options.min_year or 'earliest'} to {options.max_year or 'present'}"
             logger.info(f"  Year range filter: {year_range}")
 
         # Process batches using efficient streaming approach
@@ -227,8 +224,8 @@ class MarcCopyrightAnalyzer(
             logger.info("=" * 80)
             logger.info("=== PHASE 5: EXPORTING RESULTS ===")
             logger.info("=" * 80)
-            output_formats = options.get("formats", ["json", "csv"])
-            single_file = options.get("single_file", False)
+            output_formats = options.formats if options.formats else ["json", "csv"]
+            single_file = options.single_file
             logger.info(f"Exporting results to: {output_path}")
             logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
             logger.info(
@@ -254,7 +251,7 @@ class MarcCopyrightAnalyzer(
             options: Analysis options
         """
         # Use the streaming component's method directly
-        self._analyze_marc_file_streaming(batch_paths, marc_path, None, options)
+        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, marc_path, None, options)  # type: ignore[arg-type]
 
     def analyze_marc_records(
         self, publications: list[Publication], options: AnalysisOptions | None = None
@@ -273,7 +270,7 @@ class MarcCopyrightAnalyzer(
 
         # Initialize options if not provided
         if options is None:
-            options = {}
+            options = AnalysisOptions()
 
         # Ensure data is loaded
         if not self.registration_index or not self.renewal_index:
@@ -287,8 +284,8 @@ class MarcCopyrightAnalyzer(
 
         # Get processing parameters
         # Use same batch_size default as loading phase
-        batch_size = options.get("batch_size", self.config.processing.batch_size)
-        num_processes = options.get("num_processes")
+        batch_size = options.batch_size if options.batch_size else self.config.processing.batch_size
+        num_processes = options.num_processes
         # This should always be set by the CLI, but have a fallback just in case
         if num_processes is None:
             # Standard library imports
@@ -297,21 +294,18 @@ class MarcCopyrightAnalyzer(
             num_processes = max(1, cpu_count() - 4)
 
         # Get matching parameters with defaults
-        year_tolerance = options.get("year_tolerance", 1)
-        title_threshold = options.get("title_threshold", 40)
-        author_threshold = options.get("author_threshold", 30)
-        publisher_threshold = options.get("publisher_threshold", 60)
-        early_exit_title = options.get("early_exit_title", 95)
-        early_exit_author = options.get("early_exit_author", 90)
-        early_exit_publisher = options.get("early_exit_publisher", 85)
-        score_everything_mode = options.get("score_everything_mode", False)
-        minimum_combined_score_raw = options.get("minimum_combined_score", 40)
-        minimum_combined_score = (
-            int(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
-        )
-        brute_force_missing_year = options.get("brute_force_missing_year", False)
-        options.get("min_year")
-        options.get("max_year")
+        year_tolerance = options.year_tolerance
+        title_threshold = options.title_threshold
+        author_threshold = options.author_threshold
+        publisher_threshold = options.publisher_threshold if options.publisher_threshold else 60
+        early_exit_title = options.early_exit_title
+        early_exit_author = options.early_exit_author
+        early_exit_publisher = options.early_exit_publisher if options.early_exit_publisher else 85
+        score_everything_mode = options.score_everything_mode
+        minimum_combined_score = options.minimum_combined_score if score_everything_mode else None
+        brute_force_missing_year = options.brute_force_missing_year
+        options.min_year
+        options.max_year
 
         # Log matching configuration
         logger.info("Matching configuration:")
@@ -337,7 +331,7 @@ class MarcCopyrightAnalyzer(
         from tempfile import mkdtemp
 
         temp_dir = mkdtemp(prefix="marc_analyze_")
-        batch_paths = []
+        batch_paths: list[str] = []
 
         # Split publications into batches and pickle them
         for i in range(0, len(publications), batch_size):
@@ -355,7 +349,7 @@ class MarcCopyrightAnalyzer(
             logger.info(f"  Batch size: {batch_size}")
 
         # Process using the streaming approach
-        self._analyze_marc_file_streaming(batch_paths, "in-memory", None, options)
+        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, "in-memory", None, options)  # type: ignore[arg-type]
 
         # Return the publications from results (for backward compatibility)
         results = self.results.publications
@@ -394,9 +388,9 @@ class MarcCopyrightAnalyzer(
         logger.info("=" * 80)
 
         # Extract year filtering options
-        min_year = options.get("min_year")
-        max_year = options.get("max_year")
-        brute_force = options.get("brute_force_missing_year", False)
+        min_year = options.min_year
+        max_year = options.max_year
+        brute_force = options.brute_force_missing_year
 
         # Log the loading parameters
         if brute_force or (min_year is None and max_year is None):
@@ -432,7 +426,7 @@ class MarcCopyrightAnalyzer(
                 self.copyright_data = cached_copyright
             else:
                 # Always use parallel loading (with automatic fallback to sequential if needed)
-                num_workers = options.get("num_processes")  # Will be None if not specified
+                num_workers = options.num_processes  # Will be None if not specified
                 loader = CopyrightDataLoader(self.copyright_dir, num_workers=num_workers)
                 self.copyright_data = loader.load_all_copyright_data(min_year, max_year)
                 self.cache_manager.cache_copyright_data(
@@ -449,7 +443,7 @@ class MarcCopyrightAnalyzer(
                 self.renewal_data = cached_renewal
             else:
                 # Always use parallel loading (with automatic fallback to sequential if needed)
-                num_workers = options.get("num_processes")  # Will be None if not specified
+                num_workers = options.num_processes  # Will be None if not specified
                 renewal_loader = RenewalDataLoader(self.renewal_dir, num_workers=num_workers)
                 self.renewal_data = renewal_loader.load_all_renewal_data(min_year, max_year)
                 self.cache_manager.cache_renewal_data(
@@ -466,7 +460,7 @@ class MarcCopyrightAnalyzer(
                     build_wordbased_index_parallel,
                 )
 
-                num_workers = options.get("num_processes")  # Will be None if not specified
+                num_workers = options.num_processes  # Will be None if not specified
                 self.registration_index = build_wordbased_index_parallel(
                     self.copyright_data, self.config, num_workers=num_workers
                 )

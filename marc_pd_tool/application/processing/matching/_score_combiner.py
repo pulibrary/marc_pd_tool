@@ -41,9 +41,19 @@ class ScoreCombiner:
         Returns:
             Weight value as float
         """
-        weight = config_dict.get("matching", {}).get("adaptive_weighting", {}).get(key, default)
+        matching = config_dict.get("matching", {})
+        if not isinstance(matching, dict):
+            return default
+
+        adaptive = matching.get("adaptive_weighting", {})
+        if not isinstance(adaptive, dict):
+            return default
+
+        weight = adaptive.get(key, default)
         # Pydantic ensures these are valid types, just convert to float
-        return float(weight)
+        if isinstance(weight, (int, float)):
+            return float(weight)
+        return default
 
     def combine_scores(
         self,

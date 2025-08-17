@@ -24,12 +24,12 @@ class GroundTruthStats(BaseModel):
     unique_lccns_matched: int = Field(default=0)
     unique_lccns: int = Field(default=0, description="Field for compatibility")
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def total_matches(self) -> int:
         return self.registration_matches + self.renewal_matches
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def marc_lccn_coverage(self) -> float:
         return (
@@ -38,7 +38,7 @@ class GroundTruthStats(BaseModel):
             else 0.0
         )
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def copyright_lccn_coverage(self) -> float:
         return (
