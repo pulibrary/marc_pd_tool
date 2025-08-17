@@ -6,7 +6,6 @@
 from hashlib import md5
 from json import dumps
 from logging import getLogger
-from multiprocessing import cpu_count
 from typing import cast
 
 # Local imports
@@ -96,6 +95,7 @@ class MarcCopyrightAnalyzer(
         renewal_dir: str | None = None,
         output_path: str | None = None,
         options: AnalysisOptions | None = None,
+        temp_dir: str | None = None,
     ) -> AnalysisResults:
         """Analyze a MARC XML file for copyright status
 
@@ -121,6 +121,7 @@ class MarcCopyrightAnalyzer(
                 - single_file: Export all results to single file
                 - batch_size: Number of records per batch
                 - num_processes: Number of worker processes
+            temp_dir: Directory for temporary batch files (optional)
 
         Returns:
             AnalysisResults object containing processed publications and statistics
@@ -196,26 +197,17 @@ class MarcCopyrightAnalyzer(
         if max_year is not None:
             filtering_options["max_year"] = max_year
 
-        # Check for cached MARC data
-        cached_marc_batches = self.cache_manager.get_cached_marc_data(
-            marc_path, year_ranges, filtering_options
-        )
+        # Always use disk-based batch processing for memory efficiency
+        # Extract MARC records to pickled batch files
+        batch_paths, total_records, filtered_count = marc_loader.extract_batches_to_disk(temp_dir)
 
-        if cached_marc_batches:
-            marc_batches = cached_marc_batches
-            marc_publications = [pub for batch in marc_batches for pub in batch]
-            logger.info(f"✓ Loaded {len(marc_publications):,} MARC records from cache")
-        else:
-            # Extract all batches (now always uses streaming internally)
-            marc_batches = marc_loader.extract_all_batches()
-            marc_publications = [pub for batch in marc_batches for pub in batch]
+        if not batch_paths:
+            logger.warning("No MARC records found or all records were filtered")
+            return self.results
 
-            logger.info(f"✓ Loaded {len(marc_publications):,} MARC records")
-
-            # Cache the loaded MARC data
-            self.cache_manager.cache_marc_data(
-                marc_path, year_ranges, filtering_options, marc_batches
-            )
+        logger.info(f"✓ Extracted {total_records:,} MARC records into {len(batch_paths)} batches")
+        if filtered_count > 0:
+            logger.info(f"  Filtered out {filtered_count:,} records")
 
         # Log filtering information if applicable
         if options.get("us_only"):
@@ -226,8 +218,8 @@ class MarcCopyrightAnalyzer(
             )
             logger.info(f"  Year range filter: {year_range}")
 
-        # Analyze publications
-        self.analyze_marc_records(marc_publications, options)
+        # Process batches using efficient streaming approach
+        self._process_marc_batches(batch_paths, marc_path, options)
 
         # Export results if output path provided
         if output_path:
@@ -250,6 +242,19 @@ class MarcCopyrightAnalyzer(
                 self.results.cleanup_temp_files()
 
         return self.results
+
+    def _process_marc_batches(
+        self, batch_paths: list[str], marc_path: str, options: AnalysisOptions
+    ) -> None:
+        """Process MARC batches efficiently using streaming approach
+
+        Args:
+            batch_paths: List of paths to pickled batch files
+            marc_path: Original MARC file path (for logging)
+            options: Analysis options
+        """
+        # Use the streaming component's method directly
+        self._analyze_marc_file_streaming(batch_paths, marc_path, None, options)
 
     def analyze_marc_records(
         self, publications: list[Publication], options: AnalysisOptions | None = None
@@ -284,8 +289,12 @@ class MarcCopyrightAnalyzer(
         # Use same batch_size default as loading phase
         batch_size = options.get("batch_size", self.config.processing.batch_size)
         num_processes = options.get("num_processes")
+        # This should always be set by the CLI, but have a fallback just in case
         if num_processes is None:
-            num_processes = max(1, cpu_count() - 2)
+            # Standard library imports
+            from multiprocessing import cpu_count
+
+            num_processes = max(1, cpu_count() - 4)
 
         # Get matching parameters with defaults
         year_tolerance = options.get("year_tolerance", 1)
@@ -301,8 +310,8 @@ class MarcCopyrightAnalyzer(
             int(cast(int | float, minimum_combined_score_raw)) if score_everything_mode else None
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
-        min_year = options.get("min_year")
-        max_year = options.get("max_year")
+        options.get("min_year")
+        options.get("max_year")
 
         # Log matching configuration
         logger.info("Matching configuration:")
@@ -320,50 +329,36 @@ class MarcCopyrightAnalyzer(
         if brute_force_missing_year:
             logger.info("  Brute force mode: ON (processing records without years)")
 
-        # Check if we should use multiprocessing
-        if len(publications) < batch_size or num_processes == 1:
-            # Process sequentially for small datasets
-            logger.info("")
-            logger.info(f"Processing {len(publications):,} records sequentially...")
-            results = self._process_sequentially(
-                publications,
-                year_tolerance,
-                title_threshold,
-                author_threshold,
-                publisher_threshold,
-                early_exit_title,
-                early_exit_author,
-                early_exit_publisher,
-                score_everything_mode,
-                minimum_combined_score,
-                brute_force_missing_year,
-                min_year,
-                max_year,
-            )
-        else:
-            # Process in parallel for larger datasets
-            logger.info("")
-            logger.info(f"Processing {len(publications):,} records in parallel:")
+        # Create temporary batch files from publications list
+        # Standard library imports
+        from os.path import join
+        from pickle import HIGHEST_PROTOCOL
+        from pickle import dump
+        from tempfile import mkdtemp
+
+        temp_dir = mkdtemp(prefix="marc_analyze_")
+        batch_paths = []
+
+        # Split publications into batches and pickle them
+        for i in range(0, len(publications), batch_size):
+            batch = publications[i : i + batch_size]
+            batch_id = len(batch_paths)
+            batch_path = join(temp_dir, f"batch_{batch_id:05d}.pkl")
+            with open(batch_path, "wb") as f:
+                dump(batch, f, protocol=HIGHEST_PROTOCOL)
+            batch_paths.append(batch_path)
+
+        logger.info("")
+        logger.info(f"Processing {len(publications):,} records in {len(batch_paths)} batch(es)...")
+        if num_processes > 1:
             logger.info(f"  Workers: {num_processes}")
             logger.info(f"  Batch size: {batch_size}")
-            logger.info(f"  Total batches: {(len(publications) + batch_size - 1) // batch_size}")
-            results = self._process_parallel(
-                publications,
-                batch_size,
-                num_processes,
-                year_tolerance,
-                title_threshold,
-                author_threshold,
-                publisher_threshold,
-                early_exit_title,
-                early_exit_author,
-                early_exit_publisher,
-                score_everything_mode,
-                minimum_combined_score,
-                brute_force_missing_year,
-                min_year,
-                max_year,
-            )
+
+        # Process using the streaming approach
+        self._analyze_marc_file_streaming(batch_paths, "in-memory", None, options)
+
+        # Return the publications from results (for backward compatibility)
+        results = self.results.publications
 
         # Analyze copyright status
         logger.info("")
@@ -436,7 +431,9 @@ class MarcCopyrightAnalyzer(
             if cached_copyright:
                 self.copyright_data = cached_copyright
             else:
-                loader = CopyrightDataLoader(self.copyright_dir)
+                # Always use parallel loading (with automatic fallback to sequential if needed)
+                num_workers = options.get("num_processes")  # Will be None if not specified
+                loader = CopyrightDataLoader(self.copyright_dir, num_workers=num_workers)
                 self.copyright_data = loader.load_all_copyright_data(min_year, max_year)
                 self.cache_manager.cache_copyright_data(
                     self.copyright_dir, self.copyright_data, min_year, max_year, brute_force
@@ -451,7 +448,9 @@ class MarcCopyrightAnalyzer(
             if cached_renewal:
                 self.renewal_data = cached_renewal
             else:
-                renewal_loader = RenewalDataLoader(self.renewal_dir)
+                # Always use parallel loading (with automatic fallback to sequential if needed)
+                num_workers = options.get("num_processes")  # Will be None if not specified
+                renewal_loader = RenewalDataLoader(self.renewal_dir, num_workers=num_workers)
                 self.renewal_data = renewal_loader.load_all_renewal_data(min_year, max_year)
                 self.cache_manager.cache_renewal_data(
                     self.renewal_dir, self.renewal_data, min_year, max_year, brute_force
@@ -459,8 +458,27 @@ class MarcCopyrightAnalyzer(
 
             # Build indexes
             logger.info("Building word-based indexes for fast matching...")
-            self.registration_index = build_wordbased_index(self.copyright_data, self.config)
-            self.renewal_index = build_wordbased_index(self.renewal_data, self.config)
+
+            # Always try parallel index building first (with automatic fallback to sequential)
+            try:
+                # Local imports
+                from marc_pd_tool.application.processing.parallel_indexer import (
+                    build_wordbased_index_parallel,
+                )
+
+                num_workers = options.get("num_processes")  # Will be None if not specified
+                self.registration_index = build_wordbased_index_parallel(
+                    self.copyright_data, self.config, num_workers=num_workers
+                )
+                self.renewal_index = build_wordbased_index_parallel(
+                    self.renewal_data, self.config, num_workers=num_workers
+                )
+            except Exception as e:
+                logger.warning(f"Parallel index building failed, falling back to sequential: {e}")
+                # Fall back to sequential index building
+                self.registration_index = build_wordbased_index(self.copyright_data, self.config)
+                self.renewal_index = build_wordbased_index(self.renewal_data, self.config)
+
             logger.info(
                 f"Built indexes: {len(self.registration_index.publications):,} registration, {len(self.renewal_index.publications):,} renewal entries"
             )

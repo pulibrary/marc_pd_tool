@@ -229,7 +229,7 @@ class TestMainFunction:
 
                                 # Verify analyze_marc_file was called with default workers
                                 call_kwargs = mock_analyzer.analyze_marc_file.call_args[1]
-                                assert call_kwargs["options"]["num_processes"] == 6  # 8 - 2
+                                assert call_kwargs["options"]["num_processes"] == 4  # 8 - 4
 
     def test_main_with_no_log_file(self):
         """Test main() with logging disabled"""

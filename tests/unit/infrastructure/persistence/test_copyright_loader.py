@@ -403,14 +403,18 @@ class TestCopyrightDataLoaderPerformance:
 
         # Mock _extract_from_file to track file processing order
         processed_files = []
-        loader._extract_from_file
 
         def track_files(xml_file):
             processed_files.append(xml_file.name)
             return []
 
-        with patch.object(loader, "_extract_from_file", side_effect=track_files):
-            loader.load_all_copyright_data()
+        # Mock ParallelCopyrightLoader to fail immediately so we fall back to sequential
+        with patch(
+            "marc_pd_tool.infrastructure.persistence._copyright_loader.ParallelCopyrightLoader"
+        ) as mock_parallel:
+            mock_parallel.side_effect = Exception("Force sequential loading")
+            with patch.object(loader, "_extract_from_file", side_effect=track_files):
+                loader.load_all_copyright_data()
 
         # Verify files were processed in sorted order
         assert len(processed_files) >= 3
@@ -423,7 +427,13 @@ class TestCopyrightDataLoaderPerformance:
     def test_logging_behavior(self, mock_logger, temp_copyright_dir):
         """Test that appropriate logging occurs during loading"""
         loader = CopyrightDataLoader(temp_copyright_dir)
-        loader.load_all_copyright_data()
+
+        # Mock ParallelCopyrightLoader to fail immediately so we fall back to sequential
+        with patch(
+            "marc_pd_tool.infrastructure.persistence._copyright_loader.ParallelCopyrightLoader"
+        ) as mock_parallel:
+            mock_parallel.side_effect = Exception("Force sequential loading")
+            loader.load_all_copyright_data()
 
         # Verify that info logging was called
         mock_logger.info.assert_called()

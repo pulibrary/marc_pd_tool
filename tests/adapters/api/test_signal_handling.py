@@ -331,17 +331,23 @@ class TestSignalHandling:
         ) as mock_cleanup:
             with patch.object(analyzer, "export_results"):
                 with patch.object(analyzer, "_load_and_index_data"):
-                    with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader:
-                        mock_loader.return_value.extract_all_batches.return_value = []
+                    with patch.object(analyzer, "_process_marc_batches"):
+                        with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader:
+                            # Mock extract_batches_to_disk instead of extract_all_batches
+                            mock_loader.return_value.extract_batches_to_disk.return_value = (
+                                ["batch1.pkl"],
+                                1,
+                                0,
+                            )
 
-                        # Call analyze_marc_file with output path
-                        analyzer.analyze_marc_file(
-                            "/test/marc.xml",
-                            copyright_dir="/test/copyright",
-                            renewal_dir="/test/renewal",
-                            output_path="/test/output",
-                            options={},
-                        )
+                            # Call analyze_marc_file with output path
+                            analyzer.analyze_marc_file(
+                                "/test/marc.xml",
+                                copyright_dir="/test/copyright",
+                                renewal_dir="/test/renewal",
+                                output_path="/test/output",
+                                options={},
+                            )
 
             # Cleanup should have been called
             mock_cleanup.assert_called_once()

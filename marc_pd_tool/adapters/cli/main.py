@@ -50,7 +50,7 @@ def main() -> None:
 
     # Set number of workers
     if args.max_workers is None or args.max_workers == 0:
-        args.max_workers = max(1, cpu_count() - 2)  # Use all cores minus 2, minimum 1
+        args.max_workers = max(1, cpu_count() - 4)
 
     # Configure logging
     log_file_path = set_up_logging(
@@ -190,25 +190,15 @@ def main() -> None:
         if memory_monitor:
             memory_monitor.force_log("before processing")
 
-        # Choose between streaming and normal mode
-        if args.streaming:
-            logger.info("Using streaming mode for large dataset processing")
-            results = analyzer.analyze_marc_file_streaming(
-                args.marcxml,
-                copyright_dir=args.copyright_dir,
-                renewal_dir=args.renewal_dir,
-                output_path=output_filename,
-                options=options,
-                temp_dir=args.temp_dir,
-            )
-        else:
-            results = analyzer.analyze_marc_file(
-                args.marcxml,
-                copyright_dir=args.copyright_dir,
-                renewal_dir=args.renewal_dir,
-                output_path=output_filename,
-                options=options,
-            )
+        # Always use unified processing (internally uses efficient streaming)
+        results = analyzer.analyze_marc_file(
+            args.marcxml,
+            copyright_dir=args.copyright_dir,
+            renewal_dir=args.renewal_dir,
+            output_path=output_filename,
+            options=options,
+            temp_dir=args.temp_dir,  # Pass temp_dir for batch processing
+        )
 
         # Log memory after processing
         if memory_monitor:

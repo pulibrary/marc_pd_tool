@@ -128,7 +128,7 @@ class TestMarcCopyrightAnalyzer:
         assert hash1 != hash3
 
     def test_process_sequentially(self, tmp_path):
-        """Test sequential processing"""
+        """Test processing with single worker (sequential-like behavior)"""
         analyzer = MarcCopyrightAnalyzer()
 
         # Create test publications
@@ -143,27 +143,19 @@ class TestMarcCopyrightAnalyzer:
             for i in range(5)
         ]
 
-        # Mock the entire _process_sequentially method instead of process_batch
-        with patch.object(analyzer, "_process_sequentially") as mock_seq:
-            # Mock to return the publications directly
-            mock_seq.return_value = publications
+        # Mock dependencies - streaming is now always used
+        with patch.object(analyzer, "_load_and_index_data"):
+            with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
+                # Mock to populate results
+                def mock_streaming(*args, **kwargs):
+                    analyzer.results.publications = publications
 
-            # Call the method
-            results = analyzer._process_sequentially(
-                publications=publications,
-                title_threshold=40,
-                author_threshold=30,
-                publisher_threshold=20,
-                year_tolerance=1,
-                early_exit_title=95,
-                early_exit_author=90,
-                early_exit_publisher=85,
-                score_everything_mode=False,
-                minimum_combined_score=None,
-                brute_force_missing_year=False,
-                min_year=None,
-                max_year=None,
-            )
+                mock_stream.side_effect = mock_streaming
+
+                # Call with num_processes=1 for sequential-like behavior
+                results = analyzer.analyze_marc_records(
+                    publications, options={"num_processes": 1, "batch_size": 100}
+                )
 
             assert len(results) == 5
             assert all(isinstance(pub, Publication) for pub in results)
@@ -183,13 +175,19 @@ class TestMarcCopyrightAnalyzer:
             )
         ]
 
-        # Mock dependencies
+        # Mock dependencies - now mocking the streaming approach
         with patch.object(analyzer, "_load_and_index_data"):
-            with patch.object(analyzer, "_process_sequentially") as mock_seq:
-                mock_seq.return_value = publications
+            with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
+                # Mock the streaming to populate results
+                def mock_streaming(*args, **kwargs):
+                    analyzer.results.publications = publications
+
+                mock_stream.side_effect = mock_streaming
 
                 results = analyzer.analyze_marc_records(publications, options={"num_processes": 1})
 
+                # Verify the streaming method was called
+                assert mock_stream.called
                 assert len(results) == 1
                 assert (
                     results[0].original_title == "Test Book"
@@ -353,20 +351,19 @@ class TestAnalysisMethods:
             )
         ]
 
-        # Mock both _load_and_index_data and _process_sequentially
+        # Mock both _load_and_index_data and streaming
         with patch.object(analyzer, "_load_and_index_data"):
-            with patch.object(analyzer, "_process_sequentially") as mock_seq:
-                # Track the arguments passed to _process_sequentially
+            with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
+                # Track the arguments and populate results
                 called_args = {}
 
-                def capture_args(publications, year_tolerance, title_threshold, *args, **kwargs):
-                    called_args["title_threshold"] = title_threshold
+                def capture_args(batch_paths, marc_path, output_path, options):
+                    called_args["title_threshold"] = options.get("title_threshold", 40)
                     # Add publications to results
                     for pub in publications:
                         analyzer.results.add_publication(pub)
-                    return publications
 
-                mock_seq.side_effect = capture_args
+                mock_stream.side_effect = capture_args
 
                 # Analyze with specific config
                 results = analyzer.analyze_marc_records(

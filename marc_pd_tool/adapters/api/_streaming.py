@@ -5,7 +5,6 @@
 # Standard library imports
 from logging import getLogger
 from multiprocessing import Pool
-from multiprocessing import cpu_count
 from multiprocessing import get_start_method
 from tempfile import mkdtemp
 from time import time
@@ -106,7 +105,13 @@ class StreamingComponent:
             else None
         )
         brute_force_missing_year = options.get("brute_force_missing_year", False)
-        num_processes = options.get("num_processes", max(1, cpu_count() - 2))
+        # num_processes should be set by CLI, but provide a fallback
+        num_processes = options.get("num_processes")
+        if num_processes is None:
+            # Standard library imports
+            from multiprocessing import cpu_count
+
+            num_processes = max(1, cpu_count() - 4)
         min_year = options.get("min_year")
         max_year = options.get("max_year")
 
@@ -263,8 +268,23 @@ class StreamingComponent:
                 else:
                     logger.info("No cached indexes found - workers will load independently")
 
+            # Prepare init_worker arguments
+            init_args = (
+                self.cache_dir or ".marcpd_cache",
+                self.copyright_dir,
+                self.renewal_dir,
+                config_hash,
+                detector_config,
+                min_year,
+                max_year,
+                brute_force_missing_year,
+            )
+
             with Pool(
-                processes=num_processes, initializer=init_worker, maxtasksperchild=tasks_per_child
+                processes=num_processes,
+                initializer=init_worker,
+                initargs=init_args,
+                maxtasksperchild=tasks_per_child,
             ) as pool:
                 for result in pool.imap_unordered(process_batch, batch_infos):
                     batch_id, result_file_path, batch_stats = result

@@ -41,7 +41,12 @@ class TestBatchSizeConsistency:
                     with patch(
                         "marc_pd_tool.adapters.api._analyzer.MarcLoader"
                     ) as mock_marc_loader:
-                        mock_marc_loader.return_value.extract_all_batches.return_value = []
+                        # Mock extract_batches_to_disk which is now used instead of extract_all_batches
+                        mock_marc_loader.return_value.extract_batches_to_disk.return_value = (
+                            [],
+                            0,
+                            0,
+                        )
 
                         analyzer = MarcCopyrightAnalyzer()
                         # Call analyze_marc_file without options to test default
@@ -74,7 +79,11 @@ class TestBatchSizeConsistency:
                     with patch(
                         "marc_pd_tool.adapters.api._analyzer.MarcLoader"
                     ) as mock_marc_loader:
-                        mock_marc_loader.return_value.extract_all_batches.return_value = []
+                        mock_marc_loader.return_value.extract_batches_to_disk.return_value = (
+                            [],
+                            0,
+                            0,
+                        )
 
                         analyzer = MarcCopyrightAnalyzer()
                         # Call with explicit batch_size
@@ -100,30 +109,36 @@ class TestBatchSizeConsistency:
         analyzer.registration_index = MagicMock()
         analyzer.renewal_index = MagicMock()
 
-        with patch.object(analyzer, "_process_sequentially") as mock_seq:
-            with patch.object(analyzer, "_process_parallel") as mock_parallel:
-                mock_seq.return_value = []
-                mock_parallel.return_value = []
+        # Create real Publication objects instead of MagicMocks (they need to be pickleable)
+        # Local imports
+        from marc_pd_tool.core.domain.publication import Publication
+
+        publications = [
+            Publication(title=f"Book {i}", pub_date="1960", source_id=str(i)) for i in range(150)
+        ]
+
+        with patch.object(analyzer, "_load_and_index_data"):
+            with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
+                # Mock to populate results
+                def mock_streaming(*args, **kwargs):
+                    analyzer.results.publications = publications
+
+                mock_stream.side_effect = mock_streaming
 
                 # Test with default (should use config value of 100)
-                publications = [MagicMock() for _ in range(150)]
                 analyzer.analyze_marc_records(publications, options={})
 
-                # Since we have 150 records and batch_size=100, it should use parallel
-                mock_parallel.assert_called_once()
-                call_args = mock_parallel.call_args
-                assert call_args.args[1] == 100  # batch_size is second argument
+                # Verify streaming was called
+                mock_stream.assert_called_once()
 
-                # Reset mocks
-                mock_parallel.reset_mock()
-                mock_seq.reset_mock()
+                # Reset mock
+                mock_stream.reset_mock()
 
                 # Test with explicit batch_size
                 analyzer.analyze_marc_records(publications, options={"batch_size": 200})
 
-                # With batch_size=200 and 150 records, should use sequential
-                mock_seq.assert_called_once()
-                mock_parallel.assert_not_called()
+                # Verify streaming was called again
+                mock_stream.assert_called_once()
 
     def test_no_hardcoded_batch_sizes(self):
         """Ensure we're not using hardcoded 1000 or 200 anywhere in analyzer"""

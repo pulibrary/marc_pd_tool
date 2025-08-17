@@ -11,6 +11,9 @@ import xml.etree.ElementTree as ET
 
 # Local imports
 from marc_pd_tool.core.domain.publication import Publication
+from marc_pd_tool.infrastructure.persistence._parallel_copyright_loader import (
+    ParallelCopyrightLoader,
+)
 from marc_pd_tool.shared.mixins.mixins import YearFilterableMixin
 from marc_pd_tool.shared.utils.text_utils import extract_year
 
@@ -18,8 +21,9 @@ logger = getLogger(__name__)
 
 
 class CopyrightDataLoader(YearFilterableMixin):
-    def __init__(self, copyright_dir: str) -> None:
+    def __init__(self, copyright_dir: str, num_workers: int | None = None) -> None:
         self.copyright_dir = Path(copyright_dir)
+        self.num_workers = num_workers
 
     def load_all_copyright_data(
         self, min_year: int | None = None, max_year: int | None = None
@@ -34,6 +38,19 @@ class CopyrightDataLoader(YearFilterableMixin):
             List of Publication objects
         """
         self._log_year_filtering(min_year, max_year, "copyright")
+
+        # Always try parallel loading first, with automatic fallback to sequential
+        try:
+            parallel_loader = ParallelCopyrightLoader(
+                str(self.copyright_dir),
+                min_year=min_year,
+                max_year=max_year,
+                num_workers=self.num_workers,
+            )
+            return parallel_loader.load_all_parallel()
+        except Exception as e:
+            logger.warning(f"Parallel loading failed, falling back to sequential: {e}")
+            # Fall through to sequential loading
 
         all_publications: list[Publication] = []
         xml_files = sorted(self.copyright_dir.rglob("*.xml"), key=lambda x: str(x))

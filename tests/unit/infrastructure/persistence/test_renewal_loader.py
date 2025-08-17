@@ -402,8 +402,13 @@ class TestRenewalDataLoaderPerformance:
             processed_files.append(tsv_file.name)
             return []
 
-        with patch.object(loader, "_extract_from_file", side_effect=track_files):
-            loader.load_all_renewal_data()
+        # Mock ParallelRenewalLoader to fail immediately so we fall back to sequential
+        with patch(
+            "marc_pd_tool.infrastructure.persistence._renewal_loader.ParallelRenewalLoader"
+        ) as mock_parallel:
+            mock_parallel.side_effect = Exception("Force sequential loading")
+            with patch.object(loader, "_extract_from_file", side_effect=track_files):
+                loader.load_all_renewal_data()
 
         # Verify files were processed in sorted order
         assert len(processed_files) >= 3
@@ -416,7 +421,13 @@ class TestRenewalDataLoaderPerformance:
     def test_logging_behavior(self, mock_logger, temp_renewal_dir):
         """Test that appropriate logging occurs during loading"""
         loader = RenewalDataLoader(temp_renewal_dir)
-        loader.load_all_renewal_data()
+
+        # Mock ParallelRenewalLoader to fail immediately so we fall back to sequential
+        with patch(
+            "marc_pd_tool.infrastructure.persistence._renewal_loader.ParallelRenewalLoader"
+        ) as mock_parallel:
+            mock_parallel.side_effect = Exception("Force sequential loading")
+            loader.load_all_renewal_data()
 
         # Verify that info logging was called
         mock_logger.info.assert_called()

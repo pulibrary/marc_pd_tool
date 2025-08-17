@@ -34,6 +34,7 @@ class AnalysisOptions(BaseModel):
     formats: list[str] = Field(default_factory=lambda: ["csv"])
     single_file: bool = False
     minimum_combined_score: int | None = None
+    parallel_loading: bool = True  # Use parallel loading for copyright/renewal data
 
     def get(
         self, key: str, default: str | int | float | bool | list | None = None

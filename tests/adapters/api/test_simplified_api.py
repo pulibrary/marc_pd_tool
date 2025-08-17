@@ -99,14 +99,16 @@ class TestMarcCopyrightAnalyzerAPI:
             # Mock the load_and_index_data to avoid full execution
             with patch.object(analyzer, "_load_and_index_data") as mock_load:
                 with patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_loader:
-                    mock_instance = MagicMock()
-                    mock_loader.return_value = mock_instance
-                    mock_instance.load.return_value = []
+                    with patch.object(analyzer, "_process_marc_batches"):
+                        mock_instance = MagicMock()
+                        mock_loader.return_value = mock_instance
+                        # Mock extract_batches_to_disk instead of load
+                        mock_instance.extract_batches_to_disk.return_value = ([], 0, 0)
 
-                    analyzer.analyze_marc_file(marc_path, options=options)
+                        analyzer.analyze_marc_file(marc_path, options=options)
 
-                    # Verify options were stored
-                    assert analyzer.analysis_options == options
+                        # Verify options were stored
+                        assert analyzer.analysis_options == options
 
     def test_get_results(self):
         """Test getting analysis results"""

@@ -19,20 +19,13 @@ import pytest
 def pytest_configure(config):
     """Register custom markers"""
     config.addinivalue_line("markers", "full_isolation: mark test as needing complete isolation")
-    config.addinivalue_line("markers", "integration: mark test as integration test")
-    config.addinivalue_line("markers", "performance: mark test as performance benchmark")
     config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 # Test collection configuration
 def pytest_collection_modifyitems(config, items):
     """Modify test collection based on markers"""
-    # Add integration marker to all tests in integration directory
-    for item in items:
-        if "/integration/" in str(item.fspath):
-            item.add_marker(pytest.mark.integration)
-        if "/performance/" in str(item.fspath):
-            item.add_marker(pytest.mark.performance)
+    pass  # No automatic marking needed anymore
 
 
 @pytest.fixture(autouse=True, scope="function")

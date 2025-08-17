@@ -91,26 +91,31 @@ class TestMarcCopyrightAnalyzerProper:
             </collection>"""
             )
 
-            # Mock the internal methods
+            # Mock the internal methods and MarcLoader
             with (
                 patch.object(analyzer, "_load_and_index_data") as mock_load,
-                patch.object(analyzer, "analyze_marc_records") as mock_process,
+                patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_marc_loader_class,
+                patch.object(analyzer, "_process_marc_batches") as mock_process_batches,
             ):
+                # Mock MarcLoader to return empty batches
+                mock_loader = Mock()
+                mock_loader.extract_batches_to_disk.return_value = (["batch1.pkl"], 1, 0)
+                mock_marc_loader_class.return_value = mock_loader
 
-                # Mock analyze_marc_records to add a publication and return it
-                def add_pub(publications, options):
+                # Mock _process_marc_batches to add a publication
+                def process_batches(batch_paths, marc_path, options):
                     pub = PublicationBuilder.basic_us_publication()
                     analyzer.results.add_publication(pub)
-                    return [pub]
 
-                mock_process.side_effect = add_pub
+                mock_process_batches.side_effect = process_batches
 
                 # Analyze the file
                 results = analyzer.analyze_marc_file(str(marc_path))
 
                 # Verify methods were called
                 mock_load.assert_called_once()
-                mock_process.assert_called_once()
+                mock_loader.extract_batches_to_disk.assert_called_once()
+                mock_process_batches.assert_called_once()
 
                 # Verify results
                 assert isinstance(results, AnalysisResults)
@@ -139,11 +144,13 @@ class TestMarcCopyrightAnalyzerProper:
 
             with (
                 patch.object(analyzer, "_load_and_index_data") as mock_load,
-                patch.object(analyzer, "analyze_marc_records") as mock_process,
+                patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_marc_loader_class,
+                patch.object(analyzer, "_process_marc_batches") as mock_process_batches,
             ):
-
-                # Mock analyze_marc_records to return empty list
-                mock_process.return_value = []
+                # Mock MarcLoader to return empty batches
+                mock_loader = Mock()
+                mock_loader.extract_batches_to_disk.return_value = ([], 0, 0)
+                mock_marc_loader_class.return_value = mock_loader
 
                 results = analyzer.analyze_marc_file(str(marc_path), options=options)
 
@@ -171,12 +178,14 @@ class TestMarcCopyrightAnalyzerProper:
             # Mock internal methods
             with (
                 patch.object(analyzer, "_load_and_index_data"),
-                patch.object(analyzer, "analyze_marc_records") as mock_analyze,
+                patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_marc_loader_class,
+                patch.object(analyzer, "_process_marc_batches") as mock_process_batches,
                 patch.object(analyzer, "export_results") as mock_export,
             ):
-
-                # Mock analyze_marc_records to return empty list
-                mock_analyze.return_value = []
+                # Mock MarcLoader to return at least one batch so export happens
+                mock_loader = Mock()
+                mock_loader.extract_batches_to_disk.return_value = (["batch1.pkl"], 1, 0)
+                mock_marc_loader_class.return_value = mock_loader
 
                 results = analyzer.analyze_marc_file(str(marc_path), output_path=output_path)
 
@@ -203,11 +212,13 @@ class TestMarcCopyrightAnalyzerProper:
 
             with (
                 patch.object(analyzer, "_load_and_index_data"),
-                patch.object(analyzer, "analyze_marc_records") as mock_analyze,
+                patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_marc_loader_class,
+                patch.object(analyzer, "_process_marc_batches") as mock_process_batches,
             ):
-
-                # Mock analyze_marc_records to return empty list
-                mock_analyze.return_value = []
+                # Mock MarcLoader to return empty batches
+                mock_loader = Mock()
+                mock_loader.extract_batches_to_disk.return_value = ([], 0, 0)
+                mock_marc_loader_class.return_value = mock_loader
 
                 analyzer.analyze_marc_file(
                     str(marc_path),
@@ -284,14 +295,14 @@ class TestMarcCopyrightAnalyzerProper:
         analyzer.renewal_index = Mock()
         analyzer.generic_detector = Mock()
 
-        with patch.object(analyzer, "_process_sequentially") as mock_process:
+        with patch.object(analyzer, "_analyze_marc_file_streaming") as mock_stream:
             # Mock to add publications to results and return them
-            def process_pubs(*args, **kwargs):
+            def stream_pubs(*args, **kwargs):
                 for pub in pubs:
                     analyzer.results.add_publication(pub)
                 return pubs
 
-            mock_process.side_effect = process_pubs
+            mock_stream.side_effect = stream_pubs
 
             # Call analyze_marc_records
             result_pubs = analyzer.analyze_marc_records(pubs, {})

@@ -223,13 +223,9 @@ def create_argument_parser() -> ArgumentParser:
     # Silent is False by default, so use store_true to enable it
     parser.add_argument("--silent", action="store_true", help="Suppress console output")
 
-    # Streaming mode options
-    # Streaming is False by default, so use store_true to enable it
+    # Temporary directory option for batch processing
     parser.add_argument(
-        "--streaming", action="store_true", help="Use streaming mode for very large datasets"
-    )
-    parser.add_argument(
-        "--temp-dir", default=None, help="Directory for temporary batch files (streaming mode)"
+        "--temp-dir", default=None, help="Directory for temporary batch files during processing"
     )
 
     # Debug/development options
