@@ -6,7 +6,7 @@
 from pathlib import Path
 
 # Third party imports
-import pytest
+from pytest import mark
 
 # Local imports
 from marc_pd_tool.infrastructure.persistence._copyright_loader import (
@@ -342,7 +342,7 @@ R{year}2\tSecond Book {year}\t\t{year}-12-25\tFull text for second book"""
 class TestParallelLoadingPerformance:
     """Test performance improvements with parallel loading"""
 
-    @pytest.mark.slow
+    @mark.slow
     def test_parallel_vs_sequential_speed(self, tmp_path: Path) -> None:
         """Test that parallel loading is faster than sequential"""
         # Create many test files

@@ -8,14 +8,14 @@ from os.path import join
 from pathlib import Path
 from pickle import HIGHEST_PROTOCOL
 from pickle import dump
-import shutil
-import signal
+import shutil  # full import requore for patching
+import signal  # full import requore for patching
 from tempfile import mkdtemp
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import raises
 
 # Local imports
 from marc_pd_tool import MarcCopyrightAnalyzer
@@ -74,7 +74,7 @@ class TestSignalHandling:
         temp_dir = mkdtemp(prefix="test_cleanup_")
         results.result_temp_dir = temp_dir
 
-        with patch("shutil.rmtree") as mock_rmtree:
+        with patch("marc_pd_tool.application.models.analysis_results.rmtree") as mock_rmtree:
             mock_rmtree.side_effect = PermissionError("Access denied")
 
             # Should log warning but not raise
@@ -225,7 +225,7 @@ class TestSignalHandling:
                 with patch("marc_pd_tool.adapters.api._processing.mkdtemp") as mock_mkdtemp:
                     mock_mkdtemp.return_value = "/tmp/test"
 
-                    with pytest.raises(KeyboardInterrupt):
+                    with raises(KeyboardInterrupt):
                         analyzer._process_parallel(
                             publications=publications,
                             batch_size=100,

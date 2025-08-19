@@ -5,7 +5,7 @@
 # Standard library imports
 
 # Third party imports
-import pytest
+from pytest import approx
 
 # Local imports
 from marc_pd_tool.application.models.ground_truth_stats import GroundTruthStats
@@ -218,7 +218,7 @@ class TestGroundTruthExtractor:
 
         assert report["marc_total"] == 3
         assert report["marc_with_lccn"] == 2
-        assert report["marc_lccn_percentage"] == pytest.approx(66.67, rel=0.01)
+        assert report["marc_lccn_percentage"] == approx(66.67, rel=0.01)
         assert report["copyright_total"] == 2
         assert report["copyright_with_lccn"] == 1
         assert report["copyright_lccn_percentage"] == 50.0

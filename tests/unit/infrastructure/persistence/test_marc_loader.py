@@ -9,13 +9,12 @@ from pickle import load as pickle_load
 from tempfile import NamedTemporaryFile
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
-import xml.etree.ElementTree as ET
 from xml.etree.ElementTree import Element
 from xml.etree.ElementTree import SubElement
+from xml.etree.ElementTree import fromstring
 from xml.etree.ElementTree import tostring
 
 # Third party imports
-import pytest
 from pytest import fixture
 
 # Local imports
@@ -234,7 +233,7 @@ class TestMarcLoaderBatchProcessing:
 class TestStreamingMarcLoader:
     """Test streaming functionality in MarcLoader"""
 
-    @pytest.fixture
+    @fixture
     def sample_marcxml_content(self) -> str:
         """Sample MARCXML content for testing"""
         return """<?xml version="1.0" encoding="UTF-8"?>
@@ -277,7 +276,7 @@ class TestStreamingMarcLoader:
   </record>
 </collection>"""
 
-    @pytest.fixture
+    @fixture
     def temp_marcxml_file(self, sample_marcxml_content: str) -> str:
         """Create a temporary MARCXML file for testing"""
         with NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
@@ -509,7 +508,7 @@ class TestMarcLoaderRecordExtraction:
         loader = MarcLoader("dummy.xml")
 
         # Create minimal record with required title field
-        record = ET.fromstring(
+        record = fromstring(
             """
         <record xmlns="http://www.loc.gov/MARC21/slim">
             <controlfield tag="001">12345</controlfield>
@@ -531,7 +530,7 @@ class TestMarcLoaderRecordExtraction:
         loader = MarcLoader("dummy.xml")
 
         # Create record that will cause issues
-        record = ET.fromstring("<record/>")  # Empty record
+        record = fromstring("<record/>")  # Empty record
 
         # Test that exceptions in extraction return None
         pub = loader._extract_from_record(record)
@@ -544,7 +543,7 @@ class TestMarcLoaderRecordExtraction:
         loader = MarcLoader("dummy.xml")
 
         # Create record with 008 field
-        record = ET.fromstring(
+        record = fromstring(
             """
         <record xmlns="http://www.loc.gov/MARC21/slim">
             <controlfield tag="001">12345</controlfield>
@@ -590,7 +589,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -617,7 +616,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -634,7 +633,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is None  # Should return None for missing title
@@ -650,7 +649,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -670,7 +669,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -687,7 +686,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         ns = {"marc": "http://www.loc.gov/MARC21/slim"}
 
         field = loader._extract_marc_field(record, ns, ["264"], "c")
@@ -706,7 +705,7 @@ class TestMarcLoaderRecordExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         ns = {"marc": "http://www.loc.gov/MARC21/slim"}
 
         # Try 264 first, then 260
@@ -744,7 +743,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -768,7 +767,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -791,7 +790,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -814,7 +813,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -840,7 +839,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -861,7 +860,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -886,7 +885,7 @@ class TestMarcAuthorExtraction:
         </record>
         """
 
-        record = ET.fromstring(xml_string)
+        record = fromstring(xml_string)
         pub = extractor._extract_from_record(record)
 
         assert pub is not None
@@ -906,7 +905,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -925,7 +924,7 @@ class TestMarcAuthorExtraction:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -1030,7 +1029,7 @@ class TestBracketedContentInMarcTitles:
             </datafield>
         </record>"""
 
-        record = ET.fromstring(record_xml)
+        record = fromstring(record_xml)
         pub = loader._extract_from_record(record)
 
         assert pub is not None
@@ -1810,7 +1809,7 @@ class TestMarcBeyondDataFiltering:
 class TestStreamingIntegration:
     """Integration tests for streaming with other components"""
 
-    @pytest.fixture
+    @fixture
     def sample_marcxml_content(self) -> str:
         """Sample MARCXML content for integration tests"""
         return """<?xml version="1.0" encoding="UTF-8"?>
@@ -1948,7 +1947,7 @@ class TestStreamingIntegration:
 class TestStreamingErrorHandling:
     """Test error handling in streaming functionality"""
 
-    @pytest.fixture
+    @fixture
     def temp_marcxml_file(self) -> str:
         """Create a temporary MARCXML file for error handling tests"""
         sample_content = """<?xml version="1.0" encoding="UTF-8"?>

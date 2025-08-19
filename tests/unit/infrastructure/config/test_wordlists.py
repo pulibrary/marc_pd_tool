@@ -3,7 +3,7 @@
 """Tests for WordlistsConfig class"""
 
 # Standard library imports
-import json
+from json import dump
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -24,7 +24,7 @@ class TestWordlistsConfig:
     def test_load_from_string_path(self):
         """Test loading from a string path"""
         with NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"stopwords": {"general": ["test", "word"]}}, f)
+            dump({"stopwords": {"general": ["test", "word"]}}, f)
             temp_path = f.name
 
         try:
@@ -117,7 +117,7 @@ class TestWordlistsConfig:
         """Test loading with data that fails validation"""
         with NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             # Write invalid structure that will fail validation
-            json.dump({"stopwords": "not a dict"}, f)  # Should be a dict, not string
+            dump({"stopwords": "not a dict"}, f)  # Should be a dict, not string
             temp_path = f.name
 
         try:

@@ -3,7 +3,7 @@
 """Tests for the actual MarcCopyrightAnalyzer class functionality"""
 
 # Standard library imports
-import json
+from json import dumps
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock
@@ -40,7 +40,7 @@ class TestMarcCopyrightAnalyzerProper:
             # Create a custom config file
             config_path = Path(temp_dir) / "custom_config.json"
             config_data = {"title_threshold": 45, "author_threshold": 35, "year_tolerance": 2}
-            config_path.write_text(json.dumps(config_data))
+            config_path.write_text(dumps(config_data))
 
             with patch("marc_pd_tool.adapters.api._analyzer.get_config") as mock_get_config:
                 mock_config = Mock()

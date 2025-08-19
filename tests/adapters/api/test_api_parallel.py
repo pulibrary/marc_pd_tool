@@ -3,9 +3,11 @@
 """Tests for API parallel processing functionality"""
 
 # Standard library imports
-import os
+from os import makedirs
+from os.path import dirname
+from os.path import join
 from pathlib import Path
-import pickle
+from pickle import dump
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -45,9 +47,7 @@ class TestParallelProcessing:
                 # Create mock result files
                 results = []
                 for batch_info in batch_infos:
-                    result_path = os.path.join(
-                        batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl"
-                    )
+                    result_path = join(batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl")
                     # Create a mock result
                     result = {
                         "batch_id": batch_info[0],
@@ -55,9 +55,9 @@ class TestParallelProcessing:
                         "stats": {},
                         "error": None,
                     }
-                    os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                    makedirs(dirname(result_path), exist_ok=True)
                     with open(result_path, "wb") as f:
-                        pickle.dump(result, f)
+                        dump(result, f)
                     results.append(result_path)
                 return results
 
@@ -134,16 +134,16 @@ class TestParallelProcessing:
             def mock_map_with_error(func, batch_infos):
                 # Create result with error
                 batch_info = batch_infos[0]
-                result_path = os.path.join(batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl")
+                result_path = join(batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl")
                 result = {
                     "batch_id": batch_info[0],
                     "publications": [],
                     "stats": {},
                     "error": "Simulated worker error",
                 }
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                makedirs(dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
-                    pickle.dump(result, f)
+                    dump(result, f)
                 return [result_path]
 
             mock_pool.map.side_effect = mock_map_with_error
@@ -152,16 +152,16 @@ class TestParallelProcessing:
             def imap_result(func, batch_infos, chunksize=1):
                 # Simulate error result
                 batch_info = list(batch_infos)[0]
-                result_path = os.path.join(batch_info[-1], f"batch_{batch_info[0]:05d}_result.pkl")
+                result_path = join(batch_info[-1], f"batch_{batch_info[0]:05d}_result.pkl")
                 result = {
                     "batch_id": batch_info[0],
                     "publications": [],
                     "stats": {},
                     "error": "Simulated worker error",
                 }
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                makedirs(dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
-                    pickle.dump(result, f)
+                    dump(result, f)
                 # Return tuple like process_batch does, but with a BatchStats object
                 # Local imports
                 from marc_pd_tool.application.models.batch_stats import BatchStats
@@ -232,16 +232,16 @@ class TestParallelProcessing:
             # Mock successful processing
             def mock_map(func, batch_infos):
                 batch_info = batch_infos[0]
-                result_path = os.path.join(batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl")
+                result_path = join(batch_info[18], f"batch_{batch_info[0]:05d}_result.pkl")
                 result = {
                     "batch_id": batch_info[0],
                     "publications": publications,
                     "stats": {},
                     "error": None,
                 }
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                makedirs(dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
-                    pickle.dump(result, f)
+                    dump(result, f)
                 return [result_path]
 
             mock_pool.map.side_effect = mock_map
@@ -249,11 +249,11 @@ class TestParallelProcessing:
             # Mock imap_unordered to return an iterator with successful result
             def imap_result(func, batch_infos, chunksize=1):
                 batch_info = list(batch_infos)[0]
-                result_path = os.path.join(batch_info[-1], f"batch_{batch_info[0]:05d}_result.pkl")
+                result_path = join(batch_info[-1], f"batch_{batch_info[0]:05d}_result.pkl")
                 # Save publications directly (that's what process_batch does)
-                os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                makedirs(dirname(result_path), exist_ok=True)
                 with open(result_path, "wb") as f:
-                    pickle.dump(publications, f)
+                    dump(publications, f)
                 # Return proper BatchStats object
                 # Local imports
                 from marc_pd_tool.application.models.batch_stats import BatchStats
@@ -328,13 +328,13 @@ class TestParallelProcessing:
 
                 # Simulate 2 batches with different processing times
                 for i, batch_info in enumerate(batch_infos_list):
-                    result_path = os.path.join(batch_info[-1], f"result_{batch_info[0]:05d}.pkl")
-                    stats_path = os.path.join(batch_info[-1], f"stats_{batch_info[0]:05d}.pkl")
+                    result_path = join(batch_info[-1], f"result_{batch_info[0]:05d}.pkl")
+                    stats_path = join(batch_info[-1], f"stats_{batch_info[0]:05d}.pkl")
 
                     # Save publications
-                    os.makedirs(os.path.dirname(result_path), exist_ok=True)
+                    makedirs(dirname(result_path), exist_ok=True)
                     with open(result_path, "wb") as f:
-                        pickle.dump(publications[i * 3 : (i + 1) * 3], f)
+                        dump(publications[i * 3 : (i + 1) * 3], f)
 
                     # Save detailed stats
                     detailed_stats = {
@@ -354,7 +354,7 @@ class TestParallelProcessing:
                         "records_with_errors": 0,
                     }
                     with open(stats_path, "wb") as f:
-                        pickle.dump(detailed_stats, f)
+                        dump(detailed_stats, f)
 
                     # Return BatchStats with different processing times
                     # Local imports
@@ -448,8 +448,8 @@ class TestWorkerInitialization:
         detector_config = {"min_length": 10}
 
         # Create minimal mock data files
-        os.makedirs(copyright_dir, exist_ok=True)
-        os.makedirs(renewal_dir, exist_ok=True)
+        makedirs(copyright_dir, exist_ok=True)
+        makedirs(renewal_dir, exist_ok=True)
 
         copyright_file = Path(copyright_dir) / "test.xml"
         copyright_file.write_text(

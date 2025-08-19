@@ -3,8 +3,8 @@
 """Renewal data TSV loader for publications"""
 
 # Standard library imports
-import csv
 from csv import DictReader
+from csv import Error
 from functools import cached_property
 from logging import getLogger
 from pathlib import Path
@@ -99,10 +99,10 @@ class RenewalDataLoader(YearFilterableMixin):
                     if pub:
                         publications.append(pub)
 
-        except (OSError, UnicodeDecodeError, csv.Error) as e:
+        except (OSError, UnicodeDecodeError, Error) as e:
             # OSError: file access issues
             # UnicodeDecodeError: encoding problems in TSV file
-            # csv.Error: malformed CSV/TSV data
+            # Error: malformed CSV/TSV data
             logger.warning(f"Error parsing {tsv_file}: {e}")
 
         return publications
@@ -242,7 +242,7 @@ class RenewalDataLoader(YearFilterableMixin):
                             if max_year is None or year > max_year:
                                 max_year = year
 
-            except (OSError, UnicodeDecodeError, csv.Error) as e:
+            except (OSError, UnicodeDecodeError, Error) as e:
                 # Same as above - file/CSV parsing errors
                 logger.warning(f"Error analyzing years in {tsv_file}: {e}")
                 continue

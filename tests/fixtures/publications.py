@@ -3,7 +3,7 @@
 """Shared publication fixtures and builders for tests"""
 
 # Third party imports
-import pytest
+from pytest import fixture
 
 # Local imports
 from marc_pd_tool.core.domain.enums import CopyrightStatus
@@ -152,13 +152,13 @@ class PublicationBuilder:
         return publications
 
 
-@pytest.fixture
+@fixture
 def publication_builder():
     """Fixture providing the PublicationBuilder for tests"""
     return PublicationBuilder
 
 
-@pytest.fixture
+@fixture
 def sample_publications():
     """Standard set of 3 diverse publications for testing
 
@@ -253,13 +253,13 @@ def sample_publications():
     return pubs
 
 
-@pytest.fixture
+@fixture
 def us_publication():
     """Single US publication for simple tests"""
     return PublicationBuilder.basic_us_publication()
 
 
-@pytest.fixture
+@fixture
 def non_us_publication():
     """Single non-US publication for simple tests"""
     return PublicationBuilder.basic_us_publication(

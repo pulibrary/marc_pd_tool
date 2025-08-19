@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.adapters.cli import create_argument_parser
@@ -337,7 +337,7 @@ class TestMainFunctionFullCoverage:
             and args.min_year is not None
             and args.max_year < args.min_year
         ):
-            with pytest.raises(ValueError, match="Max year .* cannot be less than min year"):
+            with raises(ValueError, match="Max year .* cannot be less than min year"):
                 raise ValueError(
                     f"Max year ({args.max_year}) cannot be less than min year ({args.min_year})"
                 )

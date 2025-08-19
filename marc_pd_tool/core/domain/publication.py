@@ -2,6 +2,9 @@
 
 """Core Publication domain entity"""
 
+# Standard library imports
+from re import sub
+
 # Local imports
 from marc_pd_tool.core.domain.enums import CopyrightStatus
 from marc_pd_tool.core.domain.enums import CopyrightStatusRule
@@ -188,8 +191,6 @@ class Publication:
         if self._cached_title is None:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_title:
-                # Standard library imports
-                import re
 
                 # Local imports
                 from marc_pd_tool.shared.utils.text_utils import (
@@ -199,7 +200,7 @@ class Publication:
                 # Remove bracketed content like [microform]
                 cleaned = remove_bracketed_content(self.original_title)
                 # Just normalize whitespace
-                self._cached_title = re.sub(r"\s+", " ", cleaned).strip()
+                self._cached_title = sub(r"\s+", " ", cleaned).strip()
             else:
                 self._cached_title = ""
         return self._cached_title
@@ -211,10 +212,8 @@ class Publication:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_author:
                 # Just normalize whitespace
-                # Standard library imports
-                import re
 
-                self._cached_author = re.sub(r"\s+", " ", self.original_author).strip()
+                self._cached_author = sub(r"\s+", " ", self.original_author).strip()
             else:
                 self._cached_author = ""
         return self._cached_author
@@ -226,10 +225,8 @@ class Publication:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_main_author:
                 # Just normalize whitespace
-                # Standard library imports
-                import re
 
-                self._cached_main_author = re.sub(r"\s+", " ", self.original_main_author).strip()
+                self._cached_main_author = sub(r"\s+", " ", self.original_main_author).strip()
             else:
                 self._cached_main_author = ""
         return self._cached_main_author
@@ -241,10 +238,8 @@ class Publication:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_publisher:
                 # Just normalize whitespace
-                # Standard library imports
-                import re
 
-                self._cached_publisher = re.sub(r"\s+", " ", self.original_publisher).strip()
+                self._cached_publisher = sub(r"\s+", " ", self.original_publisher).strip()
             else:
                 self._cached_publisher = ""
         return self._cached_publisher
@@ -256,10 +251,8 @@ class Publication:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_place:
                 # Just normalize whitespace
-                # Standard library imports
-                import re
 
-                self._cached_place = re.sub(r"\s+", " ", self.original_place).strip()
+                self._cached_place = sub(r"\s+", " ", self.original_place).strip()
             else:
                 self._cached_place = ""
         return self._cached_place
@@ -271,10 +264,8 @@ class Publication:
             # Only do minimal cleanup - the full normalization happens in SimilarityCalculator
             if self.original_edition:
                 # Just normalize whitespace
-                # Standard library imports
-                import re
 
-                self._cached_edition = re.sub(r"\s+", " ", self.original_edition).strip()
+                self._cached_edition = sub(r"\s+", " ", self.original_edition).strip()
             else:
                 self._cached_edition = ""
         return self._cached_edition

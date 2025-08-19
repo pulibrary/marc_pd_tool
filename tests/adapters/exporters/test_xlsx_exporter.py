@@ -3,14 +3,15 @@
 """Tests for XLSX export functionality"""
 
 # Standard library imports
-import os
+from os import close
 from os import remove
+from os import unlink
 from os.path import exists
-import tempfile
 from tempfile import NamedTemporaryFile
+from tempfile import mkstemp
 
 # Third party imports
-import pytest
+from pytest import fail
 
 # Local imports
 from marc_pd_tool.adapters.exporters.json_exporter import save_matches_json
@@ -19,16 +20,16 @@ from marc_pd_tool.adapters.exporters.xlsx_exporter import XLSXExporter
 
 def export_to_xlsx(publications, xlsx_file, parameters=None):
     """Helper to export publications to XLSX via JSON"""
-    temp_fd, temp_json = tempfile.mkstemp(suffix=".json")
-    os.close(temp_fd)
+    temp_fd, temp_json = mkstemp(suffix=".json")
+    close(temp_fd)
 
     try:
         save_matches_json(publications, temp_json, parameters=parameters)
         exporter = XLSXExporter(temp_json, xlsx_file, single_file=False)
         exporter.export()
     finally:
-        if os.path.exists(temp_json):
-            os.unlink(temp_json)
+        if exists(temp_json):
+            unlink(temp_json)
 
 
 class TestXLSXExporter:
@@ -190,8 +191,8 @@ class TestXLSXExporter:
 
         try:
             # Create JSON and export with single_file=True
-            temp_fd, temp_json = tempfile.mkstemp(suffix=".json")
-            os.close(temp_fd)
+            temp_fd, temp_json = mkstemp(suffix=".json")
+            close(temp_fd)
 
             save_matches_json(sample_publications, temp_json)
             exporter = XLSXExporter(temp_json, output_path, single_file=True)
@@ -212,7 +213,7 @@ class TestXLSXExporter:
             # Should have header + 3 records
             assert all_sheet.max_row == 4  # 1 header + 3 records
 
-            os.unlink(temp_json)
+            unlink(temp_json)
 
         finally:
             if exists(output_path):
@@ -350,7 +351,7 @@ class TestXLSXAvailability:
 
             assert True  # Import succeeded
         except ImportError:
-            pytest.fail("openpyxl should be available as a direct dependency")
+            fail("openpyxl should be available as a direct dependency")
 
         # Also verify XLSXExporter can be imported
         assert XLSXExporter is not None

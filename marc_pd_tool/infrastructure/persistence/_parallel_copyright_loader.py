@@ -9,6 +9,8 @@ from glob import glob
 from logging import getLogger
 from os.path import exists
 from os.path import join
+from re import match
+from re import search
 from time import time
 from xml.etree import ElementTree as ET
 
@@ -95,18 +97,16 @@ class ParallelCopyrightLoader:
             Year or None if not found
         """
         # Try to find 4-digit year in path
-        # Standard library imports
-        import re
 
-        match = re.search(r"/(\d{4})/", file_path)
-        if match:
-            return int(match.group(1))
+        year_match = search(r"/(\d{4})/", file_path)
+        if year_match:
+            return int(year_match.group(1))
 
         # Also check filename
         filename = file_path.split("/")[-1]
-        match = re.match(r"(\d{4})", filename)
-        if match:
-            return int(match.group(1))
+        year_match = match(r"(\d{4})", filename)
+        if year_match:
+            return int(year_match.group(1))
 
         return None
 

@@ -3,12 +3,13 @@
 """Tests for export functionality in the API module"""
 
 # Standard library imports
-import json
+from json import load
 from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import fixture
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.adapters.api import AnalysisResults
@@ -22,7 +23,7 @@ from marc_pd_tool.core.domain.publication import Publication
 class TestAnalysisResultsExport:
     """Test AnalysisResults export methods"""
 
-    @pytest.fixture
+    @fixture
     def sample_results(self):
         """Create sample analysis results for testing"""
         results = AnalysisResults()
@@ -83,7 +84,7 @@ class TestAnalysisResultsExport:
         assert output_file.exists()
 
         with open(output_file) as f:
-            data = json.load(f)
+            data = load(f)
 
         assert "metadata" in data
         assert "records" in data
@@ -213,7 +214,7 @@ class TestAnalysisResultsExport:
         results.export_json(str(output_file))
 
         with open(output_file) as f:
-            data = json.load(f)
+            data = load(f)
 
         assert len(data["records"]) == 1
         record = data["records"][0]
@@ -231,7 +232,7 @@ class TestMarcCopyrightAnalyzerExport:
 class TestExportErrorHandling:
     """Test error handling in export methods"""
 
-    @pytest.fixture
+    @fixture
     def sample_results(self):
         """Create sample analysis results for testing"""
         results = AnalysisResults()
@@ -246,7 +247,7 @@ class TestExportErrorHandling:
     def test_export_json_io_error(self, sample_results):
         """Test JSON export with I/O error"""
         with patch("builtins.open", side_effect=IOError("Disk full")):
-            with pytest.raises(IOError):
+            with raises(IOError):
                 sample_results.export_json("/invalid/path/results.json")
 
     def test_export_all_partial_failure(self, sample_results, tmp_path):

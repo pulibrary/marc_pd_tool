@@ -5,7 +5,7 @@
 # Standard library imports
 from datetime import datetime
 import gzip
-import json
+from json import dump
 from typing import cast
 
 # Local imports
@@ -40,15 +40,15 @@ def save_matches_json(
     if compress:
         with gzip.open(output_path, "wt", encoding="utf-8") as f:
             if pretty:
-                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+                dump(data, f, indent=2, ensure_ascii=False, default=str)
             else:
-                json.dump(data, f, ensure_ascii=False, default=str)
+                dump(data, f, ensure_ascii=False, default=str)
     else:
         with open(output_path, "w", encoding="utf-8") as f:
             if pretty:
-                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+                dump(data, f, indent=2, ensure_ascii=False, default=str)
             else:
-                json.dump(data, f, ensure_ascii=False, default=str)
+                dump(data, f, ensure_ascii=False, default=str)
 
 
 def _create_metadata(

@@ -3,7 +3,7 @@
 """Edge case tests for CopyrightDataLoader to achieve 100% coverage"""
 
 # Standard library imports
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import fromstring
 
 # Local imports
 from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
@@ -59,7 +59,7 @@ class TestCopyrightLoaderEdgeCases:
             <title>Minimal Entry</title>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         assert pub is not None
@@ -78,7 +78,7 @@ class TestCopyrightLoaderEdgeCases:
             </author>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         # Should return None for missing title
@@ -96,7 +96,7 @@ class TestCopyrightLoaderEdgeCases:
             </publisher>
         </copyrightEntry>"""
 
-        entry1 = ET.fromstring(entry_xml1)
+        entry1 = fromstring(entry_xml1)
         pub1 = loader._extract_from_entry(entry1)
         assert pub1.pub_date == "1950-12-31"
         assert pub1.year == 1950
@@ -107,7 +107,7 @@ class TestCopyrightLoaderEdgeCases:
             <regDate date="1955-06-15"/>
         </copyrightEntry>"""
 
-        entry2 = ET.fromstring(entry_xml2)
+        entry2 = fromstring(entry_xml2)
         pub2 = loader._extract_from_entry(entry2)
         assert pub2.pub_date == "1955-06-15"
         assert pub2.year == 1955
@@ -118,7 +118,7 @@ class TestCopyrightLoaderEdgeCases:
             <affDate date="1960-01-01"/>
         </copyrightEntry>"""
 
-        entry3 = ET.fromstring(entry_xml3)
+        entry3 = fromstring(entry_xml3)
         pub3 = loader._extract_from_entry(entry3)
         assert pub3.pub_date == "1960-01-01"
         assert pub3.year == 1960
@@ -131,7 +131,7 @@ class TestCopyrightLoaderEdgeCases:
             </publisher>
         </copyrightEntry>"""
 
-        entry4 = ET.fromstring(entry_xml4)
+        entry4 = fromstring(entry_xml4)
         pub4 = loader._extract_from_entry(entry4)
         assert pub4.pub_date == "1965"
         assert pub4.year == 1965
@@ -225,7 +225,7 @@ class TestCopyrightLoaderSpecialCases:
             </publisher>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         assert (
@@ -246,7 +246,7 @@ class TestCopyrightLoaderSpecialCases:
             </author>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         assert pub.title == "Title & Subtitle"  # XML entities are decoded
@@ -263,7 +263,7 @@ class TestCopyrightLoaderSpecialCases:
             <vol>Volume 3</vol>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         # Volume should be appended to title
@@ -339,7 +339,7 @@ class TestCopyrightLoaderSpecialCases:
                 <pubDate date="1950-01-01"/>
             </publisher>
         </copyrightEntry>"""
-        entry1 = ET.fromstring(entry_xml1)
+        entry1 = fromstring(entry_xml1)
         year1 = loader._extract_year_from_entry(entry1)
         assert year1 == 1950
 
@@ -347,7 +347,7 @@ class TestCopyrightLoaderSpecialCases:
         entry_xml2 = """<copyrightEntry>
             <regDate date="1960"/>
         </copyrightEntry>"""
-        entry2 = ET.fromstring(entry_xml2)
+        entry2 = fromstring(entry_xml2)
         year2 = loader._extract_year_from_entry(entry2)
         assert year2 == 1960
 
@@ -355,7 +355,7 @@ class TestCopyrightLoaderSpecialCases:
         entry_xml3 = """<copyrightEntry>
             <title>No Date Book</title>
         </copyrightEntry>"""
-        entry3 = ET.fromstring(entry_xml3)
+        entry3 = fromstring(entry_xml3)
         year3 = loader._extract_year_from_entry(entry3)
         assert year3 is None
 
@@ -368,7 +368,7 @@ class TestCopyrightLoaderSpecialCases:
             <lccn>   55012345   </lccn>
         </copyrightEntry>"""
 
-        entry = ET.fromstring(entry_xml)
+        entry = fromstring(entry_xml)
         pub = loader._extract_from_entry(entry)
 
         assert pub.lccn == "   55012345   "  # LCCN not stripped in extraction

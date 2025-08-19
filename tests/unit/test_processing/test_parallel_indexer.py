@@ -6,7 +6,7 @@
 from time import time
 
 # Third party imports
-import pytest
+from pytest import mark
 
 # Local imports
 from marc_pd_tool.application.processing.indexer import build_wordbased_index
@@ -180,7 +180,7 @@ class TestParallelIndexer:
         smith_keys = [k for k in par_index.author_index.keys() if "smith" in k.lower()]
         assert len(smith_keys) > 0
 
-    @pytest.mark.slow
+    @mark.slow
     def test_parallel_indexing_performance(self) -> None:
         """Test that parallel indexing is faster for large datasets"""
         # Create large dataset

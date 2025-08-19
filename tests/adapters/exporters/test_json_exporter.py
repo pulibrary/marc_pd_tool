@@ -3,7 +3,8 @@
 """Tests for JSON export functionality"""
 
 # Standard library imports
-import json
+from json import load
+from json import loads
 from os import remove
 from os.path import exists
 from pathlib import Path
@@ -29,7 +30,7 @@ class TestJSONExporter:
 
             # Load and verify JSON structure
             with open(output_path, "r") as f:
-                data = json.load(f)
+                data = load(f)
 
             # Check metadata
             assert "metadata" in data
@@ -81,7 +82,7 @@ class TestJSONExporter:
 
             # Verify all records are in the single file
             with open(output_path, "r") as f:
-                data = json.load(f)
+                data = load(f)
             assert data["metadata"]["total_records"] == 3
             assert len(data["records"]) == 3
 
@@ -106,7 +107,7 @@ class TestJSONExporter:
             assert "\n" not in content.strip()  # No newlines except at end
 
             # Verify it's still valid JSON
-            data = json.loads(content)
+            data = loads(content)
             assert data["metadata"]["total_records"] == 3
 
         finally:
@@ -127,7 +128,7 @@ class TestJSONExporter:
 
             # Load and verify unicode is preserved
             with open(output_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                data = load(f)
 
             assert data["records"][0]["marc"]["original"]["title"] == "Test Book with Café"
             assert data["records"][0]["marc"]["original"]["author_245c"] == "Müller, José"
@@ -153,7 +154,7 @@ class TestJSONExporter:
 
             # Load and verify compressed JSON
             with gzip.open(gz_path, "rt", encoding="utf-8") as f:
-                data = json.load(f)
+                data = load(f)
 
             assert data["metadata"]["total_records"] == 3
             assert len(data["records"]) == 3
@@ -187,7 +188,7 @@ class TestJSONExporter:
             assert "\n" not in content.strip()
 
             # Verify it's still valid JSON
-            data = json.loads(content)
+            data = loads(content)
             assert data["metadata"]["total_records"] == 3
 
         finally:
@@ -211,7 +212,7 @@ class TestJSONExporter:
             save_matches_json(sample_publications, output_path, parameters=parameters)
 
             with open(output_path, "r") as f:
-                data = json.load(f)
+                data = load(f)
 
             # Check parameters are included in metadata
             assert "parameters" in data["metadata"]
@@ -245,7 +246,7 @@ class TestJSONExporter:
             save_matches_json(sample_publications, output_path)
 
             with open(output_path, "r") as f:
-                data = json.load(f)
+                data = load(f)
 
             # Check match type counts
             counts = data["metadata"]["match_type_counts"]

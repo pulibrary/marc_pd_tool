@@ -6,8 +6,7 @@
 from unittest.mock import Mock
 
 # Third party imports
-# Third-party imports
-import pytest
+from pytest import fixture
 
 # Local imports
 from marc_pd_tool.application.processing.matching._score_combiner import ScoreCombiner
@@ -17,7 +16,7 @@ from marc_pd_tool.infrastructure.config import ConfigLoader
 class TestScoreCombiner:
     """Test the ScoreCombiner class"""
 
-    @pytest.fixture
+    @fixture
     def mock_config(self):
         """Create a mock configuration loader"""
         config = Mock(spec=ConfigLoader)
@@ -33,7 +32,7 @@ class TestScoreCombiner:
         }
         return config
 
-    @pytest.fixture
+    @fixture
     def mock_config_with_scenarios(self):
         """Create a mock configuration with scoring weight scenarios"""
         config = Mock(spec=ConfigLoader)
@@ -61,7 +60,7 @@ class TestScoreCombiner:
         config.get_scoring_weights = Mock(side_effect=mock_get_scoring_weights)
         return config
 
-    @pytest.fixture
+    @fixture
     def mock_config_no_scenarios(self):
         """Create a mock configuration that returns None for scoring weights"""
         config = Mock(spec=ConfigLoader)
@@ -78,14 +77,14 @@ class TestScoreCombiner:
         config.get_scoring_weights = Mock(return_value=None)
         return config
 
-    @pytest.fixture
+    @fixture
     def mock_config_missing_weights(self):
         """Create a mock configuration with missing weight values"""
         config = Mock(spec=ConfigLoader)
         config.config = {"matching": {"adaptive_weighting": {}}}  # No weights defined
         return config
 
-    @pytest.fixture
+    @fixture
     def mock_config_partial_weights(self):
         """Create a mock configuration with partial weight values"""
         config = Mock(spec=ConfigLoader)

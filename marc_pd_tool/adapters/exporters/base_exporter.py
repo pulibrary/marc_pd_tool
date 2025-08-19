@@ -6,7 +6,7 @@
 from abc import ABC
 from abc import abstractmethod
 import gzip
-import json
+from json import load
 from pathlib import Path
 from typing import cast
 
@@ -51,10 +51,10 @@ class BaseJSONExporter(ABC):
 
         if path.suffix == ".gz" or str(path).endswith(".json.gz"):
             with gzip.open(json_path, "rt", encoding="utf-8") as f:
-                return cast(JSONDict, json.load(f))
+                return cast(JSONDict, load(f))
         else:
             with open(json_path, "r", encoding="utf-8") as f:
-                return cast(JSONDict, json.load(f))
+                return cast(JSONDict, load(f))
 
     @abstractmethod
     def export(self) -> None:

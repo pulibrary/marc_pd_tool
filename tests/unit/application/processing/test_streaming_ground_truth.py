@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import fixture
 
 # Local imports
 from marc_pd_tool.application.processing.ground_truth_extractor import (
@@ -23,7 +23,7 @@ from marc_pd_tool.core.domain.publication import Publication
 class TestStreamingGroundTruthExtractor:
     """Test streaming functionality in ground truth extraction"""
 
-    @pytest.fixture
+    @fixture
     def sample_marc_publications(self) -> list[Publication]:
         """Sample MARC publications with LCCNs for testing"""
         return [
@@ -74,7 +74,7 @@ class TestStreamingGroundTruthExtractor:
             ),
         ]
 
-    @pytest.fixture
+    @fixture
     def sample_copyright_publications(self) -> list[Publication]:
         """Sample copyright publications with matching LCCNs"""
         return [
@@ -110,7 +110,7 @@ class TestStreamingGroundTruthExtractor:
             ),
         ]
 
-    @pytest.fixture
+    @fixture
     def sample_renewal_publications(self) -> list[Publication]:
         """Sample renewal publications with matching LCCNs"""
         return [

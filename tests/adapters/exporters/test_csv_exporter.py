@@ -5,12 +5,12 @@
 # Standard library imports
 from csv import reader
 from csv import writer
-import json
+from json import dump
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 # Third party imports
-import pytest
+from pytest import fixture
 
 # Local imports
 from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
@@ -19,7 +19,7 @@ from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
 class TestCSVExporter:
     """Test CSV export functionality"""
 
-    @pytest.fixture
+    @fixture
     def sample_json_data(self):
         """Create sample JSON data structure"""
         return {
@@ -112,7 +112,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(sample_json_data, f)
+                dump(sample_json_data, f)
 
             output_path = Path(temp_dir) / "output.csv"
 
@@ -149,7 +149,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(sample_json_data, f)
+                dump(sample_json_data, f)
 
             output_path = Path(temp_dir) / "output.csv"
 
@@ -186,7 +186,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(sample_json_data, f)
+                dump(sample_json_data, f)
 
             output_path = Path(temp_dir) / "output.csv"
 
@@ -252,7 +252,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "output.csv"
 
@@ -280,7 +280,7 @@ class TestCSVExporter:
             # Create empty JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -354,7 +354,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -386,7 +386,7 @@ class TestCSVExporter:
             # Create empty JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=False
@@ -406,7 +406,7 @@ class TestCSVExporter:
             # Create empty JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             output_path = Path(temp_dir) / "empty.csv"
 
@@ -446,7 +446,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "minimal.csv"
 
@@ -492,7 +492,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -531,7 +531,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=False
@@ -561,7 +561,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -588,7 +588,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -627,7 +627,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -662,7 +662,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -692,7 +692,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -727,7 +727,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             exporter = CSVExporter(
                 json_path=str(json_path), output_path="test.csv", single_file=True
@@ -744,7 +744,7 @@ class TestCSVExporter:
             # Create empty JSON file
             json_path = Path(temp_dir) / "empty.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump({"metadata": {}, "records": []}, f)
+                dump({"metadata": {}, "records": []}, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -793,7 +793,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -840,7 +840,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -877,7 +877,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -912,7 +912,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -946,7 +946,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -975,7 +975,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -1009,7 +1009,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -1057,7 +1057,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -1094,7 +1094,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 
@@ -1135,7 +1135,7 @@ class TestCSVExporter:
             # Create JSON file
             json_path = Path(temp_dir) / "test_data.json"
             with open(json_path, "w", encoding="utf-8") as f:
-                json.dump(json_data, f)
+                dump(json_data, f)
 
             output_path = Path(temp_dir) / "test.csv"
 

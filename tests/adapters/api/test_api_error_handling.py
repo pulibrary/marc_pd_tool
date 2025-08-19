@@ -3,12 +3,14 @@
 """Tests for error handling in the API module"""
 
 # Standard library imports
-import pickle
+from pickle import UnpicklingError
+from pickle import dump
+from pickle import load
 from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.adapters.api import AnalysisResults
@@ -26,7 +28,7 @@ class TestAnalysisResultsErrorHandling:
         results = AnalysisResults()
 
         # Adding None should raise AttributeError
-        with pytest.raises(AttributeError):
+        with raises(AttributeError):
             results.add_publication(None)
 
     # Test removed - AnalysisResults doesn't have export_json method
@@ -62,11 +64,11 @@ class TestFileOperationErrors:
         corrupt_file = tmp_path / "corrupt.pkl"
         corrupt_file.write_bytes(b"corrupted data")
 
-        with patch("pickle.load", side_effect=pickle.UnpicklingError("Bad data")):
+        with patch("pickle.load", side_effect=UnpicklingError("Bad data")):
             # Should handle corrupted files
             with open(corrupt_file, "rb") as f:
-                with pytest.raises(pickle.UnpicklingError):
-                    pickle.load(f)
+                with raises(UnpicklingError):
+                    load(f)
 
     # Tests for configuration error handling removed - they test parameters that don't exist in the public API
 
@@ -82,10 +84,13 @@ class TestFileOperationErrors:
 
         # Simulate memory error during aggregation
         with patch.object(results, "publications", large_pubs):
-            with patch("pickle.dump", side_effect=MemoryError("Cannot serialize")):
+            with patch(
+                "tests.adapters.api.test_api_error_handling.dump",
+                side_effect=MemoryError("Cannot serialize"),
+            ):
                 # Should handle memory error
                 output_file = tmp_path / "large_results.pkl"
 
-                with pytest.raises(MemoryError):
+                with raises(MemoryError):
                     with open(output_file, "wb") as f:
-                        pickle.dump(results, f)
+                        dump(results, f)

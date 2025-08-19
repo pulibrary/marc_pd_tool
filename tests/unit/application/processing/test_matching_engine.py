@@ -17,7 +17,8 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import fixture
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.application.models.batch_stats import BatchStats
@@ -833,7 +834,7 @@ class TestPublishingAbbreviations:
 class TestSimilarityCalculator:
     """Test enhanced word-based similarity calculation"""
 
-    @pytest.fixture
+    @fixture
     def mock_config(self):
         """Create a mock configuration"""
         config = MagicMock(spec=ConfigLoader)
@@ -859,7 +860,7 @@ class TestSimilarityCalculator:
         }
         return config
 
-    @pytest.fixture
+    @fixture
     def calculator(self, mock_config):
         """Create calculator with mock config"""
         return SimilarityCalculator(mock_config)
@@ -1122,7 +1123,7 @@ class TestWorkerInitialization:
             mock_instance.get_cached_indexes.return_value = None
 
             # This should raise RuntimeError
-            with pytest.raises(RuntimeError, match="Failed to load indexes from cache"):
+            with raises(RuntimeError, match="Failed to load indexes from cache"):
                 init_worker(
                     cache_dir="/cache",
                     copyright_dir="/copyright",
@@ -1138,7 +1139,7 @@ class TestWorkerInitialization:
 class TestDataMatcher:
     """Test enhanced word-based matching engine"""
 
-    @pytest.fixture
+    @fixture
     def mock_config(self):
         """Create a mock configuration"""
         config = MagicMock(spec=ConfigLoader)
@@ -1173,7 +1174,7 @@ class TestDataMatcher:
         }.get(scenario, {"title": 0.6, "author": 0.25, "publisher": 0.15})
         return config
 
-    @pytest.fixture
+    @fixture
     def marc_pub(self):
         """Create a sample MARC publication"""
         return Publication(
@@ -1187,7 +1188,7 @@ class TestDataMatcher:
             country_classification=CountryClassification.US,
         )
 
-    @pytest.fixture
+    @fixture
     def copyright_pubs(self):
         """Create sample copyright publications"""
         return [
@@ -3054,7 +3055,7 @@ class TestProcessBatch:
             ),
         ):
             # Expect the exception to be raised
-            with pytest.raises(UnpicklingError):
+            with raises(UnpicklingError):
                 process_batch(batch_info)
 
 
@@ -3097,7 +3098,7 @@ class TestSkipNoYearRecords:
         matching_engine._worker_config = get_config()  # Use actual Config object
         matching_engine._worker_options = None  # Add worker options
 
-    @pytest.fixture
+    @fixture
     def mock_batch_info_with_year(self, tmp_path):
         """Create batch info with MARC records that have year data"""
         # Create minimal cache directory structure
@@ -3142,7 +3143,7 @@ class TestSkipNoYearRecords:
         )
         return batch_info
 
-    @pytest.fixture
+    @fixture
     def mock_batch_info_no_year(self, tmp_path):
         """Create batch info with MARC records that lack year data"""
         # Create minimal cache directory structure

@@ -7,7 +7,10 @@ from functools import cached_property
 from logging import getLogger
 from pathlib import Path
 from re import search
-import xml.etree.ElementTree as ET
+from xml.etree.ElementTree import Element
+from xml.etree.ElementTree import ParseError
+from xml.etree.ElementTree import iterparse
+from xml.etree.ElementTree import parse
 
 # Local imports
 from marc_pd_tool.core.domain.publication import Publication
@@ -95,7 +98,7 @@ class CopyrightDataLoader(YearFilterableMixin):
         publications = []
 
         try:
-            tree = ET.parse(xml_file)
+            tree = parse(xml_file)
             root = tree.getroot()
 
             for entry in root.findall(".//copyrightEntry"):
@@ -103,15 +106,15 @@ class CopyrightDataLoader(YearFilterableMixin):
                 if pub:
                     publications.append(pub)
 
-        except (ET.ParseError, OSError, UnicodeDecodeError) as e:
-            # ET.ParseError: malformed XML
+        except (ParseError, OSError, UnicodeDecodeError) as e:
+            # ParseError: malformed XML
             # OSError: file access issues
             # UnicodeDecodeError: encoding problems
             logger.warning(f"Error parsing {xml_file}: {e}")
 
         return publications
 
-    def _extract_from_entry(self, entry: ET.Element) -> Publication | None:
+    def _extract_from_entry(self, entry: Element) -> Publication | None:
         try:
             # Extract title
             title_elem = entry.find(".//title")
@@ -214,7 +217,7 @@ class CopyrightDataLoader(YearFilterableMixin):
         for xml_file in xml_files:
             try:
                 # Use iterparse for memory efficiency with large files
-                context = ET.iterparse(xml_file, events=("start", "end"))
+                context = iterparse(xml_file, events=("start", "end"))
                 event, root = next(context)
 
                 for event, elem in context:
@@ -233,7 +236,7 @@ class CopyrightDataLoader(YearFilterableMixin):
                         elem.clear()
                         root.clear()
 
-            except (ET.ParseError, OSError, UnicodeDecodeError) as e:
+            except (ParseError, OSError, UnicodeDecodeError) as e:
                 # Same as above - XML parsing errors
                 logger.warning(f"Error analyzing years in {xml_file}: {e}")
                 continue
@@ -248,7 +251,7 @@ class CopyrightDataLoader(YearFilterableMixin):
 
         return min_year, max_year
 
-    def _extract_year_from_entry(self, entry: ET.Element) -> int | None:
+    def _extract_year_from_entry(self, entry: Element) -> int | None:
         """Extract year from a copyright entry without creating Publication object
 
         Args:

@@ -4,6 +4,8 @@
 
 # Standard library imports
 from json import dumps
+from os import unlink
+from re import compile
 from tempfile import NamedTemporaryFile
 
 # Local imports
@@ -64,10 +66,8 @@ class TestConfigLoader:
             assert config.get_threshold("publisher") == 60  # Default value
 
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(config_path)
+            unlink(config_path)
 
     def test_partial_config_override(self):
         """Test that partial configuration overrides work with defaults"""
@@ -92,10 +92,8 @@ class TestConfigLoader:
             assert weights["title"] == 0.6
 
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(config_path)
+            unlink(config_path)
 
     def test_invalid_config_file(self):
         """Test graceful handling of invalid JSON files"""
@@ -109,10 +107,8 @@ class TestConfigLoader:
             assert config.get_threshold("title") == 40  # Default value
 
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(config_path)
+            unlink(config_path)
 
     def test_missing_config_file(self):
         """Test handling of missing configuration file"""
@@ -179,10 +175,8 @@ class TestConfigLoader:
             assert weights["author"] == 0.2  # Overridden
             assert weights["publisher"] == 0.1  # Overridden
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(config_path)
+            unlink(config_path)
 
     def test_generic_detector_config(self):
         """Test generic title detector configuration access"""
@@ -255,11 +249,8 @@ class TestConfigLoaderCachedProperties:
         assert isinstance(regex, str)
         # Should generate a valid regex pattern
         if regex:
-            # Standard library imports
-            import re
-
             # Should be compilable
-            re.compile(regex)
+            compile(regex)
 
     def test_publisher_suffix_regex_with_special_words(self):
         """Test publisher suffix regex handles special words"""
@@ -288,10 +279,8 @@ class TestConfigLoaderCachedProperties:
             assert "press" in regex
             assert "company" in regex
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(temp_path)
+            unlink(temp_path)
 
     def test_title_processing(self):
         """Test title processing configuration property"""
@@ -339,7 +328,5 @@ class TestConfigLoaderCachedProperties:
             assert loader.publisher_suffix_regex == ""
 
         finally:
-            # Standard library imports
-            import os
 
-            os.unlink(temp_path)
+            unlink(temp_path)

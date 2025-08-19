@@ -3,14 +3,14 @@
 """Tests for API core functionality"""
 
 # Standard library imports
-import json
+from json import dumps
 from pathlib import Path
-import pickle
+from pickle import dump
 from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import mark
 
 # Local imports
 from marc_pd_tool.adapters.api import AnalysisResults
@@ -96,7 +96,7 @@ class TestMarcCopyrightAnalyzer:
         """Test analyzer initialization with custom config"""
         config_path = tmp_path / "test_config.json"
         config_data = {"default_thresholds": {"title": 50, "author": 40}}
-        config_path.write_text(json.dumps(config_data))
+        config_path.write_text(dumps(config_data))
 
         analyzer = MarcCopyrightAnalyzer(config_path=str(config_path))
         assert analyzer.config.get_threshold("title") == 50
@@ -246,7 +246,7 @@ class TestMarcCopyrightAnalyzer:
 class TestWorkerFunctions:
     """Test worker-related functions"""
 
-    @pytest.mark.skip(reason="Requires full multiprocessing setup with cached indexes")
+    @mark.skip(reason="Requires full multiprocessing setup with cached indexes")
     def test_process_batch(self, tmp_path):
         """Test process_batch function"""
         # Create test batch file
@@ -262,7 +262,7 @@ class TestWorkerFunctions:
         ]
 
         with open(batch_path, "wb") as f:
-            pickle.dump(test_pubs, f)
+            dump(test_pubs, f)
 
         # Create directories
         cache_dir = tmp_path / "cache"

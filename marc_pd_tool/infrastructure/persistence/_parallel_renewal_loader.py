@@ -5,12 +5,13 @@
 # Standard library imports
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import as_completed
-import csv
 from csv import DictReader
+from csv import Error
 from glob import glob
 from logging import getLogger
 from os.path import exists
 from os.path import join
+from re import match
 from time import time
 
 # Local imports
@@ -99,12 +100,9 @@ class ParallelRenewalLoader:
         filename = file_path.split("/")[-1].replace(".tsv", "")
 
         # Try to find 4-digit year at start of filename
-        # Standard library imports
-        import re
-
-        match = re.match(r"^(\d{4})", filename)
-        if match:
-            return int(match.group(1))
+        year_match = match(r"^(\d{4})", filename)
+        if year_match:
+            return int(year_match.group(1))
 
         return None
 
@@ -308,10 +306,10 @@ def _load_single_tsv_file_static(
                     logger.debug(f"Error extracting from row in {file_path}: {e}")
                     continue
 
-    except (OSError, UnicodeDecodeError, csv.Error) as e:
+    except (OSError, UnicodeDecodeError, Error) as e:
         # OSError: file access issues
         # UnicodeDecodeError: encoding problems in TSV file
-        # csv.Error: malformed CSV/TSV data
+        # Error: malformed CSV/TSV data
         logger.warning(f"Error parsing {file_path}: {e}")
 
     return publications

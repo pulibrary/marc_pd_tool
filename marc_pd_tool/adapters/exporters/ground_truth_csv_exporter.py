@@ -3,7 +3,7 @@
 """CSV export for ground truth data using standard Publication/MatchResult structure"""
 
 # Standard library imports
-import csv
+from csv import DictWriter
 from logging import getLogger
 from os.path import splitext
 
@@ -79,7 +79,7 @@ def export_ground_truth_csv(publications: list[Publication], output_path: str) -
 
     # Write CSV
     with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer = DictWriter(csvfile, fieldnames=headers)
         writer.writeheader()
 
         for marc in publications:

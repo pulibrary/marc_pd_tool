@@ -10,7 +10,8 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import fixture
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.adapters.api._ground_truth import GroundTruthComponent
@@ -57,12 +58,12 @@ class MockAnalyzer(GroundTruthComponent):
 class TestGroundTruthComponent:
     """Test suite for GroundTruthComponent"""
 
-    @pytest.fixture
+    @fixture
     def mock_analyzer(self):
         """Create a mock analyzer with required protocol attributes"""
         return MockAnalyzer()
 
-    @pytest.fixture
+    @fixture
     def sample_publications(self):
         """Create sample publication data for testing"""
         marc_pub = Publication(
@@ -413,7 +414,7 @@ class TestGroundTruthComponent:
         """Test export raises error when no ground truth pairs available"""
         mock_analyzer.results.ground_truth_pairs = []
 
-        with pytest.raises(ValueError, match="No ground truth pairs available to export"):
+        with raises(ValueError, match="No ground truth pairs available to export"):
             mock_analyzer.export_ground_truth_analysis(output_path="test_output")
 
     def test_export_ground_truth_analysis_unknown_format(self, mock_analyzer):
@@ -618,7 +619,7 @@ class TestGroundTruthComponent:
         """Test _export_ground_truth_json raises when called directly with no pairs"""
         mock_analyzer.results.ground_truth_pairs = None
 
-        with pytest.raises(ValueError, match="No ground truth pairs available"):
+        with raises(ValueError, match="No ground truth pairs available"):
             # Override the mock to call the real implementation
             GroundTruthComponent._export_ground_truth_json(mock_analyzer, "test.json")
 

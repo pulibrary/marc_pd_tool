@@ -11,6 +11,9 @@ This module consolidates all text-related utility tests including:
 - Property-based tests for all text functions
 """
 
+# Standard library imports
+from re import search
+
 # Third party imports
 from hypothesis import given
 from hypothesis import strategies as st
@@ -450,11 +453,9 @@ class TestBracketedContentRemovalProperties:
         # But unmatched brackets may still exist (e.g., '][' -> '][')
 
         # Check that there are no complete bracketed sections
-        # Standard library imports
-        import re
 
         # This pattern matches complete bracketed content
-        assert not re.search(r"\[[^\[\]]*\]", result)
+        assert not search(r"\[[^\[\]]*\]", result)
 
     @given(st.text())
     def test_remove_bracketed_content_handles_any_input(self, text: str) -> None:
@@ -537,11 +538,9 @@ class TestNormalizeWordSplitsProperties:
         """Single letters separated by spaces should be joined"""
         result = normalize_word_splits(text)
         # Count single letter sequences in input
-        # Standard library imports
-        import re
 
         single_letter_pattern = r"\b[a-z]\s+[a-z]\b"
-        if re.search(single_letter_pattern, text):
+        if search(single_letter_pattern, text):
             # Should have fewer spaces in result
             assert result.count(" ") < text.count(" ")
 

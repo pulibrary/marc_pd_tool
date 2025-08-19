@@ -18,7 +18,7 @@ from unittest.mock import patch
 # Third party imports
 from hypothesis import given
 from hypothesis import strategies as st
-import pytest
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.application.processing.indexer import (
@@ -713,7 +713,7 @@ class TestGenericTitleDetector:
             mock_cfg.generic_title_patterns = set()
             mock_config.return_value = mock_cfg
 
-            with pytest.raises(ValueError, match="No generic title patterns found"):
+            with raises(ValueError, match="No generic title patterns found"):
                 GenericTitleDetector()
 
     def test_init_with_config_object(self):

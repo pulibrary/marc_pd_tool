@@ -12,7 +12,7 @@ from shutil import rmtree
 from tempfile import mkdtemp
 
 # Third party imports
-import pytest
+from pytest import fixture
 
 
 # Custom markers
@@ -28,7 +28,7 @@ def pytest_collection_modifyitems(config, items):
     pass  # No automatic marking needed anymore
 
 
-@pytest.fixture(autouse=True, scope="function")
+@fixture(autouse=True, scope="function")
 def basic_isolation():
     """Minimal isolation for most tests - just reset logging"""
     # Reset logging to avoid handler conflicts
@@ -47,7 +47,7 @@ def basic_isolation():
     yield
 
 
-@pytest.fixture(scope="class")
+@fixture(scope="class")
 def class_isolation(request):
     """Class-level isolation for groups of related tests"""
     # Store original working directory
@@ -62,7 +62,7 @@ def class_isolation(request):
     rmtree(class_temp_dir, ignore_errors=True)
 
 
-@pytest.fixture
+@fixture
 def full_isolation(monkeypatch):
     """Full test isolation - only for tests that really need it"""
     # Store original working directory
@@ -80,7 +80,7 @@ def full_isolation(monkeypatch):
     # No cleanup needed since we didn't change directory
 
 
-@pytest.fixture
+@fixture
 def temp_test_dir():
     """Provide a temporary directory for tests that need file operations"""
     temp_dir = mkdtemp()
@@ -88,7 +88,7 @@ def temp_test_dir():
     rmtree(temp_dir, ignore_errors=True)
 
 
-@pytest.fixture
+@fixture
 def mock_cache_dir(tmp_path):
     """Provide a mock cache directory"""
     cache_dir = tmp_path / "test_cache"

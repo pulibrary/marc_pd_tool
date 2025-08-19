@@ -7,7 +7,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Third party imports
-import pytest
+from pytest import raises
 
 # Local imports
 from marc_pd_tool.cli import log_run_summary  # Use compatibility wrapper
@@ -101,7 +101,7 @@ class TestMainFunction:
         ]
 
         with patch("sys.argv", test_args):
-            with pytest.raises(ValueError, match="Max year.*cannot be less than min year"):
+            with raises(ValueError, match="Max year.*cannot be less than min year"):
                 main()
 
     def test_main_with_score_everything_mode(self):
@@ -473,7 +473,7 @@ class TestProcessingErrors:
                         mock_run_index.return_value.update_run.return_value = None
 
                         # Should raise the exception
-                        with pytest.raises(Exception, match="Processing failed"):
+                        with raises(Exception, match="Processing failed"):
                             main()
 
     def test_main_with_min_year_logging(self):

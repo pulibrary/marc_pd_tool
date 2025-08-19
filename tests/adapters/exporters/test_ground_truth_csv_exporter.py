@@ -3,7 +3,7 @@
 """Tests for ground truth CSV export functionality"""
 
 # Standard library imports
-import csv
+from csv import DictReader
 from os.path import exists
 from os.path import join
 from tempfile import TemporaryDirectory
@@ -86,7 +86,7 @@ class TestGroundTruthCSVExport:
 
             # Read and verify content
             with open(output_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = DictReader(f)
                 rows = list(reader)
 
                 assert len(rows) == 1
@@ -122,7 +122,7 @@ class TestGroundTruthCSVExport:
             export_ground_truth_csv(sample_ground_truth_publications, output_path)
 
             with open(output_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = DictReader(f)
                 row = next(reader)
 
                 # Check normalized fields exist
@@ -149,7 +149,7 @@ class TestGroundTruthCSVExport:
             export_ground_truth_csv([], output_path)
 
             with open(output_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = DictReader(f)
                 headers = reader.fieldnames
 
                 # Check MARC headers
@@ -204,7 +204,7 @@ class TestGroundTruthCSVExport:
             export_ground_truth_csv([marc_record], output_path)
 
             with open(output_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = DictReader(f)
                 row = next(reader)
 
                 assert row["match_type"] == "renewal"
@@ -235,7 +235,7 @@ class TestGroundTruthCSVExport:
             export_ground_truth_csv([marc_record], output_path)
 
             with open(output_path, "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
+                reader = DictReader(f)
                 row = next(reader)
 
                 # Check that missing fields are empty strings

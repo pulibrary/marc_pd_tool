@@ -5,7 +5,9 @@
 # Standard library imports
 from logging import getLogger
 from os import unlink
+from pathlib import Path
 from pickle import load
+from shutil import rmtree
 from tempfile import NamedTemporaryFile
 from typing import cast
 
@@ -131,13 +133,11 @@ class AnalysisResults(BaseModel):
         """Clean up temporary result files and directory"""
         if self.result_temp_dir:
             # Standard library imports
-            from pathlib import Path
-            import shutil
 
             temp_path = Path(self.result_temp_dir)
             if temp_path.exists():
                 try:
-                    shutil.rmtree(temp_path)
+                    rmtree(temp_path)
                     logger.debug(f"Cleaned up temporary directory: {self.result_temp_dir}")
                 except Exception as e:
                     logger.warning(f"Failed to clean up temp directory {self.result_temp_dir}: {e}")

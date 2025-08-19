@@ -3,7 +3,7 @@
 """Pydantic models for wordlists configuration"""
 
 # Standard library imports
-import json
+from json import load
 from pathlib import Path
 
 # Third party imports
@@ -89,13 +89,13 @@ class WordlistsConfig(BaseModel):
         if wordlists_path.exists():
             try:
                 with open(wordlists_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    data = load(f)
                 return cls.model_validate(data)
             except Exception as e:
                 # Standard library imports
-                import logging
+                from logging import getLogger
 
-                logging.getLogger(__name__).warning(
+                getLogger(__name__).warning(
                     f"Failed to load wordlists from {wordlists_path}: {e}. Using defaults."
                 )
 
