@@ -558,3 +558,13 @@ For large datasets:
 
 - Python 3.13.5 or later required
 - No backward compatibility guarantees
+
+## Testing and Quality Assurance
+
+When modifying the matching algorithm:
+
+1. Run the standard test suite: `pdm test`
+1. Run regression tests: `pdm run test-regression`
+1. Update baselines if changes are intentional: `pdm run python scripts/generate_baseline_scores.py`
+
+See [tests/regression/README.md](../tests/regression/README.md) for details on the regression testing system.

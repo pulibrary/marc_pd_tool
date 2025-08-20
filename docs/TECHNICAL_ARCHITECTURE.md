@@ -340,6 +340,22 @@ Tests mirror the hexagonal architecture:
 - Property-based testing for data access
 - Integration tests for end-to-end workflows
 
+### Regression Testing
+
+The project includes a comprehensive regression testing system to validate matching algorithm changes against known baselines:
+
+- **Location**: `tests/regression/` with detailed documentation in [tests/regression/README.md](../tests/regression/README.md)
+- **Baseline Data**: ~20,000 known correct matches with pre-calculated scores
+- **Purpose**: Detect algorithm regressions and validate improvements
+- **Execution**: Separate from main test suite via `pdm run test-regression`
+
+Key features:
+
+- Uses actual `CoreMatcher` implementation to avoid logic duplication
+- Tracks individual field scores (title, author, publisher) and combined scores
+- Provides statistical analysis of score distributions
+- Automatically flags improvements vs regressions
+
 ### Mocking Strategy
 
 Tests use dependency injection and mocking to isolate layers:

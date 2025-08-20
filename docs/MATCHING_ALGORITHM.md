@@ -220,6 +220,21 @@ To get the best results:
 1. Consider the copyright status as guidance requiring legal review for important decisions
 1. Use the `--score-everything` option to see best matches even below thresholds
 
+## Quality Assurance and Testing
+
+### Regression Testing
+
+The tool includes a comprehensive regression testing system to ensure the matching algorithm maintains accuracy and catches any unintended changes. This system uses approximately 20,000 known correct matches as a baseline.
+
+For detailed information about the regression testing system, see [tests/regression/README.md](../tests/regression/README.md).
+
+Key features:
+
+- Baseline scoring against known matches
+- Detection of algorithm improvements vs regressions
+- Statistical analysis of score distributions
+- Separate test suite that doesn't run with regular tests
+
 ## Output Interpretation
 
 The tool provides several pieces of information for each record:

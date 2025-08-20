@@ -105,13 +105,48 @@ class CoreMatcher(ConfigurableMixin):
                 continue
 
             # Calculate author score and check threshold
+            # Try both author fields and use the best match
             author_score = 0.0
-            # Only check author threshold if at least one has author data
+
+            # Score 1: Compare main_author (100/110) fields
+            if marc_pub.main_author or copyright_pub.main_author:
+                main_author_score = self.similarity_calculator.calculate_similarity(
+                    marc_pub.main_author, copyright_pub.main_author, "author", language
+                )
+            else:
+                main_author_score = 0.0
+
+            # Score 2: Compare author (245c) fields
             if marc_pub.author or copyright_pub.author:
-                author_score = self.similarity_calculator.calculate_similarity(
+                regular_author_score = self.similarity_calculator.calculate_similarity(
                     marc_pub.author, copyright_pub.author, "author", language
                 )
+            else:
+                regular_author_score = 0.0
 
+            # Score 3: Cross-compare main_author with author
+            if marc_pub.main_author and copyright_pub.author:
+                cross_score_1 = self.similarity_calculator.calculate_similarity(
+                    marc_pub.main_author, copyright_pub.author, "author", language
+                )
+            else:
+                cross_score_1 = 0.0
+
+            # Score 4: Cross-compare author with main_author
+            if marc_pub.author and copyright_pub.main_author:
+                cross_score_2 = self.similarity_calculator.calculate_similarity(
+                    marc_pub.author, copyright_pub.main_author, "author", language
+                )
+            else:
+                cross_score_2 = 0.0
+
+            # Use the best score from all comparisons
+            author_score = max(
+                main_author_score, regular_author_score, cross_score_1, cross_score_2
+            )
+
+            # Only check author threshold if we have some author data
+            if author_score > 0:
                 # Skip if author doesn't meet threshold
                 if author_score < author_threshold:
                     continue
@@ -145,9 +180,16 @@ class CoreMatcher(ConfigurableMixin):
 
             # Check for early exit (perfect match)
             # If no author data exists, ignore author early exit threshold
+            # Check both author fields for presence of data
+            has_author_data = (
+                marc_pub.author
+                or marc_pub.main_author
+                or copyright_pub.author
+                or copyright_pub.main_author
+            )
             author_check = (
                 early_exit_author is None  # No author threshold set
-                or not (marc_pub.author or copyright_pub.author)  # No author data
+                or not has_author_data  # No author data in any field
                 or author_score >= early_exit_author  # Author score meets threshold
             )
 
@@ -230,9 +272,42 @@ class CoreMatcher(ConfigurableMixin):
                 marc_pub.title, copyright_pub.title, "title", language
             )
 
-            author_score = self.similarity_calculator.calculate_similarity(
-                marc_pub.author, copyright_pub.author, "author", language
-            )
+            # Try all author field combinations and use the best score
+            author_scores = []
+
+            # Compare main_author fields
+            if marc_pub.main_author or copyright_pub.main_author:
+                author_scores.append(
+                    self.similarity_calculator.calculate_similarity(
+                        marc_pub.main_author, copyright_pub.main_author, "author", language
+                    )
+                )
+
+            # Compare author (245c) fields
+            if marc_pub.author or copyright_pub.author:
+                author_scores.append(
+                    self.similarity_calculator.calculate_similarity(
+                        marc_pub.author, copyright_pub.author, "author", language
+                    )
+                )
+
+            # Cross-compare main_author with author
+            if marc_pub.main_author and copyright_pub.author:
+                author_scores.append(
+                    self.similarity_calculator.calculate_similarity(
+                        marc_pub.main_author, copyright_pub.author, "author", language
+                    )
+                )
+
+            # Cross-compare author with main_author
+            if marc_pub.author and copyright_pub.main_author:
+                author_scores.append(
+                    self.similarity_calculator.calculate_similarity(
+                        marc_pub.author, copyright_pub.main_author, "author", language
+                    )
+                )
+
+            author_score = max(author_scores) if author_scores else 0.0
 
             publisher_score = 0.0
             if marc_pub.publisher and copyright_pub.publisher:
