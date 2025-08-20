@@ -192,10 +192,14 @@ clean = { shell = '''
         -o -name ".mypy_cache" \
         -o -name ".hypothesis" \
         -o -name ".pdm-build" \
-        -o -name ".coverage" \
+        -o -name ".coverage*" \
         -o -name ".DS_Store" \
         | xargs rm -r
 '''}
 # Black can't ignore submodules. Below is the hack:
-submod_clean = { shell = "cd ./nypl-ren ; git checkout . -q ; cd ../nypl-reg ; git checkout . -q ; cd ../" }
+submod_clean = { shell = '''
+    cd ./nypl-ren ; git checkout . -q ; \
+    cd ../nypl-reg ; git checkout . -q ; \
+    cd ../
+'''}
 format = { composite = [ "autoflake", "black", "isort", "mdformat",  "headers", "submod_clean" ] }
