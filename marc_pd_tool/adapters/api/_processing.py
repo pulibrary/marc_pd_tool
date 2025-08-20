@@ -310,7 +310,8 @@ class ProcessingComponent:
                     }
 
                 # Create pool with platform-specific arguments
-                with Pool(**pool_args) as pool:  # type: ignore[arg-type]
+                pool = Pool(**pool_args)  # type: ignore[arg-type]
+                try:
                     logger.info(
                         f"Starting parallel processing: {total_batches} batches across {num_processes} workers"
                     )
@@ -410,6 +411,20 @@ class ProcessingComponent:
                         except Exception as e:
                             logger.error(f"Error processing batch {batch_id_result}: {e}")
                             raise
+
+                except KeyboardInterrupt:
+                    logger.warning("Processing interrupted by user - terminating workers...")
+                    pool.terminate()  # Forcefully terminate all workers
+                    pool.join(timeout=2)  # Wait up to 2 seconds for cleanup
+                    raise
+                except Exception as e:
+                    logger.error(f"Processing failed: {e}")
+                    pool.terminate()
+                    pool.join(timeout=2)
+                    raise
+                finally:
+                    pool.close()  # No more tasks will be submitted
+                    pool.join(timeout=5)  # Wait for remaining tasks to complete
 
         except KeyboardInterrupt:
             logger.warning("Processing interrupted by user")

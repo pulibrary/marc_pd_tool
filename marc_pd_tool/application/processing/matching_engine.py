@@ -137,6 +137,12 @@ def init_worker(
 
     This function is called once per worker process to load the shared indexes.
     """
+    # Ignore SIGINT in worker processes - let the main process handle it
+    # Standard library imports
+    import signal
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+
     global _worker_registration_index
     global _worker_renewal_index
     global _worker_generic_detector
@@ -479,9 +485,10 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         logger.debug(f"  Batch {batch_num}: {skipped} records skipped (no year or filtered)")
 
     # Log if processing was unusually slow
-    if elapsed > 30 and records_per_sec < 5:
+    # Warning only for genuinely slow processing: >60s OR <2 rec/s (after 10s)
+    if elapsed > 60 or (elapsed > 10 and records_per_sec < 2):
         logger.warning(
-            f"  Batch {batch_num}: Slow processing detected ({records_per_sec:.1f} rec/s)"
+            f"  Batch {batch_num}: Slow processing detected - {elapsed:.1f}s @ {records_per_sec:.1f} rec/s"
         )
 
     return batch_num, result_file_path, stats

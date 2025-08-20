@@ -275,8 +275,9 @@ class StreamingComponent:
                     eta_str = format_time_duration(eta)
 
                     logger.info(
-                        f"✓ Batch {completed_batches}/{total_batches} complete | "
+                        f"✓ Batch {batch_id} complete ({completed_batches}/{total_batches}) | "
                         f"Batch time: {batch_duration_str} | "
+                        f"Matches so far: {total_reg_matches} reg, {total_ren_matches} ren | "
                         f"Progress: ({completed_batches/total_batches*100:.1f}%) | "
                         f"ETA: {eta_str}"
                     )

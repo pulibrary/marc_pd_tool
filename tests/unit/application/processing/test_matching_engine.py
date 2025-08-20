@@ -1544,10 +1544,10 @@ class TestDataMatcher:
             unlink(batch_path)
 
     def test_process_batch_slow_processing_warning(self):
-        """Test slow processing warning log (line 462)"""
+        """Test slow processing warning log"""
         # Create a test batch with a small number of publications
-        # To trigger warning: elapsed > 30 and records_per_sec < 5
-        # So we need < 150 records processed in 31+ seconds
+        # To trigger warning: elapsed > 60 OR (elapsed > 10 AND records_per_sec < 2)
+        # We'll test the first condition: processing taking > 60 seconds
         test_pubs = [
             Publication(
                 title=f"Test Book {i}",
@@ -1556,7 +1556,7 @@ class TestDataMatcher:
                 year=1950,
                 source_id=f"test{i:03d}",
             )
-            for i in range(100)  # 100 records processed in 31 seconds = 3.2 rec/s < 5
+            for i in range(100)  # 100 records processed in 61 seconds = 1.6 rec/s
         ]
 
         # Create a pickled batch file
@@ -1614,13 +1614,13 @@ class TestDataMatcher:
                             "marc_pd_tool.application.processing.matching_engine._worker_config",
                             get_config(),
                         ):
-                            # Mock time to simulate slow processing (elapsed > 30 and rec/s < 5)
+                            # Mock time to simulate slow processing (elapsed > 60)
                             with patch(
                                 "marc_pd_tool.application.processing.matching_engine.time"
                             ) as mock_time:
                                 # time() is called twice: start_time and after processing
-                                # We want elapsed = 31 seconds, with 100 records = 3.2 rec/s < 5
-                                mock_time.side_effect = [0, 31]  # start_time=0, end_time=31
+                                # We want elapsed = 61 seconds, with 100 records = 1.6 rec/s
+                                mock_time.side_effect = [0, 61]  # start_time=0, end_time=61
 
                                 with patch(
                                     "marc_pd_tool.application.processing.matching_engine.logger"
@@ -1629,14 +1629,15 @@ class TestDataMatcher:
 
                                     # Check the stats to verify processing
                                     assert stats.marc_count == 100  # All records processed
-                                    assert stats.processing_time == 31  # 31 seconds elapsed
+                                    assert stats.processing_time == 61  # 61 seconds elapsed
 
-                                    # Verify the warning was logged (line 462)
-                                    # elapsed=31 > 30 and records_per_sec=100/31=3.2 < 5
+                                    # Verify the warning was logged
+                                    # elapsed=61 > 60, so warning should trigger
                                     mock_logger.warning.assert_called_once()
                                     warning_call = mock_logger.warning.call_args[0][0]
                                     assert "Slow processing detected" in warning_call
-                                    assert "3.2 rec/s" in warning_call or "3.2" in warning_call
+                                    assert "1.6 rec/s" in warning_call or "1.6" in warning_call
+                                    assert "61.0s" in warning_call or "61s" in warning_call
 
         # Clean up
         if exists(batch_path):
