@@ -217,7 +217,13 @@ class TestSignalHandling:
         ) as mock_cleanup:
             with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
                 mock_pool = MagicMock()
-                mock_pool_class.return_value.__enter__.return_value = mock_pool
+                # Direct instantiation instead of context manager
+                mock_pool_class.return_value = mock_pool
+
+                # Add required pool methods for cleanup
+                mock_pool.close = MagicMock()
+                mock_pool.terminate = MagicMock()
+                mock_pool.join = MagicMock()
 
                 # Simulate KeyboardInterrupt during processing
                 mock_pool.imap_unordered.side_effect = KeyboardInterrupt()

@@ -40,7 +40,8 @@ class TestParallelProcessing:
         # Mock multiprocessing Pool
         with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
-            mock_pool_class.return_value.__enter__.return_value = mock_pool
+            # Direct instantiation instead of context manager
+            mock_pool_class.return_value = mock_pool
 
             # Mock map results
             def mock_map(func, batch_infos):
@@ -69,6 +70,10 @@ class TestParallelProcessing:
                 return iter([])
 
             mock_pool.imap_unordered.side_effect = mock_imap_unordered
+            # Add required pool methods for cleanup
+            mock_pool.close = Mock()
+            mock_pool.terminate = Mock()
+            mock_pool.join = Mock()
 
             # Call _process_parallel
             with patch("tempfile.mkdtemp") as mock_mkdtemp:
@@ -128,7 +133,7 @@ class TestParallelProcessing:
 
         with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
-            mock_pool_class.return_value.__enter__.return_value = mock_pool
+            mock_pool_class.return_value = mock_pool
 
             # Mock map to simulate an error
             def mock_map_with_error(func, batch_infos):
@@ -170,6 +175,10 @@ class TestParallelProcessing:
                 yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
+            # Add required pool methods for cleanup
+            mock_pool.close = Mock()
+            mock_pool.terminate = Mock()
+            mock_pool.join = Mock()
 
             with patch("tempfile.mkdtemp") as mock_mkdtemp:
                 batch_dir = tmp_path / "batches"
@@ -227,7 +236,7 @@ class TestParallelProcessing:
 
         with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
-            mock_pool_class.return_value.__enter__.return_value = mock_pool
+            mock_pool_class.return_value = mock_pool
 
             # Mock successful processing
             def mock_map(func, batch_infos):
@@ -270,6 +279,10 @@ class TestParallelProcessing:
                 yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
+            # Add required pool methods for cleanup
+            mock_pool.close = Mock()
+            mock_pool.terminate = Mock()
+            mock_pool.join = Mock()
 
             with patch("tempfile.mkdtemp") as mock_mkdtemp:
                 batch_dir = tmp_path / "batches"
@@ -320,7 +333,7 @@ class TestParallelProcessing:
 
         with patch("marc_pd_tool.adapters.api._processing.Pool") as mock_pool_class:
             mock_pool = Mock()
-            mock_pool_class.return_value.__enter__.return_value = mock_pool
+            mock_pool_class.return_value = mock_pool
 
             # Mock imap_unordered to return results with different processing times
             def imap_result(func, batch_infos, chunksize=1):
@@ -372,6 +385,10 @@ class TestParallelProcessing:
                     yield (batch_info[0], result_path, stats)
 
             mock_pool.imap_unordered.side_effect = imap_result
+            # Add required pool methods for cleanup
+            mock_pool.close = Mock()
+            mock_pool.terminate = Mock()
+            mock_pool.join = Mock()
 
             with patch("tempfile.mkdtemp") as mock_mkdtemp:
                 batch_dir = tmp_path / "batches"
