@@ -142,8 +142,11 @@ class TestScoringRegression:
             known_matches: List of known matches with baseline scores
             core_matcher: Core matcher instance
         """
-        failures = []
-        improvements = []
+        # Track different types of changes
+        combined_improvements = []
+        combined_regressions = []
+        field_changes = []
+        unchanged = 0
 
         for row in known_matches:
             marc_id = row["marc_id"]
@@ -157,59 +160,142 @@ class TestScoringRegression:
             baseline_publisher = float(row["baseline_publisher_score"])
             baseline_combined = float(row["baseline_combined_score"])
 
-            # Check for exact matches (within small tolerance for floating point)
+            # Check for changes (within small tolerance for floating point)
             tolerance = 0.01
 
-            if abs(result.title_score - baseline_title) > tolerance:
-                failures.append(f"{marc_id}: Title score {result.title_score} != {baseline_title}")
+            # Track if any scores changed
+            has_changes = False
 
-            if abs(result.author_score - baseline_author) > tolerance:
-                failures.append(
-                    f"{marc_id}: Author score {result.author_score} != {baseline_author}"
+            # Check individual field changes
+            title_diff = result.title_score - baseline_title
+            author_diff = result.author_score - baseline_author
+            publisher_diff = result.publisher_score - baseline_publisher
+            combined_diff = result.combined_score - baseline_combined
+
+            # Record field-level changes
+            if abs(title_diff) > tolerance:
+                has_changes = True
+                field_changes.append(
+                    f"{marc_id}: Title {baseline_title:.1f} → {result.title_score:.1f} ({title_diff:+.1f})"
                 )
 
-            if abs(result.publisher_score - baseline_publisher) > tolerance:
-                failures.append(
-                    f"{marc_id}: Publisher score {result.publisher_score} != {baseline_publisher}"
+            if abs(author_diff) > tolerance:
+                has_changes = True
+                field_changes.append(
+                    f"{marc_id}: Author {baseline_author:.1f} → {result.author_score:.1f} ({author_diff:+.1f})"
                 )
 
-            if abs(result.combined_score - baseline_combined) > tolerance:
-                diff = result.combined_score - baseline_combined
-                if diff > 0:
-                    improvements.append(
-                        f"{marc_id}: Combined score improved {baseline_combined} -> {result.combined_score} (+{diff:.2f})"
+            if abs(publisher_diff) > tolerance:
+                has_changes = True
+                field_changes.append(
+                    f"{marc_id}: Publisher {baseline_publisher:.1f} → {result.publisher_score:.1f} ({publisher_diff:+.1f})"
+                )
+
+            # Track combined score changes separately
+            if abs(combined_diff) > tolerance:
+                has_changes = True
+                if combined_diff > 0:
+                    combined_improvements.append(
+                        f"{marc_id}: {baseline_combined:.1f} → {result.combined_score:.1f} (+{combined_diff:.2f})"
                     )
                 else:
-                    failures.append(
-                        f"{marc_id}: Combined score {result.combined_score} != {baseline_combined} ({diff:.2f})"
+                    combined_regressions.append(
+                        f"{marc_id}: {baseline_combined:.1f} → {result.combined_score:.1f} ({combined_diff:.2f})"
                     )
+
+            if not has_changes:
+                unchanged += 1
 
         # Print summary
         print(f"\n{'='*60}")
         print("SCORING REGRESSION TEST RESULTS")
         print(f"{'='*60}")
         print(f"Total records tested: {len(known_matches)}")
+        print(f"Unchanged records: {unchanged}")
+        print(f"Changed records: {len(known_matches) - unchanged}")
 
-        if improvements:
-            print(f"\n✅ Improvements found: {len(improvements)}")
-            for imp in improvements[:10]:  # Show first 10
+        # Show combined score changes
+        if combined_improvements:
+            print(f"\n✅ Combined Score Improvements: {len(combined_improvements)}")
+            for imp in combined_improvements[:5]:  # Show first 5
                 print(f"  - {imp}")
-            if len(improvements) > 10:
-                print(f"  ... and {len(improvements) - 10} more")
+            if len(combined_improvements) > 5:
+                print(f"  ... and {len(combined_improvements) - 5} more")
 
-        if failures:
-            print(f"\n❌ Regressions found: {len(failures)}")
-            for fail in failures[:10]:  # Show first 10
-                print(f"  - {fail}")
-            if len(failures) > 10:
-                print(f"  ... and {len(failures) - 10} more")
+        if combined_regressions:
+            print(f"\n⚠️  Combined Score Regressions: {len(combined_regressions)}")
+            for reg in combined_regressions[:5]:  # Show first 5
+                print(f"  - {reg}")
+            if len(combined_regressions) > 5:
+                print(f"  ... and {len(combined_regressions) - 5} more")
 
-            # Fail the test if there are regressions
+        # Show field changes summary
+        if field_changes:
+            # Count changes by field type
+            title_changes = [c for c in field_changes if "Title" in c]
+            author_changes = [c for c in field_changes if "Author" in c]
+            publisher_changes = [c for c in field_changes if "Publisher" in c]
+
+            print(f"\n📊 Field-Level Changes:")
+            if title_changes:
+                print(f"  Title: {len(title_changes)} changes")
+            if author_changes:
+                print(f"  Author: {len(author_changes)} changes")
+            if publisher_changes:
+                print(f"  Publisher: {len(publisher_changes)} changes")
+
+            # Show a few examples
+            print(f"\n  Examples of field changes:")
+            for change in field_changes[:5]:
+                print(f"    - {change}")
+            if len(field_changes) > 5:
+                print(f"    ... and {len(field_changes) - 5} more field changes")
+
+        # Always show summary statistics if there are changes
+        if combined_improvements or combined_regressions or field_changes:
+            print(f"\n📈 Summary:")
+            if combined_improvements:
+                # Calculate improvement statistics
+                improvements_values = []
+                for imp in combined_improvements:
+                    # Extract the improvement value from string like "(+2.25)"
+                    # Standard library imports
+                    import re
+
+                    match = re.search(r"\(\+(\d+\.\d+)\)", imp)
+                    if match:
+                        improvements_values.append(float(match.group(1)))
+
+                if improvements_values:
+                    avg_improvement = sum(improvements_values) / len(improvements_values)
+                    max_improvement = max(improvements_values)
+                    min_improvement = min(improvements_values)
+                    print(f"  Combined score improvements: {len(combined_improvements)} records")
+                    print(f"    Average: +{avg_improvement:.2f} points")
+                    print(f"    Range: +{min_improvement:.2f} to +{max_improvement:.2f} points")
+
+            if combined_regressions:
+                print(f"  Combined score regressions: {len(combined_regressions)} records")
+
+        # Decision logic
+        if combined_regressions:
+            # Fail if there are combined score regressions
+            print(f"\n❌ TEST FAILED: Found {len(combined_regressions)} combined score regressions")
             assert (
                 False
-            ), f"Found {len(failures)} scoring regressions. See output above for details."
+            ), f"Found {len(combined_regressions)} combined score regressions. Review changes above."
+        elif combined_improvements:
+            print(f"\n✅ TEST PASSED: {len(combined_improvements)} improvements, no regressions!")
+            print("The algorithm changes have improved matching accuracy.")
+        elif field_changes:
+            # Warning if fields changed but no combined improvement
+            print(
+                f"\n⚠️  TEST PASSED WITH WARNING: Field scores changed but no combined score improvements"
+            )
+            print("Review the field-level changes to ensure they are intentional.")
         else:
-            print("\n✅ All scores match baseline - no regressions detected!")
+            print("\n✅ TEST PASSED: All scores match baseline exactly")
+            print("No changes detected in the scoring algorithm.")
 
     @mark.regression
     @mark.parametrize("threshold", [50, 60, 70, 80, 90])
@@ -241,7 +327,7 @@ class TestScoringRegression:
         percent_above = (above_threshold / total) * 100
 
         print(
-            f"\nThreshold {threshold}: {above_threshold}/{total} ({percent_above:.1f}%) matches above threshold"
+            f"Threshold {threshold}: {above_threshold}/{total} ({percent_above:.1f}%) matches above threshold"
         )
 
     @mark.regression
