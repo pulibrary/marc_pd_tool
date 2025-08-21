@@ -149,7 +149,7 @@ omit = [
     "*/tests/*",
     "*/test_*",
     "*/__main__.py",
-    "*/cli.py",  # CLI is integration tested manually
+    "marc_pd_tool/core/types/protocols.py",
 ]
 
 [tool.coverage.report]
