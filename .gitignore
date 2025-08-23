@@ -3,7 +3,6 @@ catalog_of_copyright_entries_project
 cce-renewals
 *.xml
 *.marcxml
-*.csv
 *.log
 *.bak
 *.txt
@@ -11,11 +10,8 @@ cce-renewals
 
 
 # Output files - do not commit results
-publication_matches*.json
-publication_matches*.csv
-matches*.json
-matches*.csv
-*_matches.*
+reports/
+
 outputs_for_refining/
 reports/
 logs/
