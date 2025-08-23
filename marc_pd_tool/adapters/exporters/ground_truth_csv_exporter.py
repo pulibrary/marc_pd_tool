@@ -164,14 +164,19 @@ def export_ground_truth_csv(publications: list[Publication], output_path: str) -
                     else ""
                 )
 
-                # Extract year from MatchResult
-                # The year_difference tells us how far off the years are
-                # We can infer the match year from MARC year and year_difference
+                # Extract year from the matched record's date
+                # The matched_date field contains the actual copyright/renewal date
                 match_year = ""
-                if marc.year and match_result.year_difference is not None:
-                    # This is approximate - we don't know if it's +/- difference
-                    # But for ground truth both should have same year or very close
-                    match_year = str(marc.year)  # Best guess without the original
+                if match_result.matched_date:
+                    # Extract year from matched_date (format is usually YYYY or YYYY-MM-DD)
+                    try:
+                        # Take first 4 digits as year
+                        year_str = match_result.matched_date[:4]
+                        if year_str.isdigit():
+                            match_year = year_str
+                    except (ValueError, IndexError):
+                        # If extraction fails, leave empty
+                        pass
 
                 # Build row
                 row = {
