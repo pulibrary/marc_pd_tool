@@ -45,6 +45,9 @@ This classification is crucial because U.S. and foreign works follow different c
 
 Before comparing records, the tool normalizes text to handle variations in cataloging:
 
+1. **Encoding Corruption Detection**: Detects and fixes UTF-8 text incorrectly interpreted as Latin-1 (mojibake)
+   - Example: "RevÃ£rend's" → "Reverend's"
+   - Common in older records that went through multiple encoding conversions
 1. **Unicode to ASCII Conversion**: Converts accented characters (é→e, ñ→n)
 1. **Case Normalization**: Converts everything to lowercase for comparison
 1. **Abbreviation Expansion**: Expands common abbreviations (Co.→Company, Inc.→Incorporated)
@@ -63,13 +66,23 @@ Before comparing records, the tool normalizes text to handle variations in catal
 
 #### Title Matching
 
-The tool compares normalized titles using a fuzzy matching algorithm that calculates how similar two strings are, returning a score from 0 (completely different) to 100 (identical).
+The tool uses multiple strategies to compare titles accurately:
 
-The algorithm handles:
+1. **Title Containment Detection**: Recognizes when one title contains another (subtitles/series)
+   - Example: "Tax Guide" vs "Tax Guide 1934" scores 85-95%
+   - Requires 30% containment ratio to prevent false positives
+   - Higher scores when contained at start (likely subtitle)
 
-- Word order variations ("Adventures of Tom Sawyer" vs "Tom Sawyer Adventures")
-- Minor spelling differences
-- Missing or extra words
+2. **Smarter Fuzzy Matching**: Enhanced algorithm that reduces false positives
+   - Single distinctive word matches capped at 60%
+   - Applies penalties for stem-only similarity (England/English)
+   - Filters common words to prevent score inflation
+   - Returns scores from 0 (completely different) to 100 (identical)
+
+3. **Standard Fuzzy Matching**: Handles common variations
+   - Word order variations ("Adventures of Tom Sawyer" vs "Tom Sawyer Adventures")
+   - Minor spelling differences
+   - Missing or extra words
 
 #### Author Matching
 
@@ -87,22 +100,60 @@ Publisher comparison accounts for:
 - Location information
 - Imprint relationships
 
+#### Derived Work Detection
+
+The tool identifies and applies penalties for derived works that are not the original:
+
+- **Indexes**: "Index to...", "Cumulative index"
+- **Bibliographies**: "Bibliography of...", "References"
+- **Supplements**: "Supplement to...", "Addendum"
+- **Guides**: "Study guide", "Teacher's guide"
+
+Multi-language support for English, French, German, Spanish, and Italian.
+
 ### Step 4: Match Determination
 
 A match is confirmed when the similarity scores meet these thresholds:
 
-- **Title similarity**: 40% or higher
-- **Author similarity**: 30% or higher (if author data exists)
-- **Publisher similarity**: 30% or higher (if publisher data exists)
+- **Title similarity**: 25% or higher (base threshold)
+- **Author similarity**: 20% or higher (if author data exists)
+- **Publisher similarity**: 50% or higher (if publisher data exists)
 - **Year tolerance**: Publication years must be within 1 year of each other
+- **Combined minimum score**: 35% or higher (increased from 30% for better precision)
 
-The tool uses an "early exit" optimization: if the title score is extremely high (95% or above), it may accept the match without checking other fields.
+#### Score Combination and Validation
+
+The tool combines field scores using weighted averages with several refinements:
+
+1. **Multi-Field Validation**: Prevents single-field dominance
+   - At least TWO fields must have reasonable scores (>30%)
+   - Single field matches (even 100%) cap combined score at 25%
+   - Author-only or publisher-only matches receive 0.5x penalty
+
+2. **Missing Field Weight Redistribution**: When ONE field is missing but others match well
+   - If title >70% and exactly one field missing: redistributes weights
+   - Example: Missing publisher but strong title/author match gets fair scoring
+   - Never applies when BOTH author AND publisher are missing
+
+3. **Derived Work Penalties**: Based on confidence and type match
+   - Both same type of derived work: 10% penalty
+   - Different types: 30% penalty
+   - One derived, one not: 50% penalty
+
+#### Library of Congress Control Number (LCCN) Matching
+
+When both the MARC record and copyright record have the same LCCN (a unique identifier assigned by the Library of Congress), the match receives a conditional boost:
+
+- **Strong field agreement** (title ≥40%): Full 20-point boost
+- **Moderate agreement** (title ≥20% AND author/publisher ≥60%): 15-point boost
+- **Weak agreement** (author ≥80% AND publisher ≥60%): 10-point boost
+- **Poor agreement**: Minimal 5-point boost (likely cataloging error)
+
+This conditional approach guards against LCCN cataloging errors while still providing valuable signal.
+
+**Important**: The vast majority of records do not have LCCNs, so the base thresholds are calibrated to work well without this boost.
 
 ### Step 5: Special Cases
-
-#### LCCN (Library of Congress Control Number) Matching
-
-When both the MARC record and copyright data contain an LCCN, the tool uses this for direct matching. This provides high-confidence matches without relying on text similarity.
 
 #### Generic Titles
 
@@ -114,6 +165,35 @@ The tool recognizes common generic titles that appear frequently and adjusts sco
 - "Selected Poems"
 
 For these titles, author and publisher matching becomes more important.
+
+#### Title Containment Cases
+
+The tool handles titles that contain subtitles or series information:
+
+- **Subtitles**: "Main Title: A Subtitle" matches "Main Title" at 85-95%
+- **Series**: "Book Title Volume 3" matches "Book Title" at high confidence
+- **Year variations**: "Tax Guide 1934" matches "Tax Guide" appropriately
+
+This prevents false negatives when cataloging practices differ between sources.
+
+#### Derived Works
+
+The tool identifies and appropriately handles derived works:
+
+- **Indexes and bibliographies** of original works
+- **Supplements and addenda** to main publications
+- **Study guides and teacher's editions**
+- **Translations and adaptations**
+
+These receive graduated penalties to prevent false positive matches with the original work.
+
+#### Missing Field Handling
+
+When records have incomplete data:
+
+- **Missing publisher**: Weight redistributed if title and author match strongly
+- **Missing author**: Corporate works often lack author fields
+- **Both missing**: Stricter validation required, no redistribution
 
 #### Records Without Years
 
@@ -188,18 +268,30 @@ When the country cannot be determined, the tool provides limited analysis:
 
 ## Confidence and Accuracy
 
+### Performance Metrics
+
+Based on validation against 19,594 known matches and 377 known mismatches:
+
+- **True Positive Rate**: 99.4% at threshold 35
+- **False Positive Reduction**: 99.2% (from 377 to 3)
+- **Precision**: ~100% (essentially perfect)
+- **F1 Score**: 0.9969 (near perfect)
+
 ### High Confidence Indicators
 
-- LCCN matches (direct identifier match)
+- LCCN matches with strong field agreement
 - Very high title similarity (>90%)
-- Multiple field matches (title + author + publisher)
+- Multiple field matches (title + author + publisher all >30%)
+- Title containment detection (subtitle/series match)
 - Clear registration and renewal patterns
 
 ### Lower Confidence Indicators
 
+- Single field match only
 - Generic titles
 - Missing author or publisher data
-- Borderline similarity scores
+- Borderline similarity scores (near 35% threshold)
+- Derived work detection triggered
 - Records from the edges of our data coverage
 
 ### Limitations
@@ -222,11 +314,11 @@ To get the best results:
 
 ## Quality Assurance and Testing
 
-### Regression Testing
+### Scoring Tests
 
-The tool includes a comprehensive regression testing system to ensure the matching algorithm maintains accuracy and catches any unintended changes. This system uses approximately 20,000 known correct matches as a baseline.
+The tool includes a comprehensive scoring test system to ensure the matching algorithm maintains accuracy and catches any unintended changes. This system uses 19,594 known correct matches and 377 known mismatches as baselines.
 
-For detailed information about the regression testing system, see [tests/regression/README.md](../tests/regression/README.md).
+For detailed information about the scoring test system, see [tests/scoring/README.md](../tests/scoring/README.md).
 
 Key features:
 
@@ -234,6 +326,7 @@ Key features:
 - Detection of algorithm improvements vs regressions
 - Statistical analysis of score distributions
 - Separate test suite that doesn't run with regular tests
+- Validation of all seven phases of matching improvements
 
 ## Output Interpretation
 

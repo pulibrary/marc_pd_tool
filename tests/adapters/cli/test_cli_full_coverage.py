@@ -273,9 +273,9 @@ class TestGenerateOutputFilenameFullCoverage:
             min_year=None,
             max_year=None,
             score_everything=False,
-            title_threshold=40,  # Default from config
-            author_threshold=30,  # Default from config
-            publisher_threshold=30,  # Default from config
+            title_threshold=25,  # Actual default from config
+            author_threshold=20,  # Actual default from config
+            publisher_threshold=50,  # Actual default from config
         )
 
         result = generate_output_filename(args)

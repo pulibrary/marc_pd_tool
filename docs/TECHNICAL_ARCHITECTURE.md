@@ -340,12 +340,12 @@ Tests mirror the hexagonal architecture:
 - Property-based testing for data access
 - Integration tests for end-to-end workflows
 
-### Regression Testing
+### Scoring Tests
 
-The project includes a comprehensive regression testing system to validate matching algorithm changes against known baselines:
+The project includes a comprehensive scoring test system to validate matching algorithm changes against known baselines:
 
-- **Location**: `tests/regression/` with detailed documentation in [tests/regression/README.md](../tests/regression/README.md)
-- **Baseline Data**: ~20,000 known correct matches with pre-calculated scores
+- **Location**: `tests/scoring/` with detailed documentation in [tests/scoring/README.md](../tests/scoring/README.md)
+- **Baseline Data**: ~19,600 known correct matches and ~377 known mismatches with pre-calculated scores
 - **Purpose**: Detect algorithm regressions and validate improvements
 - **Execution**: Separate from main test suite via `pdm run test-regression`
 

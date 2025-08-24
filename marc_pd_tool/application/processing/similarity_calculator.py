@@ -85,7 +85,7 @@ class SimilarityCalculator(ConfigurableMixin):
             Similarity score from 0-100
         """
         if not marc_title and not copyright_title:
-            return 100.0  # Both empty
+            return 0.0  # Both empty - should not match
         elif not marc_title or not copyright_title:
             return 0.0  # One empty, one not
 
@@ -149,11 +149,205 @@ class SimilarityCalculator(ConfigurableMixin):
         # The full normalization pipeline followed by fuzzy matching provides
         # the best balance of accuracy and consistency
 
-        # Use token_sort_ratio as it handles word order variations well
-        # This sorts the tokens alphabetically before comparison
-        score = fuzz.token_sort_ratio(marc_normalized, copyright_normalized)
+        # Check for title containment first
+        containment_score = self._check_title_containment(
+            marc_normalized, copyright_normalized, marc_title, copyright_title
+        )
+        if containment_score > 0:
+            return containment_score
+
+        # Phase 4B: Smarter Fuzzy Matching
+        # Apply stricter matching to reduce false positives
+        score = self._smart_fuzzy_match(
+            marc_normalized,
+            copyright_normalized,
+            marc_stemmed,
+            copyright_stemmed,
+            marc_title,
+            copyright_title,
+        )
 
         return float(score)
+
+    def _check_title_containment(
+        self,
+        marc_normalized: str,
+        copyright_normalized: str,
+        marc_original: str,
+        copyright_original: str,
+    ) -> float:
+        """Check if one title contains the other (subtitle/series detection)
+
+        This handles cases like:
+        - "Tax Guide" vs "Tax Guide 1934"
+        - "Annual Report" vs "Annual Report of the Commissioner"
+        - Series with subtitles
+
+        Args:
+            marc_normalized: Normalized MARC title
+            copyright_normalized: Normalized copyright title
+            marc_original: Original MARC title (for length checking)
+            copyright_original: Original copyright title
+
+        Returns:
+            Score (0 if no containment, 85-95 if contained)
+        """
+        # Don't apply containment boost for very short titles (prone to false positives)
+        min_orig_len = min(len(marc_original), len(copyright_original))
+        if min_orig_len < 8:  # Lowered from 10 to handle "Tax Guide" type cases
+            return 0.0
+
+        # Check both directions for containment
+        marc_in_copyright = marc_normalized in copyright_normalized
+        copyright_in_marc = copyright_normalized in marc_normalized
+
+        if not (marc_in_copyright or copyright_in_marc):
+            return 0.0
+
+        # Calculate how much of the shorter string is contained
+        if marc_in_copyright:
+            shorter = marc_normalized
+            longer = copyright_normalized
+        else:
+            shorter = copyright_normalized
+            longer = marc_normalized
+
+        # Require the contained portion to be significant
+        # Both absolute length and word count matter
+        shorter_words = shorter.split()
+        if len(shorter) < 5 or len(shorter_words) < 2:  # Too short after normalization
+            return 0.0
+
+        # Calculate containment ratio
+        containment_ratio = len(shorter) / len(longer)
+
+        # Full containment (one is substring of other)
+        if containment_ratio > 0.3:  # At least 30% of the longer title
+            # Check if it's at the beginning (likely a base title + subtitle)
+            if longer.startswith(shorter):
+                # Strong match - likely base title with additional info
+                # Scale score based on containment ratio: 85-95
+                # Use a minimum of 85 for significant containment at start
+                return max(85.0, 80.0 + (containment_ratio * 20.0))
+            else:
+                # Contained but not at start - be more conservative
+                return 75.0 + (containment_ratio * 15.0)
+
+        return 0.0
+
+    def _smart_fuzzy_match(
+        self,
+        marc_normalized: str,
+        copyright_normalized: str,
+        marc_words: list[str],
+        copyright_words: list[str],
+        marc_original: str,
+        copyright_original: str,
+    ) -> float:
+        """Smarter fuzzy matching that reduces false positives
+
+        Phase 4B implementation to handle issues like:
+        - "War over England" matching "English literature" at 55%
+        - Common words inflating scores
+        - Similar word stems creating false matches
+
+        Args:
+            marc_normalized: Normalized MARC title string
+            copyright_normalized: Normalized copyright title string
+            marc_words: List of words after stopword removal and stemming
+            copyright_words: List of words after stopword removal and stemming
+            marc_original: Original MARC title
+            copyright_original: Original copyright title
+
+        Returns:
+            Similarity score (0-100)
+        """
+        # Count distinctive words (after stopword removal)
+        marc_distinctive = set(marc_words)
+        copyright_distinctive = set(copyright_words)
+
+        # If either has very few distinctive words, be stricter
+        min_distinctive = min(len(marc_distinctive), len(copyright_distinctive))
+
+        if min_distinctive == 0:
+            # No distinctive words after filtering - likely all stopwords
+            # Check if originals are identical
+            if marc_original.strip().lower() == copyright_original.strip().lower():
+                return 100.0
+            return 0.0
+
+        # Check for identical normalized strings first
+        if marc_normalized == copyright_normalized:
+            # Identical after normalization
+            return 100.0
+
+        # Calculate word overlap
+        word_overlap = marc_distinctive.intersection(copyright_distinctive)
+        overlap_count = len(word_overlap)
+
+        # Check for perfect word set match (handles reordering)
+        if marc_distinctive == copyright_distinctive and len(marc_distinctive) > 0:
+            # Same words, possibly different order
+            return float(fuzz.token_sort_ratio(marc_normalized, copyright_normalized))
+
+        # Minimum distinctive word requirement
+        # If only one word overlaps regardless of total words, be more careful
+        if overlap_count <= 1:
+            if overlap_count == 1:
+                # Only one distinctive word matches
+                # But check if titles are very short (might be legitimate)
+                if min_distinctive <= 2:
+                    # Very short titles - single word overlap might be significant
+                    # Like "Othello" vs "Othello illustrated"
+                    base = fuzz.token_sort_ratio(marc_normalized, copyright_normalized)
+                    return float(min(60.0, base * 0.8))  # Allow up to 60 for short titles
+                else:
+                    # Longer titles with only one word overlap - more suspicious
+                    # This handles cases like "Annual Report" vs "Annual Review"
+                    return float(
+                        min(
+                            40.0, fuzz.token_sort_ratio(marc_normalized, copyright_normalized) * 0.6
+                        )
+                    )
+            else:
+                # No overlap at all
+                return 0.0
+
+        # Calculate overlap ratio
+        max_possible = max(len(marc_distinctive), len(copyright_distinctive))
+        overlap_ratio = overlap_count / max_possible if max_possible > 0 else 0
+
+        # Get base fuzzy score
+        base_score = fuzz.token_sort_ratio(marc_normalized, copyright_normalized)
+
+        # Apply penalties based on word overlap
+        if overlap_ratio < 0.6:
+            # Less than 60% words overlap - apply penalty
+            # Stricter than before (was 0.5)
+            adjusted_score = base_score * (0.4 + overlap_ratio)
+        else:
+            # Good word overlap
+            adjusted_score = base_score
+
+        # Additional penalty for very short titles after normalization
+        # Short titles are prone to false positives
+        total_words = len(marc_words) + len(copyright_words)
+        if total_words <= 4:  # Very short
+            adjusted_score *= 0.8
+
+        # Check for stem-only matches (helps with England/English problem)
+        # If the original words are quite different but stems match,
+        # apply a penalty
+        if adjusted_score > 60:
+            # Do a quick check on original (non-stemmed) similarity
+            original_score = fuzz.token_sort_ratio(
+                marc_original.lower(), copyright_original.lower()
+            )
+            if original_score < adjusted_score * 0.7:
+                # Stems match better than originals - likely false positive
+                adjusted_score *= 0.7
+
+        return float(min(100.0, max(0.0, adjusted_score)))
 
     def calculate_author_similarity(
         self, marc_author: str, copyright_author: str, language: str = "eng"
@@ -175,8 +369,22 @@ class SimilarityCalculator(ConfigurableMixin):
         marc_processed = self._preprocess_author(marc_author, language)
         copyright_processed = self._preprocess_author(copyright_author, language)
 
-        # Use fuzzy matching on preprocessed text
-        score = fuzz.ratio(marc_processed, copyright_processed)
+        # Use token_set_ratio instead of ratio for better name matching
+        # This handles "Smith, John" vs "John Smith" and similar variations
+        score = fuzz.token_set_ratio(marc_processed, copyright_processed)
+
+        # Apply noise floor - scores below 60% are likely false matches
+        # Testing showed unrelated names score 25-50% with token_set_ratio
+        if score < 60:
+            return 0.0
+
+        # Optional: Penalize when word counts differ significantly
+        # This helps distinguish corporate vs personal names
+        marc_words = len(marc_processed.split())
+        copyright_words = len(copyright_processed.split())
+        if abs(marc_words - copyright_words) > 3:
+            score = score * 0.7
+
         return float(score)
 
     def calculate_publisher_similarity(

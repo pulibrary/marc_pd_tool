@@ -6,6 +6,9 @@
 from logging import getLogger
 
 # Local imports
+from marc_pd_tool.application.processing.derived_work_detector import (
+    DerivedWorkDetector,
+)
 from marc_pd_tool.application.processing.matching._lccn_matcher import LCCNMatcher
 from marc_pd_tool.application.processing.matching._match_builder import (
     MatchResultBuilder,
@@ -45,6 +48,7 @@ class CoreMatcher(ConfigurableMixin):
         self.lccn_matcher = LCCNMatcher()
         self.score_combiner = ScoreCombiner(self.config)
         self.match_builder = MatchResultBuilder()
+        self.derived_work_detector = DerivedWorkDetector()
 
         # Use provided or create new similarity calculator
         self.similarity_calculator = similarity_calculator or SimilarityCalculator(self.config)
@@ -78,16 +82,25 @@ class CoreMatcher(ConfigurableMixin):
         Returns:
             Best match result or None if no match meets thresholds
         """
-        # Check for LCCN match first (in normal mode, don't calculate scores)
-        lccn_match = self.lccn_matcher.find_lccn_match(
-            marc_pub, copyright_pubs, calculate_scores=False
-        )
-        if lccn_match:
-            return lccn_match
-
-        # Find best similarity-based match
+        # Find best match (including LCCN matches with proper scoring)
         best_match = None
         best_score = -1.0  # Start at -1 to track any valid match
+
+        # Track LCCN matches for each publication
+        lccn_match_map: dict[str, bool] = {}
+
+        # Check for LCCN matches upfront to build the map
+        if marc_pub.normalized_lccn:
+            for copyright_pub in copyright_pubs:
+                if (
+                    copyright_pub.normalized_lccn
+                    and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
+                ):
+                    lccn_match_map[copyright_pub.source_id or ""] = True
+                    logger.debug(
+                        f"LCCN match found for {marc_pub.normalized_lccn} "
+                        f"with source {copyright_pub.source_id}"
+                    )
 
         for copyright_pub in copyright_pubs:
             # Skip if year difference too large
@@ -169,13 +182,24 @@ class CoreMatcher(ConfigurableMixin):
                 copyright_generic = self.generic_detector.is_generic(copyright_pub.title)
                 has_generic = marc_generic or copyright_generic
 
-            # Combine scores
+            # Check if this is an LCCN match
+            has_lccn_match = lccn_match_map.get(copyright_pub.source_id or "", False)
+
+            # Phase 5: Check for derived works
+            marc_derived, copyright_derived = self.derived_work_detector.detect(
+                marc_pub.title, copyright_pub.title, language
+            )
+
+            # Combine scores (with LCCN boost if applicable)
             combined_score = self.score_combiner.combine_scores(
                 title_score,
                 author_score,
                 publisher_score,
                 has_generic_title=has_generic,
                 use_config_weights=True,
+                has_lccn_match=has_lccn_match,
+                marc_derived=marc_derived,
+                copyright_derived=copyright_derived,
             )
 
             # Check for early exit (perfect match)
@@ -209,7 +233,7 @@ class CoreMatcher(ConfigurableMixin):
                     publisher_score,
                     combined_score,
                     self.generic_detector,
-                    is_lccn_match=False,
+                    is_lccn_match=has_lccn_match,
                 )
 
             # Track best match
@@ -223,7 +247,7 @@ class CoreMatcher(ConfigurableMixin):
                     publisher_score,
                     combined_score,
                     self.generic_detector,
-                    is_lccn_match=False,
+                    is_lccn_match=has_lccn_match,
                 )
 
         return best_match
@@ -248,16 +272,25 @@ class CoreMatcher(ConfigurableMixin):
         Returns:
             Best match result or None if no match found
         """
-        # Check for LCCN match first (in score_everything mode, calculate scores)
-        lccn_match = self.lccn_matcher.find_lccn_match(
-            marc_pub, copyright_pubs, calculate_scores=True
-        )
-        if lccn_match:
-            return lccn_match
-
-        # Find best match without thresholds
+        # Find best match (including LCCN matches with proper scoring)
         best_match = None
         best_score = -1.0  # Start at -1 to accept even 0-score matches
+
+        # Track LCCN matches for each publication
+        lccn_match_map: dict[str, bool] = {}
+
+        # Check for LCCN matches upfront to build the map
+        if marc_pub.normalized_lccn:
+            for copyright_pub in copyright_pubs:
+                if (
+                    copyright_pub.normalized_lccn
+                    and marc_pub.normalized_lccn == copyright_pub.normalized_lccn
+                ):
+                    lccn_match_map[copyright_pub.source_id or ""] = True
+                    logger.debug(
+                        f"LCCN match found for {marc_pub.normalized_lccn} "
+                        f"with source {copyright_pub.source_id}"
+                    )
 
         for copyright_pub in copyright_pubs:
             # Skip if year difference too large (unless no year)
@@ -322,13 +355,24 @@ class CoreMatcher(ConfigurableMixin):
                 copyright_generic = self.generic_detector.is_generic(copyright_pub.title)
                 has_generic = marc_generic or copyright_generic
 
-            # Combine scores
+            # Check if this is an LCCN match
+            has_lccn_match = lccn_match_map.get(copyright_pub.source_id or "", False)
+
+            # Phase 5: Check for derived works
+            marc_derived, copyright_derived = self.derived_work_detector.detect(
+                marc_pub.title, copyright_pub.title, language
+            )
+
+            # Combine scores (with LCCN boost if applicable)
             combined_score = self.score_combiner.combine_scores(
                 title_score,
                 author_score,
                 publisher_score,
                 has_generic_title=has_generic,
                 use_config_weights=True,
+                has_lccn_match=has_lccn_match,
+                marc_derived=marc_derived,
+                copyright_derived=copyright_derived,
             )
 
             # Apply minimum combined score filter if specified
@@ -346,7 +390,7 @@ class CoreMatcher(ConfigurableMixin):
                     publisher_score,
                     combined_score,
                     self.generic_detector,
-                    is_lccn_match=False,
+                    is_lccn_match=has_lccn_match,
                 )
 
         return best_match

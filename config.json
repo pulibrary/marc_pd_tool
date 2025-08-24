@@ -20,14 +20,14 @@
     }
   },
   "default_thresholds": {
-    "title": 40,
-    "author": 30,
-    "publisher": 30,
+    "title": 25,
+    "author": 20,
+    "publisher": 50,
     "early_exit_title": 95,
     "early_exit_author": 90,
     "early_exit_publisher": 85,
     "year_tolerance": 1,
-    "minimum_combined_score": 40
+    "minimum_combined_score": 30
   },
   "generic_title_detector": {
     "frequency_threshold": 10,

@@ -897,9 +897,9 @@ class TestSimilarityCalculator:
         score = calculator.calculate_title_similarity(
             "iduna robiat", "iduna robiat historischer roman aus merans vergangenheit"
         )
-        # With fuzzy matching, partial matches score lower than with Jaccard
-        # The short title is only a small part of the longer one
-        assert score > 30.0  # Fuzzy matching gives ~37%
+        # With stricter fuzzy matching, this scores lower
+        # The short title doesn't trigger containment boost (too short)
+        assert score > 20.0  # Stricter fuzzy matching gives ~25%
 
         # Another case: "enoch arden im riesengebirge" vs full title with author
         score = calculator.calculate_title_similarity(
@@ -914,8 +914,8 @@ class TestSimilarityCalculator:
         score = calculator.calculate_title_similarity(
             "shakespeare", "shakespeare complete works volume one"
         )
-        # With fuzzy matching, this scores higher due to the shared word
-        assert score > 40.0  # Fuzzy matching gives ~47%
+        # With stricter fuzzy matching, single word matches are capped
+        assert score > 35.0  # Stricter fuzzy matching gives ~37%
 
     def test_calculate_title_similarity_short_title_keeps_stopwords(self, calculator):
         """Test that short titles (≤6 words) keep stopwords"""
@@ -951,7 +951,7 @@ class TestSimilarityCalculator:
     def test_calculate_title_similarity_empty_titles(self, calculator):
         """Test title similarity with empty titles"""
         score = calculator.calculate_title_similarity("", "")
-        assert score == 100.0  # Both empty
+        assert score == 0.0  # Both empty - should not match
 
         score = calculator.calculate_title_similarity("title", "")
         assert score == 0.0  # One empty, one not
@@ -962,12 +962,13 @@ class TestSimilarityCalculator:
     @patch("marc_pd_tool.application.processing.similarity_calculator.fuzz")
     def test_calculate_author_similarity_uses_fuzzy_matching(self, mock_fuzz, calculator):
         """Test author similarity uses fuzzy matching with preprocessing"""
-        mock_fuzz.ratio.return_value = 85.0
+        # Now using token_set_ratio instead of ratio
+        mock_fuzz.token_set_ratio.return_value = 85.0
 
         score = calculator.calculate_author_similarity("Smith, John", "John Smith")
 
         assert score == 85.0
-        mock_fuzz.ratio.assert_called_once()
+        mock_fuzz.token_set_ratio.assert_called_once()
 
     def test_calculate_author_similarity_empty_authors(self, calculator):
         """Test author similarity with empty authors"""
@@ -1810,8 +1811,8 @@ class TestDataMatcherEdgeCases:
         marc_pub.normalized_lccn = "2001012345"
 
         copyright_pub = Publication(
-            title="Different Title",  # Different metadata
-            author="Different Author",
+            title="Test Title",  # Similar but not exact - will score ~57
+            author="Test Writer",  # Similar but not exact - will score ~71
             pub_date="1950",  # Same year to pass year filter
             source_id="c001",
         )
@@ -1821,16 +1822,19 @@ class TestDataMatcherEdgeCases:
             marc_pub,
             [copyright_pub],
             year_tolerance=2,
-            title_threshold=40,
-            author_threshold=30,
+            title_threshold=30,  # Lower threshold to allow LCCN boost to work
+            author_threshold=30,  # Lower threshold to allow LCCN boost to work
             publisher_threshold=20,
             early_exit_title=95,
             early_exit_author=90,
         )
 
-        # Should find match based on LCCN even with different metadata
+        # Should find match based on LCCN boost with reasonable field similarity
         assert result is not None
         assert result["is_lccn_match"] is True
+        # With conditional LCCN boost, score depends on field quality
+        # Base score ~41.67 + partial boost = ~51.5
+        assert result["similarity_scores"]["combined"] > 50
 
     def test_combine_scores_generic_title(self):
         """Test score combination with generic title"""
@@ -1976,8 +1980,9 @@ class TestDataMatcherEdgeCases:
         # Publisher score should be 0 since no publisher data
         assert result["similarity_scores"]["publisher"] == 0.0
         # Combined score with exact title/author match but no publisher
-        # The actual score is 83.33 based on the weight distribution
-        assert result["similarity_scores"]["combined"] == 83.33
+        # With Phase 3 redistribution: title=100 (≥70), publisher=0, author=100
+        # Redistribution applies: 100 * 0.6 + 100 * 0.4 = 100.0
+        assert result["similarity_scores"]["combined"] == 100.0
 
     def test_find_best_match_with_abbreviated_author(self):
         """Test matching with abbreviated author names"""

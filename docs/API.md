@@ -564,7 +564,7 @@ For large datasets:
 When modifying the matching algorithm:
 
 1. Run the standard test suite: `pdm test`
-1. Run regression tests: `pdm run test-regression`
+1. Run scoring tests: `pdm run test-regression`
 1. Update baselines if changes are intentional: `pdm run python scripts/generate_baseline_scores.py`
 
-See [tests/regression/README.md](../tests/regression/README.md) for details on the regression testing system.
+See [tests/scoring/README.md](../tests/scoring/README.md) for details on the scoring test system.

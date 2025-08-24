@@ -26,10 +26,10 @@ class TestConfigLoader:
         assert normal_weights["author"] == 0.25
         assert normal_weights["publisher"] == 0.15
 
-        # Test thresholds - values from config.json
-        assert config.get_threshold("title") == 40
-        assert config.get_threshold("author") == 30
-        assert config.get_threshold("publisher") == 30  # From config.json
+        # Test thresholds - updated defaults for better performance
+        assert config.get_threshold("title") == 25
+        assert config.get_threshold("author") == 20
+        assert config.get_threshold("publisher") == 50  # From config.json
 
         # Test word lists
         stopwords = config.stopwords_set
@@ -63,7 +63,7 @@ class TestConfigLoader:
             assert config.get_threshold("author") == 80
 
             # Test that unspecified values fall back to defaults
-            assert config.get_threshold("publisher") == 60  # Default value
+            assert config.get_threshold("publisher") == 50  # Default value
 
         finally:
 
@@ -84,8 +84,8 @@ class TestConfigLoader:
             assert config.get_threshold("title") == 85
 
             # Test that other values remain at defaults
-            assert config.get_threshold("author") == 30
-            assert config.get_threshold("publisher") == 60
+            assert config.get_threshold("author") == 20
+            assert config.get_threshold("publisher") == 50
 
             # Test that scoring weights are unchanged
             weights = config.get_scoring_weights("normal_with_publisher")
@@ -104,7 +104,7 @@ class TestConfigLoader:
         try:
             # Should not raise exception, should fall back to defaults
             config = ConfigLoader(config_path)
-            assert config.get_threshold("title") == 40  # Default value
+            assert config.get_threshold("title") == 25  # Default value
 
         finally:
 
@@ -115,8 +115,8 @@ class TestConfigLoader:
         config = ConfigLoader("nonexistent_file.json")
 
         # Should fall back to defaults
-        assert config.get_threshold("title") == 40
-        assert config.get_threshold("author") == 30
+        assert config.get_threshold("title") == 25
+        assert config.get_threshold("author") == 20
 
     def test_word_list_access(self):
         """Test accessing word lists from configuration"""
@@ -141,7 +141,7 @@ class TestConfigLoader:
         """Test the global get_config function"""
         config = get_config()
         assert isinstance(config, ConfigLoader)
-        assert config.get_threshold("title") == 40
+        assert config.get_threshold("title") == 25
 
     def test_config_dict_access(self):
         """Test accessing the config as dict"""

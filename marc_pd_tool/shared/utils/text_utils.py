@@ -38,6 +38,75 @@ def ascii_fold(text: str) -> str:
     return unidecode(text)
 
 
+def fix_latin1_corruption(text: str) -> str:
+    """Detect and fix UTF-8 text incorrectly decoded as Latin-1 (mojibake)
+
+    Common pattern: UTF-8 multi-byte sequences interpreted as individual Latin-1 chars
+    Example: "Ã£" appears where UTF-8 characters should be
+
+    Args:
+        text: Text that may contain mojibake
+
+    Returns:
+        Fixed text if corruption detected, original text otherwise
+    """
+    if not text:
+        return ""
+
+    # Common mojibake indicators for UTF-8 misinterpreted as Latin-1
+    # These patterns are extremely rare in legitimate Latin-1 text
+    mojibake_indicators = [
+        "Ã¡",
+        "Ã©",
+        "Ã­",
+        "Ã³",
+        "Ãº",
+        "Ã±",
+        "Ã§",  # Common Spanish/Portuguese
+        "Ã£",
+        "Ã¢",
+        "Ã´",
+        "Ã¨",
+        "Ã¬",
+        "Ã²",
+        "Ã¹",  # More Romance languages
+        "Ä",
+        "Ä±",
+        "Å",
+        "Å¡",
+        "Å¾",
+        "Ä",
+        "Ä",  # Eastern European
+        "â€™",
+        "â€œ",
+        "â€",
+        'â€"',
+        'â€"',  # Smart quotes and dashes
+        "Â°",
+        "Â·",
+        "Â´",
+        "Â¨",
+    ]  # Other symbols
+
+    # Check if text likely contains mojibake
+    has_mojibake = any(indicator in text for indicator in mojibake_indicators)
+
+    if has_mojibake:
+        try:
+            # Try to fix: encode back to Latin-1, then decode as UTF-8
+            fixed = text.encode("latin-1", errors="ignore").decode("utf-8", errors="ignore")
+
+            # Validate the fix didn't make things worse
+            # If fixed text is significantly shorter, conversion likely failed
+            if len(fixed) >= len(text) * 0.5:
+                return fixed
+        except (UnicodeDecodeError, UnicodeEncodeError, LookupError):
+            # If conversion fails, return original
+            pass
+
+    return text
+
+
 def normalize_unicode(text: str) -> str:
     """Normalize Unicode characters to fix encoding issues and fold to ASCII
 
@@ -53,13 +122,15 @@ def normalize_unicode(text: str) -> str:
     if not text:
         return ""
 
+    # First, try to fix Latin-1 mojibake if present
+    fixed = fix_latin1_corruption(text)
+
     # Get encoding corruption mappings from config
     # These are specific patterns found in ground truth analysis
     config = get_config()
     replacements = config.unicode_corrections
 
     # Apply known corruption fixes
-    fixed = text
     for corrupt, correct in replacements.items():
         fixed = fixed.replace(corrupt, correct)
 

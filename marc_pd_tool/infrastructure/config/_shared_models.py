@@ -63,3 +63,9 @@ class MatchingConfig(BaseModel):
     word_based: WordBasedConfig = Field(default_factory=WordBasedConfig)
     enable_lccn_matching: bool = Field(True, description="Enable LCCN-based matching")
     enable_publisher_matching: bool = Field(True, description="Enable publisher matching")
+    lccn_score_boost: float = Field(
+        20.0,
+        ge=0.0,
+        le=50.0,
+        description="Score boost for LCCN matches (0 to disable, 20 current default)",
+    )

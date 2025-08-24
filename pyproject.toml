@@ -185,7 +185,7 @@ test-unit = { cmd = "pytest tests/unit/ -v" }
 test-quick = { cmd = "pytest tests/ -v -m 'not slow and not regression'" }
 test-adapters = { cmd = "pytest tests/adapters/ -v --cov=marc_pd_tool.adapters --cov-report=term-missing" }
 test-unit-full = { cmd = "pytest tests/unit/ -v --cov=marc_pd_tool --cov-report=term-missing" }
-test-regression = { cmd = "pytest tests/regression/ -v -s -m regression" }
+test-regression = { cmd = "pytest tests/scoring/ -v -s -m regression" }
 clean = { shell = '''
     find . \
         -name "__pycache__" \

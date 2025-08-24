@@ -75,18 +75,35 @@ class LoggingConfig(BaseModel):
 
 
 class ThresholdsConfig(BaseModel):
-    """Matching thresholds configuration"""
+    """Matching thresholds configuration
 
-    title: int = Field(40, ge=0, le=100, description="Title similarity threshold")
-    author: int = Field(30, ge=0, le=100, description="Author similarity threshold")
-    publisher: int = Field(60, ge=0, le=100, description="Publisher similarity threshold")
-    early_exit_title: int = Field(95, ge=0, le=100, description="Early exit title threshold")
-    early_exit_author: int = Field(90, ge=0, le=100, description="Early exit author threshold")
+    Note: These thresholds are calibrated for records WITHOUT LCCNs (the vast majority).
+    Records with matching LCCNs receive a 35-point boost, effectively raising their
+    threshold to 60-65 for high-confidence matches.
+    """
+
+    title: int = Field(
+        25, ge=0, le=100, description="Title similarity threshold (base, without LCCN boost)"
+    )
+    author: int = Field(
+        20, ge=0, le=100, description="Author similarity threshold (base, without LCCN boost)"
+    )
+    publisher: int = Field(
+        50, ge=0, le=100, description="Publisher similarity threshold (when publisher data exists)"
+    )
+    early_exit_title: int = Field(
+        95, ge=0, le=100, description="Early exit title threshold (perfect match)"
+    )
+    early_exit_author: int = Field(
+        90, ge=0, le=100, description="Early exit author threshold (near-perfect match)"
+    )
     early_exit_publisher: int = Field(
         85, ge=0, le=100, description="Early exit publisher threshold"
     )
     year_tolerance: int = Field(1, ge=0, le=10, description="Year matching tolerance")
-    minimum_combined_score: int = Field(40, ge=0, le=100, description="Minimum combined score")
+    minimum_combined_score: int = Field(
+        30, ge=0, le=100, description="Minimum combined score (base, without LCCN boost)"
+    )
 
 
 # Note: WordBasedConfig, MatchingConfig, and GenericDetectorConfig

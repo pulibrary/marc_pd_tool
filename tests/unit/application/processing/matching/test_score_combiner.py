@@ -30,6 +30,10 @@ class TestScoreCombiner:
                 }
             }
         }
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
         return config
 
     @fixture
@@ -58,6 +62,10 @@ class TestScoreCombiner:
             return scenarios.get(scenario)
 
         config.get_scoring_weights = Mock(side_effect=mock_get_scoring_weights)
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
         return config
 
     @fixture
@@ -75,6 +83,10 @@ class TestScoreCombiner:
             }
         }
         config.get_scoring_weights = Mock(return_value=None)
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
         return config
 
     @fixture
@@ -82,6 +94,10 @@ class TestScoreCombiner:
         """Create a mock configuration with missing weight values"""
         config = Mock(spec=ConfigLoader)
         config.config = {"matching": {"adaptive_weighting": {}}}  # No weights defined
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
         return config
 
     @fixture
@@ -96,6 +112,10 @@ class TestScoreCombiner:
                 }
             }
         }
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
         return config
 
     def test_initialization_with_all_weights(self, mock_config):
@@ -132,6 +152,10 @@ class TestScoreCombiner:
         """Test _get_weight handles missing nested keys gracefully"""
         config = Mock(spec=ConfigLoader)
         config.config = {}  # Empty config
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
 
         combiner = ScoreCombiner(config)
         # Should use all defaults
@@ -183,11 +207,10 @@ class TestScoreCombiner:
             use_config_weights=True,
         )
 
-        # Weights from config: title=0.7, author=0.3, publisher missing (defaults to 0.2)
-        # Total weight = 0.7 + 0.3 + 0.2 = 1.2
-        # Normalized: title=0.7/1.2=0.583, author=0.3/1.2=0.25, publisher=0.2/1.2=0.167
-        # Score = 80*0.583 + 70*0.25 + 0*0.167 = 46.67 + 17.5 = 64.17
-        assert score == 64.17
+        # With Phase 3 redistribution: title=80 (>= 70), publisher=0, author=70
+        # Redistribution applies: title * 0.6 + author * 0.4
+        # Score = 80 * 0.6 + 70 * 0.4 = 48 + 28 = 76.0
+        assert score == 76.0
 
     def test_combine_scores_generic_no_publisher(self, mock_config_with_scenarios):
         """Test score combination for generic title without publisher"""
@@ -201,12 +224,11 @@ class TestScoreCombiner:
             use_config_weights=True,
         )
 
-        # Weights from config: title=0.4, author=0.6, publisher missing (defaults to 0.2)
-        # With generic penalty: title_weight = 0.4 * 0.8 = 0.32
-        # Total = 0.32 + 0.6 + 0.2 = 1.12
-        # Normalized: title=0.32/1.12=0.286, author=0.6/1.12=0.536, publisher=0.2/1.12=0.179
-        # Score: 80*0.286 + 70*0.536 + 0*0.179 = 22.86 + 37.50 = 60.36
-        assert score == 60.36
+        # With Phase 3 redistribution: title=80 (>= 70), publisher=0, author=70
+        # Redistribution applies even with generic title: title * 0.6 + author * 0.4
+        # Score = 80 * 0.6 + 70 * 0.4 = 48 + 28 = 76.0
+        # Note: Generic penalty is applied in standard calculation but not in redistribution
+        assert score == 76.0
 
     def test_combine_scores_fallback_to_defaults(self, mock_config_no_scenarios):
         """Test score combination falls back to defaults when no scenario weights"""
@@ -237,11 +259,10 @@ class TestScoreCombiner:
             use_config_weights=True,
         )
 
-        # Should use defaults: title=0.5, author=0.3, publisher=0 (no publisher)
-        # Normalized: total = 0.5 + 0.3 = 0.8
-        # title: 0.5/0.8 = 0.625, author: 0.3/0.8 = 0.375
-        # Score: 80*0.625 + 70*0.375 = 50 + 26.25 = 76.25
-        assert score == 76.25
+        # With Phase 3 redistribution: title=80 (>= 70), publisher=0, author=70
+        # Redistribution applies: title * 0.6 + author * 0.4
+        # Score = 80 * 0.6 + 70 * 0.4 = 48 + 28 = 76.0
+        assert score == 76.0
 
     def test_combine_scores_dynamic_weights_high_title(self, mock_config):
         """Test dynamic weight calculation with high title score"""
@@ -328,10 +349,10 @@ class TestScoreCombiner:
             use_config_weights=False,  # Use dynamic weights
         )
 
-        # Dynamic weights: title=0.4, author=0.5, publisher=0.1
-        # Total = 0.4 + 0.5 + 0.1 = 1.0
-        # Score: 70*0.4 + 92*0.5 + 0*0.1 = 28 + 46 + 0 = 74.0
-        assert score == 74.0
+        # With Phase 3 redistribution: title=70 (exactly at threshold), publisher=0, author=92
+        # Redistribution applies: title * 0.6 + author * 0.4
+        # Score = 70 * 0.6 + 92 * 0.4 = 42 + 36.8 = 78.8
+        assert score == 78.8
 
     def test_combine_scores_dynamic_weights_high_publisher(self, mock_config):
         """Test dynamic weight calculation with high publisher score"""
@@ -396,11 +417,10 @@ class TestScoreCombiner:
             use_config_weights=False,  # Use dynamic weights
         )
 
-        # Falls back to defaults: title=0.5, author=0.3, publisher=0 (no publisher)
-        # Normalized: total = 0.5 + 0.3 = 0.8
-        # title: 0.5/0.8 = 0.625, author: 0.3/0.8 = 0.375
-        # Score: 70*0.625 + 60*0.375 = 43.75 + 22.5 = 66.25
-        assert score == 66.25
+        # With Phase 3 redistribution: title=70 (exactly at threshold), publisher=0, author=60
+        # Redistribution applies: title * 0.6 + author * 0.4
+        # Score = 70 * 0.6 + 60 * 0.4 = 42 + 24 = 66.0
+        assert score == 66.0
 
     def test_combine_scores_all_zero_scores(self, mock_config_no_scenarios):
         """Test combination with all zero scores"""
@@ -434,8 +454,10 @@ class TestScoreCombiner:
             use_config_weights=False,  # Use dynamic weights
         )
 
-        # When total_weight is 0, normalization is skipped, so score would be 0
-        assert score == 0.0
+        # With Phase 3 redistribution: title=80 (>= 70), publisher=0, author=70
+        # Redistribution applies regardless of weights: title * 0.6 + author * 0.4
+        # Score = 80 * 0.6 + 70 * 0.4 = 48 + 28 = 76.0
+        assert score == 76.0
 
     def test_combine_scores_perfect_scores(self, mock_config_with_scenarios):
         """Test combination with perfect scores"""
@@ -532,6 +554,10 @@ class TestScoreCombiner:
                 }
             }
         }
+        # Add the matching attribute with lccn_score_boost
+        matching_mock = Mock()
+        matching_mock.lccn_score_boost = 35.0
+        config.matching = matching_mock
 
         combiner = ScoreCombiner(config)
 
