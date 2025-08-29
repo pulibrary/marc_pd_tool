@@ -241,8 +241,7 @@ class StreamingComponent:
                 initargs=init_args,
                 maxtasksperchild=tasks_per_child,
             ) as pool:
-                # Use chunksize=1 to get immediate feedback on completion
-                for result in pool.imap_unordered(process_batch, batch_infos, chunksize=1):
+                for result in pool.imap_unordered(process_batch, batch_infos):
                     batch_id, result_file_path, batch_stats = result
                     all_stats.append(batch_stats)
                     completed_batches += 1
