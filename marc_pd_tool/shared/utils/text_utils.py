@@ -55,6 +55,8 @@ def fix_latin1_corruption(text: str) -> str:
 
     # Common mojibake indicators for UTF-8 misinterpreted as Latin-1
     # These patterns are extremely rare in legitimate Latin-1 text
+    # NOTE: Only include multi-character sequences that are clear mojibake patterns
+    # Do NOT include single valid Unicode characters like Ä, Ö, č, ć, etc.
     mojibake_indicators = [
         "Ã¡",
         "Ã©",
@@ -70,13 +72,15 @@ def fix_latin1_corruption(text: str) -> str:
         "Ã¬",
         "Ã²",
         "Ã¹",  # More Romance languages
-        "Ä",
-        "Ä±",
-        "Å",
-        "Å¡",
-        "Å¾",
-        "Ä",
-        "Ä",  # Eastern European
+        "Ã„",  # Mojibake for Ä (not the single char Ä)
+        "Ã¤",  # Mojibake for ä
+        "Ã–",  # Mojibake for Ö
+        "Ã¶",  # Mojibake for ö
+        "Ãœ",  # Mojibake for Ü
+        "Ã¼",  # Mojibake for ü
+        "ÃŸ",  # Mojibake for ß
+        "Å¡",  # Mojibake patterns (keep - this is multi-byte)
+        "Å¾",  # Mojibake patterns (keep - this is multi-byte)
         "â€™",
         "â€œ",
         "â€",
