@@ -140,21 +140,6 @@ class MarcCopyrightAnalyzer(
 
         # Load and index copyright/renewal data first
         self._load_and_index_data(options)
-        
-        # On Linux with fork mode, release memory before forking to avoid hang
-        from multiprocessing import get_start_method
-        if get_start_method() == "fork" and options.num_processes and options.num_processes > 1:
-            logger.info("Fork mode detected: Releasing indexes from memory before multiprocessing")
-            # Clear the indexes from memory - they're cached to disk now
-            # Workers will reload them from cache
-            self.registration_index = None
-            self.renewal_index = None
-            self.copyright_data = []
-            self.renewal_data = []
-            # Force garbage collection to free memory
-            import gc
-            gc.collect()
-            logger.info("Memory released - workers will load indexes from cache")
 
         # Dynamically determine the maximum year we have data for
         max_data_year = None

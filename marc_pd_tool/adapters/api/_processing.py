@@ -246,11 +246,11 @@ class ProcessingComponent:
                 # Platform-specific worker initialization
                 start_method = get_start_method()
                 if start_method == "fork":
-                    # Linux: Check if indexes are already loaded
+                    # Linux: Share memory if indexes are already loaded
+                    # BUT DO NOT load them here - that causes the hang
                     if self.registration_index and self.renewal_index:
-                        # Indexes already loaded - share them via fork
                         logger.info(
-                            "Fork mode: Indexes already loaded, sharing via fork memory"
+                            "Fork mode detected: Sharing pre-loaded indexes via fork memory"
                         )
                         
                         registration_index = self.registration_index
@@ -277,13 +277,13 @@ class ProcessingComponent:
                             "maxtasksperchild": tasks_per_child,
                         }
                     else:
-                        # Indexes not loaded - let workers load them independently
-                        # This avoids fork() hanging with large memory
+                        # Indexes not loaded - workers will load from cache
+                        # DO NOT call _load_and_index_data here!
                         logger.info(
-                            "Fork mode: Indexes not pre-loaded, workers will load independently to avoid fork hang"
+                            "Fork mode detected: Indexes not pre-loaded, workers will load from cache"
                         )
                         init_args = (
-                            self.cache_dir,
+                            self.cache_dir or ".marcpd_cache",
                             self.copyright_dir,
                             self.renewal_dir,
                             config_hash,
@@ -303,7 +303,7 @@ class ProcessingComponent:
                     # macOS/Windows: Each worker loads independently
                     logger.info("Spawn mode detected: Workers will load indexes independently")
                     init_args = (
-                        self.cache_dir,
+                        self.cache_dir or ".marcpd_cache",
                         self.copyright_dir,
                         self.renewal_dir,
                         config_hash,
