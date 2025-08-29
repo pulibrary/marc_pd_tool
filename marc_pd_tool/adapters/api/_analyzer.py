@@ -138,20 +138,23 @@ class MarcCopyrightAnalyzer(
         # Store options for later use
         self.analysis_options = options
 
-        # Skip loading indexes in main process when using streaming mode on Linux
-        # to avoid fork() hanging with large memory structures
-        # The workers will load the indexes independently or from cache
-        from multiprocessing import get_start_method
-        skip_main_load = get_start_method() == "fork" and options.num_processes and options.num_processes > 1
+        # Load and index copyright/renewal data first
+        self._load_and_index_data(options)
         
-        if skip_main_load:
-            logger.info("Skipping index loading in main process (fork mode) - workers will load from cache")
-            # Initialize empty indexes to satisfy type checking
+        # On Linux with fork mode, release memory before forking to avoid hang
+        from multiprocessing import get_start_method
+        if get_start_method() == "fork" and options.num_processes and options.num_processes > 1:
+            logger.info("Fork mode detected: Releasing indexes from memory before multiprocessing")
+            # Clear the indexes from memory - they're cached to disk now
+            # Workers will reload them from cache
             self.registration_index = None
             self.renewal_index = None
-        else:
-            # Load and index copyright/renewal data first
-            self._load_and_index_data(options)
+            self.copyright_data = []
+            self.renewal_data = []
+            # Force garbage collection to free memory
+            import gc
+            gc.collect()
+            logger.info("Memory released - workers will load indexes from cache")
 
         # Dynamically determine the maximum year we have data for
         max_data_year = None
