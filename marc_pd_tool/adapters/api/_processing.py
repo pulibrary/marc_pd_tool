@@ -246,48 +246,59 @@ class ProcessingComponent:
                 # Platform-specific worker initialization
                 start_method = get_start_method()
                 if start_method == "fork":
-                    # Linux: Load data once in main process
-                    logger.info(
-                        "Fork mode detected: Loading indexes in main process for memory sharing"
-                    )
+                    # Linux: Check if indexes are already loaded
+                    if self.registration_index and self.renewal_index:
+                        # Indexes already loaded - share them via fork
+                        logger.info(
+                            "Fork mode: Indexes already loaded, sharing via fork memory"
+                        )
+                        
+                        registration_index = self.registration_index
+                        renewal_index = self.renewal_index
+                        generic_detector = self.generic_detector
 
-                    if not self.registration_index or not self.renewal_index:
-                        # Local imports
-                        from marc_pd_tool.application.models.config_models import (
-                            AnalysisOptions,
+                        # Store in global for fork to inherit
+                        me._shared_data = {  # type: ignore[attr-defined]
+                            "registration_index": registration_index,
+                            "renewal_index": renewal_index,
+                            "generic_detector": generic_detector,
+                            "matching_engine": DataMatcher(),
+                        }
+
+                        # Use minimal initializer that just sets up worker data from shared
+                        def init_worker_fork() -> None:
+                            """Initialize worker on Linux - use pre-loaded shared data"""
+                            me._worker_data = me._shared_data  # type: ignore[attr-defined]
+                            logger.info(f"Worker {getpid()} using shared memory indexes")
+
+                        pool_args = {
+                            "processes": num_processes,
+                            "initializer": init_worker_fork,
+                            "maxtasksperchild": tasks_per_child,
+                        }
+                    else:
+                        # Indexes not loaded - let workers load them independently
+                        # This avoids fork() hanging with large memory
+                        logger.info(
+                            "Fork mode: Indexes not pre-loaded, workers will load independently to avoid fork hang"
+                        )
+                        init_args = (
+                            self.cache_dir,
+                            self.copyright_dir,
+                            self.renewal_dir,
+                            config_hash,
+                            detector_config,
+                            min_year,
+                            max_year,
+                            brute_force_missing_year,
                         )
 
-                        self._load_and_index_data(
-                            AnalysisOptions(
-                                min_year=min_year,
-                                max_year=max_year,
-                                brute_force_missing_year=brute_force_missing_year,
-                            )
-                        )
-
-                    registration_index = self.registration_index
-                    renewal_index = self.renewal_index
-                    generic_detector = self.generic_detector
-
-                    # Store in global for fork to inherit
-                    me._shared_data = {  # type: ignore[attr-defined]
-                        "registration_index": registration_index,
-                        "renewal_index": renewal_index,
-                        "generic_detector": generic_detector,
-                        "matching_engine": DataMatcher(),
-                    }
-
-                    # Use minimal initializer that just sets up worker data from shared
-                    def init_worker_fork() -> None:
-                        """Initialize worker on Linux - use pre-loaded shared data"""
-                        me._worker_data = me._shared_data  # type: ignore[attr-defined]
-                        logger.info(f"Worker {getpid()} using shared memory indexes")
-
-                    pool_args = {
-                        "processes": num_processes,
-                        "initializer": init_worker_fork,
-                        "maxtasksperchild": tasks_per_child,
-                    }
+                        pool_args = {
+                            "processes": num_processes,
+                            "initializer": init_worker,
+                            "initargs": init_args,
+                            "maxtasksperchild": tasks_per_child,
+                        }
                 else:
                     # macOS/Windows: Each worker loads independently
                     logger.info("Spawn mode detected: Workers will load indexes independently")

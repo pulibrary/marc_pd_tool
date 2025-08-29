@@ -218,27 +218,10 @@ class StreamingComponent:
                 tasks_per_child = max(50, min(200, batches_per_worker // 3))
                 logger.info(f"Worker recycling: every {tasks_per_child} batches")
 
-            # Platform-specific handling for true memory sharing
+            # Skip fork optimization - let each worker load its own indexes
+            # This avoids fork() hanging with large memory
             if start_method == "fork":
-                logger.info("Linux detected: Loading indexes in main process for memory sharing...")
-
-                # Load indexes once in main process
-                cache_manager = CacheManager(self.cache_dir or ".marcpd_cache")
-                cached_indexes = cache_manager.get_cached_indexes(
-                    self.copyright_dir,
-                    self.renewal_dir,
-                    config_hash,
-                    min_year,
-                    max_year,
-                    brute_force_missing_year,
-                )
-
-                if cached_indexes:
-                    copyright_index, renewal_index = cached_indexes
-                    logger.info("✓ Loaded cached indexes in main process")
-                    logger.info("✓ Memory shared via fork - workers will inherit indexes")
-                else:
-                    logger.info("No cached indexes found - workers will load independently")
+                logger.info("Linux detected: Workers will load indexes independently to avoid fork issues")
 
             # Prepare init_worker arguments
             init_args = (
