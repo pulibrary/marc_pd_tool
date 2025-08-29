@@ -154,7 +154,7 @@ class MarcLoader:
                             batch_paths.append(batch_path)
                             batch_count += 1
                             logger.info(
-                                f"Pickled batch {batch_count} with {len(current_batch)} publications (processed {total_record_count:,} records)"
+                                f"Pickled batch {batch_count} with {len(current_batch)} publications ({total_record_count:,} total records processed so far)"
                             )
 
                             # Clear batch from memory immediately
@@ -185,7 +185,7 @@ class MarcLoader:
         )
 
         logger.info(
-            f"Streamed {batch_count} batches totaling {total_publications:,} publications from {len(marc_files)} file(s)"
+            f"Created {batch_count} batches containing {total_publications:,} publications from {len(marc_files)} file(s)"
         )
         if filtered_count > 0:
             logger.info(f"Filtered out {filtered_count:,} total records:")

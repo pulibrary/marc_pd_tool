@@ -394,9 +394,12 @@ class CacheManager:
                 f"Caching copyright data for years {min_year or 'earliest'}-{max_year or 'present'} ({len(publications):,} publications)..."
             )
 
-        return self._save_cache_data(
+        result = self._save_cache_data(
             cache_subdir, cache_filename, publications, [copyright_dir], additional_deps
         )
+        if result:
+            logger.info(f"  ✓ Cached {len(publications):,} copyright publications")
+        return result
 
     def get_cached_renewal_data(
         self,
@@ -492,9 +495,12 @@ class CacheManager:
                 f"Caching renewal data for years {min_year or 'earliest'}-{max_year or 'present'} ({len(publications):,} publications)..."
             )
 
-        return self._save_cache_data(
+        result = self._save_cache_data(
             cache_subdir, cache_filename, publications, [renewal_dir], additional_deps
         )
+        if result:
+            logger.info(f"  ✓ Cached {len(publications):,} renewal publications")
+        return result
 
     def get_cached_marc_data(
         self,
@@ -645,6 +651,7 @@ class CacheManager:
         }
 
         # Cache both indexes
+        logger.info(f"  Saving registration index ({len(registration_index.publications):,} entries)...")
         reg_success = self._save_cache_data(
             cache_subdir,
             "registration.pkl",
@@ -652,7 +659,10 @@ class CacheManager:
             [copyright_dir, renewal_dir],
             additional_deps,
         )
+        if reg_success:
+            logger.info(f"    ✓ Cached registration index")
 
+        logger.info(f"  Saving renewal index ({len(renewal_index.publications):,} entries)...")
         ren_success = self._save_cache_data(
             cache_subdir,
             "renewal.pkl",
@@ -660,7 +670,11 @@ class CacheManager:
             [copyright_dir, renewal_dir],
             additional_deps,
         )
+        if ren_success:
+            logger.info(f"    ✓ Cached renewal index")
 
+        if reg_success and ren_success:
+            logger.info(f"✓ Successfully cached both indexes")
         return reg_success and ren_success
 
     def get_cached_generic_detector(
@@ -704,13 +718,16 @@ class CacheManager:
         """
         logger.info(f"Caching generic title detector...")
         additional_deps: JSONDict = {"detector_config": detector_config}  # type: ignore[dict-item]
-        return self._save_cache_data(
+        result = self._save_cache_data(
             self.generic_detector_cache_dir,
             "detector.pkl",
             detector,
             [copyright_dir, renewal_dir],
             additional_deps,
         )
+        if result:
+            logger.info(f"  ✓ Cached generic title detector")
+        return result
 
     def clear_all_caches(self) -> None:
         """Clear all cached data"""
