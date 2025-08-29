@@ -69,17 +69,20 @@ Before comparing records, the tool normalizes text to handle variations in catal
 The tool uses multiple strategies to compare titles accurately:
 
 1. **Title Containment Detection**: Recognizes when one title contains another (subtitles/series)
+
    - Example: "Tax Guide" vs "Tax Guide 1934" scores 85-95%
    - Requires 30% containment ratio to prevent false positives
    - Higher scores when contained at start (likely subtitle)
 
-2. **Smarter Fuzzy Matching**: Enhanced algorithm that reduces false positives
+1. **Smarter Fuzzy Matching**: Enhanced algorithm that reduces false positives
+
    - Single distinctive word matches capped at 60%
    - Applies penalties for stem-only similarity (England/English)
    - Filters common words to prevent score inflation
    - Returns scores from 0 (completely different) to 100 (identical)
 
-3. **Standard Fuzzy Matching**: Handles common variations
+1. **Standard Fuzzy Matching**: Handles common variations
+
    - Word order variations ("Adventures of Tom Sawyer" vs "Tom Sawyer Adventures")
    - Minor spelling differences
    - Missing or extra words
@@ -126,16 +129,19 @@ A match is confirmed when the similarity scores meet these thresholds:
 The tool combines field scores using weighted averages with several refinements:
 
 1. **Multi-Field Validation**: Prevents single-field dominance
+
    - At least TWO fields must have reasonable scores (>30%)
    - Single field matches (even 100%) cap combined score at 25%
    - Author-only or publisher-only matches receive 0.5x penalty
 
-2. **Missing Field Weight Redistribution**: When ONE field is missing but others match well
+1. **Missing Field Weight Redistribution**: When ONE field is missing but others match well
+
    - If title >70% and exactly one field missing: redistributes weights
    - Example: Missing publisher but strong title/author match gets fair scoring
    - Never applies when BOTH author AND publisher are missing
 
-3. **Derived Work Penalties**: Based on confidence and type match
+1. **Derived Work Penalties**: Based on confidence and type match
+
    - Both same type of derived work: 10% penalty
    - Different types: 30% penalty
    - One derived, one not: 50% penalty

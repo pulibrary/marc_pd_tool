@@ -180,12 +180,12 @@ mdformat = { cmd = "mdformat . --exclude projects/*" }
 mypy = { cmd = "mypy --pretty --no-incremental --warn-unused-configs" }
 autoflake = { cmd = "autoflake . -i -r --remove-unused-variables --remove-all-unused-imports --ignore-pass-after-docstring --exclude ./.venv/*,./_scripts/*" }
 headers = { cmd = "python scripts/add_file_headers.py" }
-test = { cmd = "pytest tests/ -v --cov=marc_pd_tool --cov-report=term-missing -m 'not regression'" }
+test = { cmd = "pytest tests/ -v --cov=marc_pd_tool --cov-report=term-missing -m 'not scoring'" }
 test-unit = { cmd = "pytest tests/unit/ -v" }
-test-quick = { cmd = "pytest tests/ -v -m 'not slow and not regression'" }
+test-quick = { cmd = "pytest tests/ -v -m 'not slow and not scoring'" }
 test-adapters = { cmd = "pytest tests/adapters/ -v --cov=marc_pd_tool.adapters --cov-report=term-missing" }
 test-unit-full = { cmd = "pytest tests/unit/ -v --cov=marc_pd_tool --cov-report=term-missing" }
-test-regression = { cmd = "pytest tests/scoring/ -v -s -m regression" }
+test-scoring = { cmd = "pytest tests/scoring/ -v -s -m scoring" }
 clean = { shell = '''
     find . \
         -name "__pycache__" \

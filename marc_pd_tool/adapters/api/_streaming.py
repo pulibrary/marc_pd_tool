@@ -10,9 +10,6 @@ from tempfile import mkdtemp
 from time import time
 from typing import TYPE_CHECKING
 
-# Third party imports
-import psutil
-
 # Local imports
 from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.application.processing.matching_engine import init_worker
@@ -22,6 +19,9 @@ from marc_pd_tool.core.types.aliases import BatchProcessingInfo
 from marc_pd_tool.core.types.protocols import StreamingAnalyzerProtocol
 from marc_pd_tool.infrastructure import CacheManager
 from marc_pd_tool.shared.utils.time_utils import format_time_duration
+
+# Third party imports removed - psutil not needed (memory monitoring handled by CLI)
+
 
 if TYPE_CHECKING:
     # Local imports
@@ -282,18 +282,7 @@ class StreamingComponent:
                         f"ETA: {eta_str}"
                     )
 
-                    # Memory monitoring (check every 10 batches)
-                    if completed_batches % 10 == 0:
-                        try:
-                            process = psutil.Process()
-                            mem_info = process.memory_info()
-                            mem_gb: float = mem_info.rss / (1024**3)
-
-                            # Log memory every 50 batches or if usage is high
-                            if completed_batches % 50 == 0 or mem_gb > 8.0:
-                                logger.info(f"Memory usage: {mem_gb:.1f}GB")
-                        except Exception:
-                            pass  # Ignore memory monitoring errors
+                    # Memory monitoring removed - handled by CLI's MemoryMonitor when --monitor-memory is used
 
         except KeyboardInterrupt:
             logger.warning("Interrupted by user. Cleaning up...")

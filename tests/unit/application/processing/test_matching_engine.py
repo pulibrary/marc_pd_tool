@@ -1632,13 +1632,29 @@ class TestDataMatcher:
                                     assert stats.marc_count == 100  # All records processed
                                     assert stats.processing_time == 61  # 61 seconds elapsed
 
-                                    # Verify the warning was logged
-                                    # elapsed=61 > 60, so warning should trigger
-                                    mock_logger.warning.assert_called_once()
-                                    warning_call = mock_logger.warning.call_args[0][0]
-                                    assert "Slow processing detected" in warning_call
-                                    assert "1.6 rec/s" in warning_call or "1.6" in warning_call
-                                    assert "61.0s" in warning_call or "61s" in warning_call
+                                    # Verify the debug message was logged
+                                    # elapsed=61 > 60, so debug logging should trigger
+                                    mock_logger.debug.assert_called()
+                                    # Find the slow processing debug call among all debug calls
+                                    debug_calls = mock_logger.debug.call_args_list
+                                    slow_processing_calls = [
+                                        call
+                                        for call in debug_calls
+                                        if "Slow processing detected" in str(call)
+                                    ]
+                                    assert (
+                                        len(slow_processing_calls) > 0
+                                    ), "Expected debug log for slow processing"
+                                    # Check the content of the slow processing debug message
+                                    slow_processing_msg = str(slow_processing_calls[0])
+                                    assert (
+                                        "1.6 rec/s" in slow_processing_msg
+                                        or "1.6" in slow_processing_msg
+                                    )
+                                    assert (
+                                        "61.0s" in slow_processing_msg
+                                        or "61s" in slow_processing_msg
+                                    )
 
         # Clean up
         if exists(batch_path):

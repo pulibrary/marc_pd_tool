@@ -6,16 +6,20 @@ This is now a slim wrapper around the modular matching components.
 """
 
 # Standard library imports
+from logging import DEBUG
 from logging import Formatter
 from logging import INFO
 from logging import StreamHandler
 from logging import getLogger
 from os import getpid
+from os import makedirs
 from os import unlink
+from os.path import exists
 from os.path import join
 from pickle import HIGHEST_PROTOCOL
 from pickle import dump
 from pickle import load
+from tempfile import gettempdir
 from time import time
 
 # Third party imports
@@ -485,10 +489,46 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         logger.debug(f"  Batch {batch_num}: {skipped} records skipped (no year or filtered)")
 
     # Log if processing was unusually slow
-    # Warning only for genuinely slow processing: >60s OR <2 rec/s (after 10s)
+    # Debug logging for slow processing: >60s OR <2 rec/s (after 10s)
     if elapsed > 60 or (elapsed > 10 and records_per_sec < 2):
-        logger.warning(
-            f"  Batch {batch_num}: Slow processing detected - {elapsed:.1f}s @ {records_per_sec:.1f} rec/s"
+        # Collect sample titles from the batch (up to 5)
+        sample_titles = []
+        for pub in processed_publications[:5]:
+            if hasattr(pub, "original_title") and pub.original_title:
+                sample_titles.append(pub.original_title[:100])  # Truncate long titles
+
+        titles_str = "; ".join(sample_titles) if sample_titles else "No titles available"
+
+        logger.debug(
+            f"  Batch {batch_num}: Slow processing detected - {elapsed:.1f}s @ {records_per_sec:.1f} rec/s\n"
+            f"    Sample titles from batch: {titles_str}"
         )
+
+        # Save debug data if running at DEBUG level
+        if logger.isEnabledFor(DEBUG):
+            try:
+                # Create debug directory in temp
+                debug_dir = join(gettempdir(), "marc_pd_tool_debug")
+                if not exists(debug_dir):
+                    makedirs(debug_dir)
+
+                # Save batch data for analysis
+                debug_file = join(debug_dir, f"slow_batch_{batch_num}_{int(time())}.pkl")
+                debug_data = {
+                    "batch_num": batch_num,
+                    "elapsed_time": elapsed,
+                    "records_per_sec": records_per_sec,
+                    "marc_count": stats.marc_count,
+                    "total_records": len(batch),
+                    "sample_publications": processed_publications[
+                        :10
+                    ],  # Save first 10 for analysis
+                    "stats": stats,
+                }
+                with open(debug_file, "wb") as f:
+                    dump(debug_data, f, protocol=HIGHEST_PROTOCOL)
+                logger.debug(f"    Debug data saved to: {debug_file}")
+            except Exception as e:
+                logger.debug(f"    Failed to save debug data: {e}")
 
     return batch_num, result_file_path, stats

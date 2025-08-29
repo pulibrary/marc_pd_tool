@@ -386,38 +386,33 @@ class TestStreamingComponent:
                 with patch("marc_pd_tool.adapters.api._streaming.get_start_method") as mock_start:
                     mock_start.return_value = "spawn"
 
-                    with patch(
-                        "marc_pd_tool.adapters.api._streaming.psutil.Process"
-                    ) as mock_process:
-                        mock_mem = Mock()
-                        mock_mem.rss = 9 * (1024**3)  # 9 GB to trigger high memory logging
-                        mock_process.return_value.memory_info.return_value = mock_mem
+                    with patch("marc_pd_tool.adapters.api._streaming.logger") as mock_logger:
+                        analyzer._process_streaming_parallel(
+                            batch_paths=batch_paths,
+                            num_processes=4,
+                            year_tolerance=1,
+                            title_threshold=40,
+                            author_threshold=30,
+                            publisher_threshold=20,
+                            early_exit_title=95,
+                            early_exit_author=90,
+                            early_exit_publisher=85,
+                            score_everything_mode=False,
+                            minimum_combined_score=None,
+                            brute_force_missing_year=False,
+                            min_year=None,
+                            max_year=None,
+                        )
 
-                        with patch("marc_pd_tool.adapters.api._streaming.logger") as mock_logger:
-                            analyzer._process_streaming_parallel(
-                                batch_paths=batch_paths,
-                                num_processes=4,
-                                year_tolerance=1,
-                                title_threshold=40,
-                                author_threshold=30,
-                                publisher_threshold=20,
-                                early_exit_title=95,
-                                early_exit_author=90,
-                                early_exit_publisher=85,
-                                score_everything_mode=False,
-                                minimum_combined_score=None,
-                                brute_force_missing_year=False,
-                                min_year=None,
-                                max_year=None,
-                            )
-
-                            # Check that memory was logged (high memory triggers logging)
-                            memory_logs = [
-                                call
-                                for call in mock_logger.info.call_args_list
-                                if "Memory usage:" in str(call)
-                            ]
-                            assert len(memory_logs) > 0
+                        # Check that memory is NOT logged (removed from streaming component)
+                        memory_logs = [
+                            call
+                            for call in mock_logger.info.call_args_list
+                            if "Memory usage:" in str(call)
+                        ]
+                        assert (
+                            len(memory_logs) == 0
+                        ), "Memory monitoring should be removed from streaming"
 
     def test_process_streaming_parallel_worker_recycling(self, tmp_path):
         """Test worker recycling logic based on workload"""
@@ -740,32 +735,26 @@ class TestStreamingComponent:
                 with patch("marc_pd_tool.adapters.api._streaming.get_start_method") as mock_start:
                     mock_start.return_value = "spawn"
 
-                    with patch(
-                        "marc_pd_tool.adapters.api._streaming.psutil.Process"
-                    ) as mock_process:
-                        # Simulate memory monitoring error
-                        mock_process.side_effect = Exception("Memory error")
+                    # Memory monitoring removed - no psutil needed
+                    analyzer._process_streaming_parallel(
+                        batch_paths=batch_paths,
+                        num_processes=2,
+                        year_tolerance=1,
+                        title_threshold=40,
+                        author_threshold=30,
+                        publisher_threshold=20,
+                        early_exit_title=95,
+                        early_exit_author=90,
+                        early_exit_publisher=85,
+                        score_everything_mode=False,
+                        minimum_combined_score=None,
+                        brute_force_missing_year=False,
+                        min_year=None,
+                        max_year=None,
+                    )
 
-                        # Should not raise - errors are caught and ignored
-                        analyzer._process_streaming_parallel(
-                            batch_paths=batch_paths,
-                            num_processes=2,
-                            year_tolerance=1,
-                            title_threshold=40,
-                            author_threshold=30,
-                            publisher_threshold=20,
-                            early_exit_title=95,
-                            early_exit_author=90,
-                            early_exit_publisher=85,
-                            score_everything_mode=False,
-                            minimum_combined_score=None,
-                            brute_force_missing_year=False,
-                            min_year=None,
-                            max_year=None,
-                        )
-
-                        # Verify processing completed despite memory monitoring error
-                        assert analyzer.results.result_temp_dir == str(result_dir)
+                    # Verify processing completed (memory monitoring removed)
+                    assert analyzer.results.result_temp_dir == str(result_dir)
 
     def test_streaming_analyzer_protocol(self):
         """Test that StreamingAnalyzerProtocol is properly defined"""
@@ -1054,39 +1043,33 @@ class TestStreamingComponent:
                 with patch("marc_pd_tool.adapters.api._streaming.get_start_method") as mock_start:
                     mock_start.return_value = "spawn"
 
-                    with patch(
-                        "marc_pd_tool.adapters.api._streaming.psutil.Process"
-                    ) as mock_process:
-                        mock_mem = Mock()
-                        # Set low memory (4GB) - should only log every 50 batches
-                        mock_mem.rss = 4 * (1024**3)
-                        mock_process.return_value.memory_info.return_value = mock_mem
+                    with patch("marc_pd_tool.adapters.api._streaming.logger") as mock_logger:
+                        analyzer._process_streaming_parallel(
+                            batch_paths=batch_paths,
+                            num_processes=4,
+                            year_tolerance=1,
+                            title_threshold=40,
+                            author_threshold=30,
+                            publisher_threshold=20,
+                            early_exit_title=95,
+                            early_exit_author=90,
+                            early_exit_publisher=85,
+                            score_everything_mode=False,
+                            minimum_combined_score=None,
+                            brute_force_missing_year=False,
+                            min_year=None,
+                            max_year=None,
+                        )
 
-                        with patch("marc_pd_tool.adapters.api._streaming.logger") as mock_logger:
-                            analyzer._process_streaming_parallel(
-                                batch_paths=batch_paths,
-                                num_processes=4,
-                                year_tolerance=1,
-                                title_threshold=40,
-                                author_threshold=30,
-                                publisher_threshold=20,
-                                early_exit_title=95,
-                                early_exit_author=90,
-                                early_exit_publisher=85,
-                                score_everything_mode=False,
-                                minimum_combined_score=None,
-                                brute_force_missing_year=False,
-                                min_year=None,
-                                max_year=None,
-                            )
-
-                            # With low memory, it should only log at batch 50
-                            memory_logs = [
-                                call
-                                for call in mock_logger.info.call_args_list
-                                if "Memory usage: 4.0GB" in str(call)
-                            ]
-                            assert len(memory_logs) == 1  # Only once at batch 50
+                        # Check that memory is NOT logged (removed from streaming component)
+                        memory_logs = [
+                            call
+                            for call in mock_logger.info.call_args_list
+                            if "Memory usage:" in str(call)
+                        ]
+                        assert (
+                            len(memory_logs) == 0
+                        ), "Memory monitoring should be removed from streaming"
 
     def test_minimum_combined_score_type_handling(self):
         """Test that minimum_combined_score handles different types correctly"""
