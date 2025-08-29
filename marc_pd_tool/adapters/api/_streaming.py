@@ -218,46 +218,74 @@ class StreamingComponent:
                 tasks_per_child = max(50, min(200, batches_per_worker // 3))
                 logger.info(f"Worker recycling: every {tasks_per_child} batches")
 
-            # Platform-specific handling for true memory sharing
-            if start_method == "fork":
-                logger.info("Linux detected: Loading indexes in main process for memory sharing...")
-
-                # Load indexes once in main process
-                cache_manager = CacheManager(self.cache_dir or ".marcpd_cache")
-                cached_indexes = cache_manager.get_cached_indexes(
+            # Platform-specific worker initialization
+            if start_method == "fork" and self.registration_index and self.renewal_index:
+                # Linux with pre-loaded indexes: Use fork memory sharing
+                logger.info("Fork mode: Using pre-loaded indexes via memory sharing")
+                
+                # Store indexes in module for fork to inherit
+                import marc_pd_tool.application.processing.matching_engine as me
+                me._shared_data = {  # type: ignore[attr-defined]
+                    "registration_index": self.registration_index,
+                    "renewal_index": self.renewal_index, 
+                    "generic_detector": self.generic_detector,
+                    "matching_engine": None,
+                }
+                
+                def init_worker_fork() -> None:
+                    """Initialize worker on Linux - use pre-loaded shared data"""
+                    import signal
+                    signal.signal(signal.SIGINT, signal.SIG_IGN)
+                    
+                    import marc_pd_tool.application.processing.matching_engine as me
+                    from os import getpid
+                    from logging import getLogger
+                    
+                    # Set up worker globals from shared data
+                    me._worker_registration_index = me._shared_data["registration_index"]  # type: ignore
+                    me._worker_renewal_index = me._shared_data["renewal_index"]  # type: ignore
+                    me._worker_generic_detector = me._shared_data["generic_detector"]  # type: ignore
+                    
+                    # Load config
+                    from marc_pd_tool.infrastructure.config import get_config
+                    me._worker_config = get_config()
+                    me._worker_options = {}
+                    
+                    logger = getLogger(__name__)
+                    logger.info(f"Worker {getpid()} using shared memory indexes")
+                
+                pool_args = {
+                    "processes": num_processes,
+                    "initializer": init_worker_fork,
+                    "maxtasksperchild": tasks_per_child,
+                }
+            else:
+                # No pre-loaded indexes or not fork: Workers load independently
+                if start_method == "fork":
+                    logger.info("Fork mode: Indexes not pre-loaded, workers will load from cache")
+                else:
+                    logger.info(f"{start_method.capitalize()} mode: Workers will load indexes independently")
+                
+                # Prepare init_worker arguments
+                init_args = (
+                    self.cache_dir or ".marcpd_cache",
                     self.copyright_dir,
                     self.renewal_dir,
                     config_hash,
+                    detector_config,
                     min_year,
                     max_year,
                     brute_force_missing_year,
                 )
 
-                if cached_indexes:
-                    copyright_index, renewal_index = cached_indexes
-                    logger.info("✓ Loaded cached indexes in main process")
-                    logger.info("✓ Memory shared via fork - workers will inherit indexes")
-                else:
-                    logger.info("No cached indexes found - workers will load independently")
+                pool_args = {
+                    "processes": num_processes,
+                    "initializer": init_worker,
+                    "initargs": init_args,
+                    "maxtasksperchild": tasks_per_child,
+                }
 
-            # Prepare init_worker arguments
-            init_args = (
-                self.cache_dir or ".marcpd_cache",
-                self.copyright_dir,
-                self.renewal_dir,
-                config_hash,
-                detector_config,
-                min_year,
-                max_year,
-                brute_force_missing_year,
-            )
-
-            with Pool(
-                processes=num_processes,
-                initializer=init_worker,
-                initargs=init_args,
-                maxtasksperchild=tasks_per_child,
-            ) as pool:
+            with Pool(**pool_args) as pool:  # type: ignore[arg-type]
                 for result in pool.imap_unordered(process_batch, batch_infos):
                     batch_id, result_file_path, batch_stats = result
                     all_stats.append(batch_stats)
