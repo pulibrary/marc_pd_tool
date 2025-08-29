@@ -32,6 +32,7 @@ from marc_pd_tool.core.types.results import MatchResultDict
 from marc_pd_tool.infrastructure import CacheManager
 from marc_pd_tool.infrastructure.config import ConfigLoader
 from marc_pd_tool.infrastructure.config import get_config
+from marc_pd_tool.infrastructure.logging._progress import get_progress_manager
 from marc_pd_tool.infrastructure.persistence import CopyrightDataLoader
 from marc_pd_tool.infrastructure.persistence import MarcLoader
 from marc_pd_tool.infrastructure.persistence import RenewalDataLoader
@@ -188,10 +189,13 @@ class MarcCopyrightAnalyzer(
         )
 
         # Load MARC records
-        logger.info("=" * 80)
-        logger.info("=== PHASE 2: LOADING MARC RECORDS ===")
-        logger.info("=" * 80)
-        logger.info(f"Loading MARC records from: {marc_path}")
+        # Local imports
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_header
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_info
+
+        progress_manager = get_progress_manager()
+        log_phase_header("PHASE 2: LOADING MARC RECORDS", progress_manager.enabled)
+        log_phase_info(f"Loading MARC records from: {marc_path}", progress_manager.enabled)
 
         # Build parameters for MARC caching
         min_year = options.min_year
@@ -222,43 +226,28 @@ class MarcCopyrightAnalyzer(
             year_range = f"{options.min_year or 'earliest'} to {options.max_year or 'present'}"
             logger.info(f"  Year range filter: {year_range}")
 
-        # Process batches using efficient streaming approach
-        self._process_marc_batches(batch_paths, marc_path, options)
-
-        # Export results if output path provided
-        if output_path:
-            logger.info("")
-            logger.info("=" * 80)
-            logger.info("=== PHASE 5: EXPORTING RESULTS ===")
-            logger.info("=" * 80)
-            output_formats = options.formats if options.formats else ["json", "csv"]
-            single_file = options.single_file
-            logger.info(f"Exporting results to: {output_path}")
-            logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
-            logger.info(
-                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}"
-            )
-            self.export_results(output_path, formats=output_formats, single_file=single_file)
-            logger.info("✓ Export complete")
-
-            # Clean up temporary files after successful export
-            if hasattr(self.results, "cleanup_temp_files"):
-                self.results.cleanup_temp_files()
+        # Process batches efficiently (Phase 3 and 5 are handled by _streaming.py)
+        self._process_marc_batches(batch_paths, marc_path, output_path, options)
 
         return self.results
 
     def _process_marc_batches(
-        self, batch_paths: list[str], marc_path: str, options: AnalysisOptions
+        self,
+        batch_paths: list[str],
+        marc_path: str,
+        output_path: str | None,
+        options: AnalysisOptions,
     ) -> None:
-        """Process MARC batches efficiently using streaming approach
+        """Process MARC batches efficiently
 
         Args:
             batch_paths: List of paths to pickled batch files
             marc_path: Original MARC file path (for logging)
+            output_path: Path for output files (or None)
             options: Analysis options
         """
         # Use the streaming component's method directly
-        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, marc_path, None, options)  # type: ignore[arg-type]
+        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, marc_path, output_path, options)  # type: ignore[arg-type]
 
     def analyze_marc_records(
         self, publications: list[Publication], options: AnalysisOptions | None = None
@@ -283,13 +272,7 @@ class MarcCopyrightAnalyzer(
         if not self.registration_index or not self.renewal_index:
             self._load_and_index_data(options)
 
-        # Start matching
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("=== PHASE 3: MATCHING RECORDS ===")
-        logger.info("=" * 80)
-
-        # Get processing parameters
+        # Get processing parameters (Phase 3 header will be printed by _streaming.py)
         # Use same batch_size default as loading phase
         batch_size = options.batch_size if options.batch_size else self.config.processing.batch_size
         num_processes = options.num_processes
@@ -355,18 +338,23 @@ class MarcCopyrightAnalyzer(
             logger.info(f"  Workers: {num_processes}")
             logger.info(f"  Batch size: {batch_size}")
 
-        # Process using the streaming approach
+        # Process the batches
         StreamingComponent._analyze_marc_file_streaming(self, batch_paths, "in-memory", None, options)  # type: ignore[arg-type]
 
         # Return the publications from results (for backward compatibility)
         results = self.results.publications
 
         # Analyze copyright status
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("=== PHASE 4: ANALYZING RESULTS ===")
-        logger.info("=" * 80)
-        logger.info("Determining copyright status for matched records...")
+        # Local imports
+        from marc_pd_tool.infrastructure.logging._progress import get_progress_manager
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_header
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_info
+
+        progress_manager = get_progress_manager()
+        log_phase_header("PHASE 4: ANALYZING RESULTS", progress_manager.enabled)
+        log_phase_info(
+            "Determining copyright status for matched records...", progress_manager.enabled
+        )
 
         # Log summary statistics
         stats = self.results.statistics
@@ -390,9 +378,11 @@ class MarcCopyrightAnalyzer(
 
     def _load_and_index_data(self, options: AnalysisOptions) -> None:
         """Load and index copyright/renewal data"""
-        logger.info("=" * 80)
-        logger.info("=== PHASE 1: LOADING COPYRIGHT/RENEWAL DATA ===")
-        logger.info("=" * 80)
+        # Local imports
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_header
+
+        progress_manager = get_progress_manager()
+        log_phase_header("PHASE 1: LOADING COPYRIGHT/RENEWAL DATA", progress_manager.enabled)
 
         # Extract year filtering options
         min_year = options.min_year
@@ -432,10 +422,22 @@ class MarcCopyrightAnalyzer(
             if cached_copyright:
                 self.copyright_data = cached_copyright
             else:
+                # Create progress task for loading
+                progress_manager.create_phase_task(
+                    "copyright_loading",
+                    total=None,  # Indeterminate
+                    description="Loading copyright registration data...",
+                )
+
                 # Always use parallel loading (with automatic fallback to sequential if needed)
                 num_workers = options.num_processes  # Will be None if not specified
                 loader = CopyrightDataLoader(self.copyright_dir, num_workers=num_workers)
                 self.copyright_data = loader.load_all_copyright_data(min_year, max_year)
+
+                progress_manager.complete_task(
+                    "copyright_loading", f"Loaded {len(self.copyright_data):,} copyright records"
+                )
+
                 self.cache_manager.cache_copyright_data(
                     self.copyright_dir, self.copyright_data, min_year, max_year, brute_force
                 )
@@ -449,15 +451,36 @@ class MarcCopyrightAnalyzer(
             if cached_renewal:
                 self.renewal_data = cached_renewal
             else:
+                # Create progress task for loading
+                progress_manager.create_phase_task(
+                    "renewal_loading",
+                    total=None,  # Indeterminate
+                    description="Loading copyright renewal data...",
+                )
+
                 # Always use parallel loading (with automatic fallback to sequential if needed)
                 num_workers = options.num_processes  # Will be None if not specified
                 renewal_loader = RenewalDataLoader(self.renewal_dir, num_workers=num_workers)
                 self.renewal_data = renewal_loader.load_all_renewal_data(min_year, max_year)
+
+                progress_manager.complete_task(
+                    "renewal_loading", f"Loaded {len(self.renewal_data):,} renewal records"
+                )
+
                 self.cache_manager.cache_renewal_data(
                     self.renewal_dir, self.renewal_data, min_year, max_year, brute_force
                 )
 
             # Build indexes
+            progress_manager = get_progress_manager()
+
+            # Create progress task for index building if progress bars are enabled
+            progress_manager.create_phase_task(
+                "index_building",
+                total=2,  # Registration and renewal indexes
+                description="Building word-based indexes for fast matching...",
+            )
+
             logger.info("Building word-based indexes for fast matching...")
 
             # Always try parallel index building first (with automatic fallback to sequential)
@@ -471,14 +494,25 @@ class MarcCopyrightAnalyzer(
                 self.registration_index = build_wordbased_index_parallel(
                     self.copyright_data, self.config, num_workers=num_workers
                 )
+                progress_manager.update_task("index_building", advance=1)
+
                 self.renewal_index = build_wordbased_index_parallel(
                     self.renewal_data, self.config, num_workers=num_workers
                 )
+                progress_manager.update_task("index_building", advance=1)
             except Exception as e:
                 logger.warning(f"Parallel index building failed, falling back to sequential: {e}")
                 # Fall back to sequential index building
                 self.registration_index = build_wordbased_index(self.copyright_data, self.config)
+                progress_manager.update_task("index_building", advance=1)
+
                 self.renewal_index = build_wordbased_index(self.renewal_data, self.config)
+                progress_manager.update_task("index_building", advance=1)
+
+            progress_manager.complete_task(
+                "index_building",
+                f"Built indexes: {len(self.registration_index.publications):,} registration, {len(self.renewal_index.publications):,} renewal entries",
+            )
 
             logger.info(
                 f"Built indexes: {len(self.registration_index.publications):,} registration, {len(self.renewal_index.publications):,} renewal entries"

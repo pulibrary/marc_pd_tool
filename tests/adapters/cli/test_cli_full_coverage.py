@@ -268,7 +268,7 @@ class TestGenerateOutputFilenameFullCoverage:
 
         args = Namespace(
             output_filename="matches.csv",  # Default
-            ground_truth="ground_truth.csv",  # Ground truth CSV path
+            ground_truth_mode=True,  # Ground truth mode flag
             us_only=False,
             min_year=None,
             max_year=None,
@@ -447,30 +447,31 @@ class TestCreateArgumentParserFullCoverage:
         assert hasattr(args, "max_workers")
         assert hasattr(args, "monitor_memory")
         assert hasattr(args, "memory_log_interval")
-        assert hasattr(args, "title_threshold")
-        assert hasattr(args, "author_threshold")
-        assert hasattr(args, "publisher_threshold")
-        assert hasattr(args, "year_tolerance")
-        assert hasattr(args, "early_exit_title")
-        assert hasattr(args, "early_exit_author")
-        assert hasattr(args, "early_exit_publisher")
+        # Threshold arguments removed - now configured via config file
+        # assert hasattr(args, "title_threshold")
+        # assert hasattr(args, "author_threshold")
+        # assert hasattr(args, "publisher_threshold")
+        # assert hasattr(args, "year_tolerance")
+        # assert hasattr(args, "early_exit_title")
+        # assert hasattr(args, "early_exit_author")
+        # assert hasattr(args, "early_exit_publisher")
+        # assert hasattr(args, "minimum_combined_score")
         assert hasattr(args, "min_year")
         assert hasattr(args, "max_year")
         assert hasattr(args, "us_only")
         assert hasattr(args, "score_everything")
-        assert hasattr(args, "minimum_combined_score")
         assert hasattr(args, "brute_force_missing_year")
         # These arguments were removed in the refactor
         # assert hasattr(args, "generic_title_threshold")
         # assert hasattr(args, "disable_generic_detection")
-        assert hasattr(args, "ground_truth")
+        assert hasattr(args, "ground_truth_mode")
         # Config argument removed in refactor
         # assert hasattr(args, "config")
         assert hasattr(args, "cache_dir")
         assert hasattr(args, "force_refresh")
         assert hasattr(args, "disable_cache")
         assert hasattr(args, "log_file")
-        assert hasattr(args, "debug")
+        # assert hasattr(args, "debug")  # Removed - use -vv for debug
         assert hasattr(args, "disable_file_logging")
 
 
@@ -501,9 +502,7 @@ class TestEdgeCasesFullCoverage:
         """Test that configuration is logged correctly"""
         args = Namespace(
             output_filename="test.csv",
-            title_threshold=45,
-            author_threshold=35,
-            year_tolerance=2,
+            # Thresholds no longer in args - they come from config
             min_year=None,
             max_year=None,
             us_only=False,
@@ -519,10 +518,11 @@ class TestEdgeCasesFullCoverage:
 
             info_calls = [str(call) for call in mock_logger.info.call_args_list]
 
-            # Should show configuration
-            assert any("Title threshold: 45%" in call for call in info_calls)
-            assert any("Author threshold: 35%" in call for call in info_calls)
-            assert any("Year tolerance: ±2" in call for call in info_calls)
+            # Should show configuration from config file (defaults)
+            # The actual values come from config, which has defaults of 25/20/1
+            assert any("Title threshold" in call for call in info_calls)
+            assert any("Author threshold" in call for call in info_calls)
+            assert any("Year tolerance" in call for call in info_calls)
 
     def test_log_run_summary_no_errors(self) -> None:
         """Test that errors are not shown when count is zero"""

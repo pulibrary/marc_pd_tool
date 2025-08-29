@@ -104,7 +104,7 @@ class TestMarcCopyrightAnalyzerProper:
                 mock_marc_loader_class.return_value = mock_loader
 
                 # Mock _process_marc_batches to add a publication
-                def process_batches(batch_paths, marc_path, options):
+                def process_batches(batch_paths, marc_path, output_path, options):
                     pub = PublicationBuilder.basic_us_publication()
                     analyzer.results.add_publication(pub)
 
@@ -177,7 +177,6 @@ class TestMarcCopyrightAnalyzerProper:
                 patch.object(analyzer, "_load_and_index_data"),
                 patch("marc_pd_tool.adapters.api._analyzer.MarcLoader") as mock_marc_loader_class,
                 patch.object(analyzer, "_process_marc_batches") as mock_process_batches,
-                patch.object(analyzer, "export_results") as mock_export,
             ):
                 # Mock MarcLoader to return at least one batch so export happens
                 mock_loader = Mock()
@@ -186,12 +185,10 @@ class TestMarcCopyrightAnalyzerProper:
 
                 results = analyzer.analyze_marc_file(str(marc_path), output_path=output_path)
 
-                # Verify export was called with correct arguments
-                mock_export.assert_called_once_with(
-                    output_path,
-                    formats=["csv"],  # Default formats from AnalysisOptions
-                    single_file=False,  # Default value
-                )
+                # Verify _process_marc_batches was called with output_path
+                mock_process_batches.assert_called_once()
+                call_args = mock_process_batches.call_args[0]
+                assert call_args[2] == output_path  # Third argument is output_path
 
     def test_analyze_marc_file_custom_directories(self):
         """Test analysis with custom copyright and renewal directories"""

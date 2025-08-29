@@ -55,53 +55,33 @@ Save all results to a single file instead of separating by copyright status.
 
 ## Matching Thresholds
 
-### `--title-threshold N`
+Matching thresholds are now configured via the configuration file (`config.json`) rather than command-line arguments. This simplifies the CLI and ensures consistent threshold values across runs.
 
-Minimum title similarity score (0-100) required for a match.
+### Configuration File Settings
 
-- Default: 40
-- Higher values require closer title matches
+Edit your `config.json` file to set thresholds:
 
-### `--author-threshold N`
+```json
+{
+  "default_thresholds": {
+    "title": 40,
+    "author": 30,
+    "publisher": 30,
+    "year_tolerance": 1,
+    "early_exit_title": 95,
+    "early_exit_author": 90,
+    "early_exit_publisher": 90
+  }
+}
+```
 
-Minimum author similarity score (0-100) required for a match.
+Default values:
 
-- Default: 30
-- Only applied when author data exists
-
-### `--publisher-threshold N`
-
-Minimum publisher similarity score (0-100) required for a match.
-
-- Default: 30
-- Only applied when publisher data exists
-
-### `--year-tolerance N`
-
-Maximum difference in years allowed between MARC and copyright records.
-
-- Default: 1
-- Example: With tolerance of 1, a 1955 MARC record matches 1954-1956 copyright data
-
-### `--early-exit-title N`
-
-Title similarity score that triggers immediate match acceptance.
-
-- Default: 95
-- When title score exceeds this, other fields aren't checked
-
-### `--early-exit-author N`
-
-Author similarity score for high-confidence matching.
-
-- Default: 90
-- Combined with title score for early match determination
-
-### `--early-exit-publisher N`
-
-Publisher similarity score for early exit optimization.
-
-- Default: 90
+- Title threshold: 40 (requires 40% similarity)
+- Author threshold: 30 (only applied when author data exists)
+- Publisher threshold: 30 (only applied when publisher data exists)
+- Year tolerance: ±1 year
+- Early exit thresholds: Higher scores (90-95) for immediate acceptance
 
 ## Filtering Options
 
@@ -137,7 +117,7 @@ Process MARC records that lack publication year data.
 
 ## Analysis Modes
 
-### `--ground-truth`
+### `--ground-truth-mode`
 
 Extract and analyze LCCN-verified ground truth matches.
 
@@ -153,12 +133,18 @@ Find best match for all records regardless of thresholds.
 - Useful for threshold optimization and analysis
 - Reports best match even if below configured thresholds
 
-### `--minimum-combined-score N`
+### Minimum Combined Score
 
-Minimum combined score when using `--score-everything` mode.
+The minimum combined score for `--score-everything` mode is now configured via the configuration file:
 
-- Default: None
-- Filters out very poor matches in score-everything mode
+```toml
+[processing]
+minimum_combined_score = 60  # Filter out matches below this combined score
+```
+
+- Default: None (no minimum)
+- Only applies when using `--score-everything` mode
+- Filters out very poor matches
 
 ## Performance Options
 
@@ -366,7 +352,7 @@ pdm run marc-pd-tool \
 ```bash
 pdm run marc-pd-tool \
     --marcxml catalog.xml \
-    --ground-truth \
+    --ground-truth-mode \
     --score-everything \
     --output-formats csv xlsx json
 ```

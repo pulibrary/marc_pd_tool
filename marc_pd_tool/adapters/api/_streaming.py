@@ -1,6 +1,6 @@
 # marc_pd_tool/adapters/api/_streaming.py
 
-"""Streaming component for processing very large MARC datasets"""
+"""Component for efficient batch-based processing of MARC datasets"""
 
 # Standard library imports
 from logging import getLogger
@@ -30,7 +30,7 @@ logger = getLogger(__name__)
 
 
 class StreamingComponent:
-    """Component for streaming processing of very large datasets"""
+    """Component for efficient batch processing of datasets"""
 
     def _analyze_marc_file_streaming(
         self: StreamingAnalyzerProtocol,
@@ -39,7 +39,7 @@ class StreamingComponent:
         output_path: str | None,
         options: AnalysisOptions,
     ) -> "AnalysisResults":
-        """Analyze MARC file using streaming mode for very large datasets.
+        """Analyze MARC file by processing pre-pickled batches.
 
         This method processes pickled batch files directly without loading
         all publications into memory simultaneously.
@@ -55,10 +55,12 @@ class StreamingComponent:
             logger.info(f"  Year range filter: {year_range}")
 
         # Process batches using existing parallel infrastructure but with pre-pickled batches
-        logger.info("")
-        logger.info("=" * 80)
-        logger.info("=== PHASE 3: PROCESSING PUBLICATIONS ===")
-        logger.info("=" * 80)
+        # Local imports
+        from marc_pd_tool.infrastructure.logging._progress import get_progress_manager
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_header
+
+        progress_manager = get_progress_manager()
+        log_phase_header("PHASE 3: PROCESSING PUBLICATIONS", progress_manager.enabled)
 
         # Extract options
         year_tolerance = options.year_tolerance
@@ -86,9 +88,15 @@ class StreamingComponent:
         min_year = options.min_year
         max_year = options.max_year
 
-        logger.info(f"Processing {len(batch_paths)} pre-pickled batches in streaming mode")
-        logger.info(f"  Workers: {num_processes}")
-        logger.info(f"  Total batches: {len(batch_paths)}")
+        # Print processing info (shows in progress bar mode, logged otherwise)
+        # Local imports
+        from marc_pd_tool.infrastructure.logging._progress import log_phase_info
+
+        log_phase_info(
+            f"Processing {len(batch_paths)} pre-pickled batches", progress_manager.enabled
+        )
+        log_phase_info(f"  Workers: {num_processes}", progress_manager.enabled)
+        log_phase_info(f"  Total batches: {len(batch_paths)}", progress_manager.enabled)
 
         # Use the existing parallel processing infrastructure with pre-pickled batches
         self._process_streaming_parallel(
@@ -110,16 +118,19 @@ class StreamingComponent:
 
         # Export results if output path provided
         if output_path:
-            logger.info("")
-            logger.info("=" * 80)
-            logger.info("=== PHASE 5: EXPORTING RESULTS ===")
-            logger.info("=" * 80)
+            log_phase_header("PHASE 5: EXPORTING RESULTS", progress_manager.enabled)
+
             output_formats = options.formats if options.formats else ["json", "csv"]
             single_file = options.single_file
-            logger.info(f"Exporting results to: {output_path}")
-            logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
-            logger.info(
-                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}"
+
+            log_phase_info(f"Exporting results to: {output_path}", progress_manager.enabled)
+            log_phase_info(
+                f"  Formats: {', '.join([f.upper() for f in output_formats])}",
+                progress_manager.enabled,
+            )
+            log_phase_info(
+                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}",
+                progress_manager.enabled,
             )
             self.export_results(output_path, formats=output_formats, single_file=single_file)
             logger.info("✓ Export complete")
@@ -143,10 +154,10 @@ class StreamingComponent:
         min_year: int | None,
         max_year: int | None,
     ) -> list[Publication]:
-        """Process pre-pickled batches in parallel for streaming mode
+        """Process pre-pickled batches in parallel
 
-        This method is similar to _process_parallel but works with pre-pickled
-        batches instead of re-pickling publications.
+        This method works with pre-pickled batches to efficiently process
+        large datasets without loading all data into memory at once.
         """
         start_time = time()
 
@@ -341,24 +352,39 @@ class StreamingComponent:
 
         # Note: result_temp_dir is now set in the finally block above
 
-        # Aggregate skipped_no_year counts from all batches
+        # Aggregate statistics from all batches
         # Local imports
         from marc_pd_tool.application.models.batch_stats import BatchStats
 
-        total_skipped_no_year = sum(
-            stats.skipped_no_year for stats in all_stats if isinstance(stats, BatchStats)
-        )
-        self.results.statistics.increment("skipped_no_year", total_skipped_no_year)
+        # Calculate totals from batch stats
+        batch_stats_list = [stats for stats in all_stats if isinstance(stats, BatchStats)]
+
+        total_records = sum(stats.marc_count for stats in batch_stats_list)
+        total_skipped_no_year = sum(stats.skipped_no_year for stats in batch_stats_list)
+        total_us_records = sum(stats.us_records for stats in batch_stats_list)
+        total_non_us_records = sum(stats.non_us_records for stats in batch_stats_list)
+        total_unknown_country = sum(stats.unknown_country_records for stats in batch_stats_list)
+        sum(stats.records_with_errors for stats in batch_stats_list)
+
+        # Update the statistics with the aggregated counts
+        self.results.statistics.total_records = total_records
+        self.results.statistics.registration_matches = total_reg_matches
+        self.results.statistics.renewal_matches = total_ren_matches
+        self.results.statistics.skipped_no_year = total_skipped_no_year
+        self.results.statistics.us_records = total_us_records
+        self.results.statistics.non_us_records = total_non_us_records
+        self.results.statistics.unknown_country = total_unknown_country
+        # Note: errors field doesn't exist in AnalysisStatistics, skip it
+
+        # Calculate no matches (records that didn't match either registration or renewal)
+        self.results.statistics.no_matches = total_records - (total_reg_matches + total_ren_matches)
 
         # Log final performance stats
         total_time = time() - start_time
-        total_records = sum(
-            stats.marc_count for stats in all_stats if isinstance(stats, BatchStats)
-        )
         records_per_minute = total_records / (total_time / 60) if total_time > 0 else 0
 
         logger.info(
-            f"Streaming parallel processing complete: {total_records} records in "
+            f"Parallel processing complete: {total_records} records in "
             f"{format_time_duration(total_time)} ({records_per_minute:.0f} records/minute)"
         )
         logger.info(

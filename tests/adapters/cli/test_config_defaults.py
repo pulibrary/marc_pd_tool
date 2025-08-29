@@ -93,10 +93,9 @@ def test_config_defaults_applied():
         assert args.cache_dir == "/tmp/test_cache"
         assert args.force_refresh is True
         assert args.disable_cache is True
-        assert args.debug is True
+        # assert args.debug is True  # debug removed - use -vv instead
         assert args.log_file == "/tmp/test.log"
-        assert args.title_threshold == 90
-        assert args.author_threshold == 85
+        # Threshold values are no longer CLI arguments - they're only in config
 
 
 def test_cli_overrides_config():
@@ -127,7 +126,7 @@ def test_cli_overrides_config():
                 "--brute-force-missing-year",  # Enable (overrides False default)
                 "--us-only",  # Enable (overrides False default)
                 "--force-refresh",  # Enable (overrides False default)
-                "--debug",  # Enable (overrides False default)
+                # "--debug",  # Removed - use -vv instead
             ]
         )
 
@@ -137,7 +136,7 @@ def test_cli_overrides_config():
         assert args.brute_force_missing_year is True  # CLI enabled it
         assert args.us_only is True  # CLI enabled it
         assert args.force_refresh is True  # CLI enabled it
-        assert args.debug is True  # CLI enabled it
+        # assert args.debug is True  # debug removed - use -vv instead
 
 
 def test_boolean_flag_behavior():
@@ -165,21 +164,21 @@ def test_boolean_flag_behavior():
                 "--score-everything",
                 "--us-only",
                 "--force-refresh",
-                "--debug",
+                # "--debug",  # Removed - use -vv instead
             ]
         )
 
         assert args.score_everything is True
         assert args.us_only is True
         assert args.force_refresh is True
-        assert args.debug is True
+        # assert args.debug is True  # debug removed - use -vv instead
 
         # Test that without flags, they remain False
         args2 = parser.parse_args(["--marcxml", "test.xml"])
         assert args2.score_everything is False
         assert args2.us_only is False
         assert args2.force_refresh is False
-        assert args2.debug is False
+        # assert args2.debug is False  # debug removed
 
 
 def test_partial_config():

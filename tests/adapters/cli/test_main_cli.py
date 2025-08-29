@@ -69,7 +69,7 @@ class TestMainCLI:
                             "marc_pd_tool.adapters.cli.main.RunIndexManager"
                         ) as mock_run_index:
                             mock_analyzer_class.return_value = create_mock_analyzer()
-                            mock_logging.return_value = "/path/to/log.log"
+                            mock_logging.return_value = ("/path/to/log.log", False)
                             mock_run_index.return_value = create_mock_run_index_manager()
 
                             main()
@@ -104,7 +104,7 @@ class TestMainCLI:
                         ) as mock_run_index:
                             with patch("marc_pd_tool.adapters.cli.main.logger") as mock_logger:
                                 mock_analyzer_class.return_value = create_mock_analyzer()
-                                mock_logging.return_value = None
+                                mock_logging.return_value = (None, False)
                                 mock_run_index.return_value = create_mock_run_index_manager()
 
                                 main()
@@ -130,7 +130,7 @@ class TestMainCLI:
             "--score-everything",
             "--max-workers",
             "4",
-            "--debug",
+            "-vv",  # Use -vv for DEBUG level logging
         ]
 
         with patch("sys.argv", test_args):
@@ -145,7 +145,7 @@ class TestMainCLI:
                             with patch("marc_pd_tool.adapters.cli.main.logger") as mock_logger:
                                 mock_analyzer = create_mock_analyzer()
                                 mock_analyzer_class.return_value = mock_analyzer
-                                mock_logging.return_value = "/path/to/log.log"
+                                mock_logging.return_value = ("/path/to/log.log", False)
                                 mock_run_index_manager = create_mock_run_index_manager()
                                 mock_run_index.return_value = mock_run_index_manager
 
@@ -169,7 +169,7 @@ class TestMainCLI:
             "test.xml",
             "--output-filename",
             "results",
-            "--ground-truth",  # This is a flag, not expecting a file path
+            "--ground-truth-mode",  # This is a flag, not expecting a file path
         ]
 
         with patch("sys.argv", test_args):
@@ -182,7 +182,10 @@ class TestMainCLI:
                             mock_analyzer = create_mock_analyzer()
                             mock_analyzer.results = Mock()  # Add results attribute
                             mock_analyzer_class.return_value = mock_analyzer
-                            mock_logging.return_value = None
+                            mock_logging.return_value = (
+                                None,
+                                False,
+                            )  # No log file, no progress bars
                             mock_run_index.return_value = create_mock_run_index_manager()
 
                             # Mock ground truth extraction at the class method level
@@ -232,9 +235,7 @@ class TestLogRunSummaryFunction:
 
         mock_args = Mock()
         mock_args.output_formats = ["csv", "json"]
-        mock_args.title_threshold = 40
-        mock_args.author_threshold = 30
-        mock_args.year_tolerance = 1
+        # Thresholds now come from config
         mock_args.min_year = None
         mock_args.max_year = None
         mock_args.us_only = False
@@ -256,10 +257,7 @@ class TestLogRunSummaryFunction:
 
         mock_args = Mock()
         mock_args.output_formats = ["csv"]
-
-        mock_args.title_threshold = 40
-        mock_args.author_threshold = 30
-        mock_args.year_tolerance = 1
+        # Thresholds now come from config
         mock_args.min_year = None
         mock_args.max_year = None
         mock_args.us_only = False

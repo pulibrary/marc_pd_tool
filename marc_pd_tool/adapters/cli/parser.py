@@ -95,49 +95,9 @@ def create_argument_parser() -> ArgumentParser:
         help="Seconds between memory usage logs (default: 60)",
     )
 
-    # Matching thresholds
-    parser.add_argument(
-        "--title-threshold",
-        type=int,
-        default=config.get_threshold("title"),
-        help="Minimum title similarity score (0-100)",
-    )
-    parser.add_argument(
-        "--author-threshold",
-        type=int,
-        default=config.get_threshold("author"),
-        help="Minimum author similarity score (0-100)",
-    )
-    parser.add_argument(
-        "--publisher-threshold",
-        type=int,
-        default=config.get_threshold("publisher"),
-        help="Minimum publisher similarity score (0-100)",
-    )
-    parser.add_argument(
-        "--year-tolerance",
-        type=int,
-        default=config.get_threshold("year_tolerance"),
-        help="Maximum year difference allowed",
-    )
-    parser.add_argument(
-        "--early-exit-title",
-        type=int,
-        default=config.get_threshold("early_exit_title"),
-        help="Title score to skip other comparisons",
-    )
-    parser.add_argument(
-        "--early-exit-author",
-        type=int,
-        default=config.get_threshold("early_exit_author"),
-        help="Author score for high confidence match",
-    )
-    parser.add_argument(
-        "--early-exit-publisher",
-        type=int,
-        default=config.get_threshold("early_exit_publisher"),
-        help="Publisher score for early exit",
-    )
+    # Note: Matching thresholds are configured via config file
+    # (title_threshold, author_threshold, publisher_threshold, year_tolerance,
+    #  early_exit_title, early_exit_author, early_exit_publisher)
 
     # Filtering options
     parser.add_argument(
@@ -169,7 +129,7 @@ def create_argument_parser() -> ArgumentParser:
 
     # Special analysis modes
     parser.add_argument(
-        "--ground-truth",
+        "--ground-truth-mode",
         action="store_true",
         help="Extract and analyze LCCN-verified ground truth matches",
     )
@@ -180,12 +140,7 @@ def create_argument_parser() -> ArgumentParser:
         default=processing_config.score_everything_mode,
         help="Find best match even below thresholds (for threshold testing)",
     )
-    parser.add_argument(
-        "--minimum-combined-score",
-        type=int,
-        default=None,
-        help="Minimum combined score for score-everything mode",
-    )
+    # Note: minimum-combined-score can be configured via config file
 
     # Cache options
     parser.add_argument(
@@ -214,27 +169,23 @@ def create_argument_parser() -> ArgumentParser:
     )
     # File logging is enabled by default, so use store_true to disable it
     parser.add_argument("--disable-file-logging", action="store_true", help="Disable file logging")
+
+    # Verbosity - count occurrences: -v (INFO), -vv (DEBUG)
+    # Default is progress bars with only WARN/ERROR to stderr
     parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",  # Default logging level
-        help="Logging level",
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity (default: progress bars only, -v: INFO, -vv: DEBUG)",
     )
-    # Silent is False by default, so use store_true to enable it
-    parser.add_argument("--silent", action="store_true", help="Suppress console output")
+
+    # Keep silent for backwards compatibility
+    parser.add_argument("--silent", action="store_true", help="Suppress all console output")
 
     # Temporary directory option for batch processing
     parser.add_argument(
         "--temp-dir", default=None, help="Directory for temporary batch files during processing"
-    )
-
-    # Debug/development options
-    # Debug is False by default, so use store_true to enable it
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        default=logging_config.debug,
-        help="Enable debug output and detailed logging",
     )
 
     return parser
@@ -295,21 +246,9 @@ def generate_output_filename(args: Namespace) -> str:
 
     # Start with base name
     base_name = "matches"
-
-    # Load default configuration for comparison
-    config = get_config()
-
-    # Add threshold indicators if non-default
     parts = [base_name]
 
-    if args.title_threshold != config.get_threshold("title"):
-        parts.append(f"t{args.title_threshold}")
-
-    if args.author_threshold != config.get_threshold("author"):
-        parts.append(f"a{args.author_threshold}")
-
-    if args.publisher_threshold != config.get_threshold("publisher"):
-        parts.append(f"p{args.publisher_threshold}")
+    # Note: Threshold values are no longer included in filename since they're config-based
 
     # Add year range if specified
     if args.min_year or args.max_year:
@@ -332,7 +271,7 @@ def generate_output_filename(args: Namespace) -> str:
     if args.score_everything:
         parts.append("all")
 
-    if args.ground_truth:
+    if args.ground_truth_mode:
         parts.append("gt")
 
     # Join with underscores

@@ -68,7 +68,7 @@ class TestMainFunction:
                             mock_results.statistics = create_mock_statistics()
                             mock_analyzer.analyze_marc_file.return_value = mock_results
 
-                            mock_logging.return_value = "/path/to/log.log"
+                            mock_logging.return_value = ("/path/to/log.log", False)
 
                             # Mock run index manager
                             mock_run_index.return_value.add_run.return_value = None
@@ -136,7 +136,7 @@ class TestMainFunction:
                             mock_results.statistics = create_mock_statistics()
                             mock_analyzer.analyze_marc_file.return_value = mock_results
 
-                            mock_logging.return_value = "/path/to/log.log"
+                            mock_logging.return_value = ("/path/to/log.log", False)
                             mock_run_index.return_value.add_run.return_value = None
                             mock_run_index.return_value.update_run.return_value = None
 
@@ -179,7 +179,7 @@ class TestMainFunction:
                             mock_results.statistics = create_mock_statistics()
                             mock_analyzer.analyze_marc_file.return_value = mock_results
 
-                            mock_logging.return_value = "/path/to/log.log"
+                            mock_logging.return_value = ("/path/to/log.log", False)
                             mock_run_index.return_value.add_run.return_value = None
                             mock_run_index.return_value.update_run.return_value = None
 
@@ -232,7 +232,7 @@ class TestMainFunction:
                                 mock_results.statistics = create_mock_statistics()
                                 mock_analyzer.analyze_marc_file.return_value = mock_results
 
-                                mock_logging.return_value = "/path/to/log.log"
+                                mock_logging.return_value = ("/path/to/log.log", False)
                                 mock_run_index.return_value.add_run.return_value = None
                                 mock_run_index.return_value.update_run.return_value = None
 
@@ -284,7 +284,10 @@ class TestMainFunction:
                             mock_results = Mock()
                             mock_results.statistics = create_mock_statistics()
                             mock_analyzer.analyze_marc_file.return_value = mock_results
-                            mock_logging.return_value = None  # No log file
+                            mock_logging.return_value = (
+                                None,
+                                True,
+                            )  # No log file, progress bars enabled
 
                             mock_run_index.return_value.add_run.return_value = None
                             mock_run_index.return_value.update_run.return_value = None
@@ -303,7 +306,7 @@ class TestMainFunction:
             "test.xml",
             "--output-filename",
             "results",
-            "--ground-truth",  # This is a flag, not expecting a file path
+            "--ground-truth-mode",  # This is a flag, not expecting a file path
         ]
 
         with patch("sys.argv", test_args):
@@ -319,7 +322,7 @@ class TestMainFunction:
                         # Mock results object for export
                         mock_analyzer.results = Mock()
 
-                        mock_logging.return_value = "/path/to/log.log"
+                        mock_logging.return_value = ("/path/to/log.log", False)
                         mock_run_index.return_value.add_run.return_value = None
                         mock_run_index.return_value.update_run.return_value = None
 
@@ -372,11 +375,8 @@ class TestLogRunSummary:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
 
-            # Create mock args
+            # Create mock args (thresholds now come from config)
             mock_args = Mock()
-            mock_args.title_threshold = 40
-            mock_args.author_threshold = 30
-            mock_args.year_tolerance = 1
             mock_args.min_year = None
             mock_args.max_year = None
             mock_args.us_only = False
@@ -397,11 +397,8 @@ class TestLogRunSummary:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
 
-            # Create mock args
+            # Create mock args (thresholds now come from config)
             mock_args = Mock()
-            mock_args.title_threshold = 40
-            mock_args.author_threshold = 30
-            mock_args.year_tolerance = 1
             mock_args.min_year = None
             mock_args.max_year = None
             mock_args.us_only = False
@@ -426,11 +423,8 @@ class TestLogRunSummary:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
 
-            # Create mock args
+            # Create mock args (thresholds now come from config)
             mock_args = Mock()
-            mock_args.title_threshold = 40
-            mock_args.author_threshold = 30
-            mock_args.year_tolerance = 1
             mock_args.min_year = None
             mock_args.max_year = None
             mock_args.us_only = False
@@ -468,7 +462,7 @@ class TestProcessingErrors:
                         # Mock analyzer error
                         mock_analyzer_class.side_effect = Exception("Processing failed")
 
-                        mock_logging.return_value = "/path/to/log.log"
+                        mock_logging.return_value = ("/path/to/log.log", False)
                         mock_run_index.return_value.add_run.return_value = None
                         mock_run_index.return_value.update_run.return_value = None
 
@@ -510,7 +504,7 @@ class TestProcessingErrors:
                                 mock_results.statistics = create_mock_statistics()
                                 mock_analyzer.analyze_marc_file.return_value = mock_results
 
-                                mock_logging.return_value = "/path/to/log.log"
+                                mock_logging.return_value = ("/path/to/log.log", False)
                                 mock_run_index.return_value.add_run.return_value = None
                                 mock_run_index.return_value.update_run.return_value = None
 

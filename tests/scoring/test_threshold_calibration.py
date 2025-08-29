@@ -12,7 +12,6 @@ from pytest import mark
 # Local imports
 from marc_pd_tool.application.processing.matching._core_matcher import CoreMatcher
 from marc_pd_tool.core.domain.publication import Publication
-from marc_pd_tool.infrastructure.config import ConfigLoader
 
 
 class TestThresholdCalibration:
@@ -76,9 +75,15 @@ class TestThresholdCalibration:
             name: Name of the scenario for reporting
             with_lccn_rate: Proportion of records that have LCCNs (default 1%)
         """
-        # Configure matcher
-        config = ConfigLoader()
-        config.config["matching"] = {"lccn_score_boost": lccn_boost}
+        # Configure matcher - use the real config system with overrides
+        # Local imports
+        from marc_pd_tool.infrastructure.config import get_config
+
+        config = get_config()
+        # Override the LCCN boost for testing
+        if hasattr(config, "matching") and hasattr(config.matching, "lccn_score_boost"):
+            config.matching.lccn_score_boost
+            config.matching.lccn_score_boost = lccn_boost
         matcher = CoreMatcher(config)
 
         true_positives_with_lccn = 0

@@ -30,7 +30,7 @@ def create_test_args(**kwargs):
         "max_year": None,
         "score_everything_mode": False,
         "score_everything": False,
-        "ground_truth": None,
+        "ground_truth_mode": None,
         "output_formats": ["csv"],
         "title_threshold": config.get_threshold("title"),
         "author_threshold": config.get_threshold("author"),
@@ -435,7 +435,7 @@ class TestTimestampedFilenames:
     def test_timestamp_with_ground_truth_mode(self, base_args):
         """Test that timestamp works with ground truth mode"""
 
-        base_args.ground_truth = True  # Ground truth mode flag
+        base_args.ground_truth_mode = True  # Ground truth mode flag
         result = generate_output_filename(base_args)
 
         # Should match pattern: reports/YYYYMMDD_HHMMSS_matches_gt

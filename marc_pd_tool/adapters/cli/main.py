@@ -25,6 +25,8 @@ from marc_pd_tool.adapters.cli.parser import create_argument_parser
 from marc_pd_tool.adapters.cli.parser import generate_output_filename
 from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.infrastructure import RunIndexManager
+from marc_pd_tool.infrastructure.config import get_config
+from marc_pd_tool.infrastructure.logging._progress import shutdown_progress_manager
 
 logger = getLogger(__name__)
 
@@ -52,10 +54,10 @@ def main() -> None:
     if args.max_workers is None or args.max_workers == 0:
         args.max_workers = max(1, cpu_count() - 4)
 
-    # Configure logging
-    log_file_path = set_up_logging(
+    # Configure logging based on verbosity level
+    log_file_path, progress_bars_enabled = set_up_logging(
         log_file=args.log_file,
-        log_level=args.log_level,
+        verbosity=args.verbose,
         silent=args.silent,
         disable_file_logging=args.disable_file_logging,
     )
@@ -63,6 +65,9 @@ def main() -> None:
     # Record start time
     start_time = time()
     start_time_dt = datetime.now()
+
+    # Get configuration
+    config = get_config()
 
     # Initialize run index manager
     run_index_manager = RunIndexManager()
@@ -84,8 +89,8 @@ def main() -> None:
         "max_year": str(args.max_year) if args.max_year else "",
         "brute_force": str(args.brute_force_missing_year),
         "score_everything_mode": str(args.score_everything),
-        "title_threshold": str(args.title_threshold),
-        "author_threshold": str(args.author_threshold),
+        "title_threshold": str(config.get_threshold("title")),
+        "author_threshold": str(config.get_threshold("author")),
         "marc_count": "",  # Will be updated at the end
         "duration_seconds": "",  # Will be updated at the end
         "matches_found": "",  # Will be updated at the end
@@ -99,8 +104,8 @@ def main() -> None:
         logger.info("=== STARTING PUBLICATION COMPARISON ===")
         logger.info(f"Configuration: {args.max_workers} workers, batch_size={args.batch_size}")
         logger.info(
-            f"Thresholds: title={args.title_threshold}, author={args.author_threshold}, "
-            f"publisher={args.publisher_threshold}, year_tolerance={args.year_tolerance}"
+            f"Thresholds: title={config.get_threshold('title')}, author={config.get_threshold('author')}, "
+            f"publisher={config.get_threshold('publisher')}, year_tolerance={config.get_threshold('year_tolerance')}"
         )
         # Only log year range if it's actually restricted
         if args.min_year or args.max_year:
@@ -123,7 +128,7 @@ def main() -> None:
             logger.info(f"Memory monitoring enabled (interval: {args.memory_log_interval}s)")
 
         # Handle ground truth mode
-        if args.ground_truth:
+        if args.ground_truth_mode:
             logger.info("=== GROUND TRUTH EXTRACTION MODE ===")
 
             # Extract ground truth pairs
@@ -167,22 +172,27 @@ def main() -> None:
             run_info["status"] = "completed"
             run_index_manager.update_run(run_info["log_file"], run_info)
 
+            # Shutdown progress bars if enabled
+            if progress_bars_enabled:
+                shutdown_progress_manager()
+
             return  # Exit early for ground truth mode
 
-        # Normal analysis mode or streaming mode
+        # Normal analysis mode
+
         options = AnalysisOptions(
             us_only=args.us_only,
             min_year=args.min_year,
             max_year=args.max_year,
-            year_tolerance=args.year_tolerance,
-            title_threshold=args.title_threshold,
-            author_threshold=args.author_threshold,
-            publisher_threshold=args.publisher_threshold,
-            early_exit_title=args.early_exit_title,
-            early_exit_author=args.early_exit_author,
-            early_exit_publisher=args.early_exit_publisher,
+            year_tolerance=config.get_threshold("year_tolerance"),
+            title_threshold=config.get_threshold("title"),
+            author_threshold=config.get_threshold("author"),
+            publisher_threshold=config.get_threshold("publisher"),
+            early_exit_title=config.get_threshold("early_exit_title"),
+            early_exit_author=config.get_threshold("early_exit_author"),
+            early_exit_publisher=config.get_threshold("early_exit_publisher"),
             score_everything_mode=args.score_everything,
-            minimum_combined_score=args.minimum_combined_score,
+            minimum_combined_score=config.get_threshold("minimum_combined_score"),
             brute_force_missing_year=args.brute_force_missing_year,
             formats=args.output_formats,
             single_file=args.single_file,
@@ -265,11 +275,20 @@ def main() -> None:
         run_info["status"] = "completed"
         run_index_manager.update_run(run_info["log_file"], run_info)
 
+        # Shutdown progress bars if enabled
+        if progress_bars_enabled:
+            shutdown_progress_manager()
+
     except Exception as e:
         logger.error(f"Error during processing: {e}")
         run_info["status"] = "failed"
         run_info["duration_seconds"] = str(int(time() - start_time))
         run_index_manager.update_run(run_info["log_file"], run_info)
+
+        # Shutdown progress bars if enabled
+        if progress_bars_enabled:
+            shutdown_progress_manager()
+
         raise
 
 
