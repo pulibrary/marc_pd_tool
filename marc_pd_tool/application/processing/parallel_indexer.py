@@ -134,10 +134,14 @@ def build_wordbased_index_parallel(
 
                 completed += 1
                 total_pubs_indexed += len(chunk)
-                
+
                 # Log progress every 10 chunks or 30 seconds, whichever comes first
                 elapsed = time() - start_time
-                if completed % 10 == 0 or elapsed > (completed // 10 + 1) * 30 or completed == len(chunks):
+                if (
+                    completed % 10 == 0
+                    or elapsed > (completed // 10 + 1) * 30
+                    or completed == len(chunks)
+                ):
                     rate = total_pubs_indexed / elapsed if elapsed > 0 else 0
                     percent = (completed / len(chunks)) * 100
                     logger.info(

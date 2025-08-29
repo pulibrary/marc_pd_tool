@@ -17,7 +17,6 @@ from marc_pd_tool.application.processing.matching_engine import process_batch
 from marc_pd_tool.core.domain.publication import Publication
 from marc_pd_tool.core.types.aliases import BatchProcessingInfo
 from marc_pd_tool.core.types.protocols import StreamingAnalyzerProtocol
-from marc_pd_tool.infrastructure import CacheManager
 from marc_pd_tool.shared.utils.time_utils import format_time_duration
 
 # Third party imports removed - psutil not needed (memory monitoring handled by CLI)
@@ -222,38 +221,47 @@ class StreamingComponent:
             if start_method == "fork" and self.registration_index and self.renewal_index:
                 # Linux with pre-loaded indexes: Use fork memory sharing
                 logger.info("Fork mode: Using pre-loaded indexes via memory sharing")
-                
+
                 # Store indexes in module for fork to inherit
+                # Local imports
                 import marc_pd_tool.application.processing.matching_engine as me
+
                 me._shared_data = {  # type: ignore[attr-defined]
                     "registration_index": self.registration_index,
-                    "renewal_index": self.renewal_index, 
+                    "renewal_index": self.renewal_index,
                     "generic_detector": self.generic_detector,
                     "matching_engine": None,
                 }
-                
+
                 def init_worker_fork() -> None:
                     """Initialize worker on Linux - use pre-loaded shared data"""
+                    # Standard library imports
                     import signal
+
                     signal.signal(signal.SIGINT, signal.SIG_IGN)
-                    
-                    import marc_pd_tool.application.processing.matching_engine as me
-                    from os import getpid
+
+                    # Standard library imports
                     from logging import getLogger
-                    
+                    from os import getpid
+
+                    # Local imports
+                    import marc_pd_tool.application.processing.matching_engine as me
+
                     # Set up worker globals from shared data
                     me._worker_registration_index = me._shared_data["registration_index"]  # type: ignore
                     me._worker_renewal_index = me._shared_data["renewal_index"]  # type: ignore
                     me._worker_generic_detector = me._shared_data["generic_detector"]  # type: ignore
-                    
+
                     # Load config
+                    # Local imports
                     from marc_pd_tool.infrastructure.config import get_config
+
                     me._worker_config = get_config()
                     me._worker_options = {}
-                    
+
                     logger = getLogger(__name__)
                     logger.info(f"Worker {getpid()} using shared memory indexes")
-                
+
                 pool_args = {
                     "processes": num_processes,
                     "initializer": init_worker_fork,
@@ -264,8 +272,10 @@ class StreamingComponent:
                 if start_method == "fork":
                     logger.info("Fork mode: Indexes not pre-loaded, workers will load from cache")
                 else:
-                    logger.info(f"{start_method.capitalize()} mode: Workers will load indexes independently")
-                
+                    logger.info(
+                        f"{start_method.capitalize()} mode: Workers will load indexes independently"
+                    )
+
                 # Prepare init_worker arguments
                 init_args = (
                     self.cache_dir or ".marcpd_cache",

@@ -21,7 +21,9 @@ from marc_pd_tool.core.domain.enums import CountryClassification
 from marc_pd_tool.core.domain.publication import Publication
 
 
-@pytest.mark.skip(reason="ProcessingComponent._process_parallel has been removed - functionality moved to StreamingComponent")
+@pytest.mark.skip(
+    reason="ProcessingComponent._process_parallel has been removed - functionality moved to StreamingComponent"
+)
 class TestParallelProcessing:
     """Test parallel processing functionality"""
 

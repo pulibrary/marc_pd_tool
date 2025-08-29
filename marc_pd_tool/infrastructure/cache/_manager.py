@@ -651,7 +651,9 @@ class CacheManager:
         }
 
         # Cache both indexes
-        logger.info(f"  Saving registration index ({len(registration_index.publications):,} entries)...")
+        logger.info(
+            f"  Saving registration index ({len(registration_index.publications):,} entries)..."
+        )
         reg_success = self._save_cache_data(
             cache_subdir,
             "registration.pkl",
