@@ -98,7 +98,7 @@ class TestScoringRegression:
             main_author="",  # Copyright/renewal records don't have separate main_author
             publisher=row["match_publisher"],
             year=int(row["match_year"]) if row["match_year"] else None,
-            lccn="",
+            lccn=row.get("copyright_lccn", ""),  # Use actual copyright LCCN from data
             country_code="",
             language_code="eng",
             source_id=row.get("match_source_id", ""),
@@ -142,9 +142,10 @@ class TestScoringRegression:
             year_difference=year_diff,
         )
 
-    @mark.regression
+    @mark.scoring
+    @mark.slow  # Mark as slow test (~15 seconds for 20k records)
     def test_scoring_matches_baseline(
-        self, known_matches: list[dict[str, str]], core_matcher: CoreMatcher
+        self, known_matches: list[dict[str, str]], core_matcher: CoreMatcher, capfd
     ) -> None:
         """Test that current scoring matches baseline scores
 
@@ -155,12 +156,15 @@ class TestScoringRegression:
         Args:
             known_matches: List of known matches with baseline scores
             core_matcher: Core matcher instance
+            capfd: Pytest fixture for capturing output
         """
-        # Track different types of changes
-        combined_improvements = []
-        combined_regressions = []
-        field_changes = []
-        unchanged = 0
+        # Temporarily disable capture to show progress message immediately
+        with capfd.disabled():
+            print(f"Processing {len(known_matches):,} baseline records...", end="", flush=True)
+
+        # Track regressions for potential CSV output
+        regressions = []
+        tolerance = 0.01
 
         for row in known_matches:
             marc_id = row["marc_id"]
@@ -169,149 +173,70 @@ class TestScoringRegression:
             result = self.calculate_scores(row, core_matcher)
 
             # Get baseline scores
-            baseline_title = float(row["baseline_title_score"])
-            baseline_author = float(row["baseline_author_score"])
-            baseline_publisher = float(row["baseline_publisher_score"])
             baseline_combined = float(row["baseline_combined_score"])
 
-            # Check for changes (within small tolerance for floating point)
-            tolerance = 0.01
-
-            # Track if any scores changed
-            has_changes = False
-
-            # Check individual field changes
-            title_diff = result.title_score - baseline_title
-            author_diff = result.author_score - baseline_author
-            publisher_diff = result.publisher_score - baseline_publisher
+            # Check for combined score regression
             combined_diff = result.combined_score - baseline_combined
 
-            # Record field-level changes
-            if abs(title_diff) > tolerance:
-                has_changes = True
-                field_changes.append(
-                    f"{marc_id}: Title {baseline_title:.1f} → {result.title_score:.1f} ({title_diff:+.1f})"
+            if combined_diff < -tolerance:  # Score decreased
+                regressions.append(
+                    {
+                        "marc_id": marc_id,
+                        "title": row.get("marc_title_original", "")[
+                            :50
+                        ],  # Truncate for readability
+                        "author": row.get("marc_author_original", "")[:30],
+                        "baseline_score": baseline_combined,
+                        "current_score": result.combined_score,
+                        "difference": round(combined_diff, 2),
+                        "baseline_title": float(row["baseline_title_score"]),
+                        "current_title": result.title_score,
+                        "baseline_author": float(row["baseline_author_score"]),
+                        "current_author": result.author_score,
+                        "baseline_publisher": float(row["baseline_publisher_score"]),
+                        "current_publisher": result.publisher_score,
+                    }
                 )
 
-            if abs(author_diff) > tolerance:
-                has_changes = True
-                field_changes.append(
-                    f"{marc_id}: Author {baseline_author:.1f} → {result.author_score:.1f} ({author_diff:+.1f})"
-                )
+        # If there are regressions, save to CSV and fail
+        if regressions:
+            with capfd.disabled():
+                print(" FAILED")  # Complete the progress line
+            # Save regressions to CSV for debugging
+            # Standard library imports
+            import csv
+            from pathlib import Path
 
-            if abs(publisher_diff) > tolerance:
-                has_changes = True
-                field_changes.append(
-                    f"{marc_id}: Publisher {baseline_publisher:.1f} → {result.publisher_score:.1f} ({publisher_diff:+.1f})"
-                )
+            output_file = Path("scoring_regressions.csv")
+            with open(output_file, "w", newline="") as f:
+                fieldnames = [
+                    "marc_id",
+                    "title",
+                    "author",
+                    "baseline_score",
+                    "current_score",
+                    "difference",
+                    "baseline_title",
+                    "current_title",
+                    "baseline_author",
+                    "current_author",
+                    "baseline_publisher",
+                    "current_publisher",
+                ]
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(regressions)
 
-            # Track combined score changes separately
-            if abs(combined_diff) > tolerance:
-                has_changes = True
-                if combined_diff > 0:
-                    combined_improvements.append(
-                        f"{marc_id}: {baseline_combined:.1f} → {result.combined_score:.1f} (+{combined_diff:.2f})"
-                    )
-                else:
-                    combined_regressions.append(
-                        f"{marc_id}: {baseline_combined:.1f} → {result.combined_score:.1f} ({combined_diff:.2f})"
-                    )
-
-            if not has_changes:
-                unchanged += 1
-
-        # Print summary
-        print(f"\n{'='*60}")
-        print("SCORING REGRESSION TEST RESULTS")
-        print(f"{'='*60}")
-        print(f"Total records tested: {len(known_matches)}")
-        print(f"Unchanged records: {unchanged}")
-        print(f"Changed records: {len(known_matches) - unchanged}")
-
-        # Show combined score changes
-        if combined_improvements:
-            print(f"\n✅ Combined Score Improvements: {len(combined_improvements)}")
-            for imp in combined_improvements[:5]:  # Show first 5
-                print(f"  - {imp}")
-            if len(combined_improvements) > 5:
-                print(f"  ... and {len(combined_improvements) - 5} more")
-
-        if combined_regressions:
-            print(f"\n⚠️  Combined Score Regressions: {len(combined_regressions)}")
-            for reg in combined_regressions[:5]:  # Show first 5
-                print(f"  - {reg}")
-            if len(combined_regressions) > 5:
-                print(f"  ... and {len(combined_regressions) - 5} more")
-
-        # Show field changes summary
-        if field_changes:
-            # Count changes by field type
-            title_changes = [c for c in field_changes if "Title" in c]
-            author_changes = [c for c in field_changes if "Author" in c]
-            publisher_changes = [c for c in field_changes if "Publisher" in c]
-
-            print(f"\n📊 Field-Level Changes:")
-            if title_changes:
-                print(f"  Title: {len(title_changes)} changes")
-            if author_changes:
-                print(f"  Author: {len(author_changes)} changes")
-            if publisher_changes:
-                print(f"  Publisher: {len(publisher_changes)} changes")
-
-            # Show a few examples
-            print(f"\n  Examples of field changes:")
-            for change in field_changes[:5]:
-                print(f"    - {change}")
-            if len(field_changes) > 5:
-                print(f"    ... and {len(field_changes) - 5} more field changes")
-
-        # Always show summary statistics if there are changes
-        if combined_improvements or combined_regressions or field_changes:
-            print(f"\n📈 Summary:")
-            if combined_improvements:
-                # Calculate improvement statistics
-                improvements_values = []
-                for imp in combined_improvements:
-                    # Extract the improvement value from string like "(+2.25)"
-                    # Standard library imports
-                    import re
-
-                    match = re.search(r"\(\+(\d+\.\d+)\)", imp)
-                    if match:
-                        improvements_values.append(float(match.group(1)))
-
-                if improvements_values:
-                    avg_improvement = sum(improvements_values) / len(improvements_values)
-                    max_improvement = max(improvements_values)
-                    min_improvement = min(improvements_values)
-                    print(f"  Combined score improvements: {len(combined_improvements)} records")
-                    print(f"    Average: +{avg_improvement:.2f} points")
-                    print(f"    Range: +{min_improvement:.2f} to +{max_improvement:.2f} points")
-
-            if combined_regressions:
-                print(f"  Combined score regressions: {len(combined_regressions)} records")
-
-        # Decision logic
-        if combined_regressions:
-            # Fail if there are combined score regressions
-            print(f"\n❌ TEST FAILED: Found {len(combined_regressions)} combined score regressions")
-            assert (
-                False
-            ), f"Found {len(combined_regressions)} combined score regressions. Review changes above."
-        elif combined_improvements:
-            print(f"\n✅ TEST PASSED: {len(combined_improvements)} improvements, no regressions!")
-            print("The algorithm changes have improved matching accuracy.")
-        elif field_changes:
-            # Warning if fields changed but no combined improvement
-            print(
-                f"\n⚠️  TEST PASSED WITH WARNING: Field scores changed but no combined score improvements"
+            # Fail with a clear message
+            assert False, (
+                f"Found {len(regressions)} scoring regressions. "
+                f"Details saved to {output_file.absolute()}"
             )
-            print("Review the field-level changes to ensure they are intentional.")
         else:
-            print("\n✅ TEST PASSED: All scores match baseline exactly")
-            print("No changes detected in the scoring algorithm.")
+            with capfd.disabled():
+                print(" done")  # Complete the progress line when successful
 
-    @mark.regression
+    @mark.scoring
     @mark.parametrize("threshold", [50, 60, 70, 80, 90])
     def test_score_distribution(
         self, known_matches: list[dict[str, str]], core_matcher: CoreMatcher, threshold: float
@@ -338,13 +263,13 @@ class TestScoringRegression:
                 below_threshold += 1
 
         total = len(known_matches)
-        percent_above = (above_threshold / total) * 100
+        (above_threshold / total) * 100
 
-        print(
-            f"Threshold {threshold}: {above_threshold}/{total} ({percent_above:.1f}%) matches above threshold"
-        )
+        # Just assert that we have a reasonable distribution
+        # (Silently pass - no output unless there's a problem)
+        assert total > 0, "No matches to test"
 
-    @mark.regression
+    @mark.scoring
     def test_score_without_lccn_boost_column(
         self, known_matches: list[dict[str, str]], core_matcher: CoreMatcher
     ) -> None:
@@ -384,27 +309,13 @@ class TestScoringRegression:
                         }
                     )
 
-        # Report results
-        if missing_column:
-            print(
-                f"\n⚠️ WARNING: {len(missing_column)} records missing score_without_lccn_boost column"
-            )
-            print("Run: pdm run python scripts/generate_baseline_scores.py to update")
-        else:
-            print("\n✅ All sampled records have score_without_lccn_boost column")
+        # Just assert that the column exists
+        assert not missing_column, (
+            f"{len(missing_column)} records missing score_without_lccn_boost column. "
+            "Run: pdm run python scripts/generate_baseline_scores.py to update"
+        )
 
-        if score_differences:
-            print(f"\n📊 Found {len(score_differences)} records with LCCN boost:")
-            avg_boost = sum(d["difference"] for d in score_differences) / len(score_differences)
-            print(f"  Average boost: {avg_boost:.1f} points")
-
-            # Show examples
-            for item in score_differences[:3]:
-                print(
-                    f"  {item['id']}: {item['without_boost']:.1f} → {item['with_boost']:.1f} (+{item['difference']:.1f})"
-                )
-
-    @mark.regression
+    @mark.scoring
     def test_field_score_statistics(
         self, known_matches: list[dict[str, str]], core_matcher: CoreMatcher
     ) -> None:
@@ -429,49 +340,11 @@ class TestScoringRegression:
             publisher_scores.append(result.publisher_score)
             combined_scores.append(result.combined_score)
 
-        def calculate_stats(scores: list[float], name: str) -> None:
-            """Calculate and print statistics for a set of scores"""
-            if not scores:
-                return
+        # Just verify we have scores (silent test)
+        assert len(title_scores) > 0, "No title scores calculated"
+        assert len(combined_scores) > 0, "No combined scores calculated"
 
-            sorted_scores = sorted(scores)
-            n = len(sorted_scores)
-            mean = sum(sorted_scores) / n
-            median = (
-                sorted_scores[n // 2]
-                if n % 2
-                else (sorted_scores[n // 2 - 1] + sorted_scores[n // 2]) / 2
-            )
-            min_score = min(sorted_scores)
-            max_score = max(sorted_scores)
-            q1 = sorted_scores[n // 4]
-            q3 = sorted_scores[3 * n // 4]
-
-            print(f"\n{name} Score Statistics:")
-            print(f"  Mean: {mean:.1f}")
-            print(f"  Median: {median:.1f}")
-            print(f"  Min: {min_score:.1f}")
-            print(f"  Max: {max_score:.1f}")
-            print(f"  Q1: {q1:.1f}")
-            print(f"  Q3: {q3:.1f}")
-
-            # Distribution
-            print(f"  Distribution:")
-            for threshold in [0, 20, 40, 60, 80, 100]:
-                count = sum(1 for s in sorted_scores if s >= threshold)
-                percent = (count / n) * 100
-                print(f"    >= {threshold}: {count} ({percent:.1f}%)")
-
-        print(f"\n{'='*60}")
-        print("FIELD SCORE STATISTICS")
-        print(f"{'='*60}")
-
-        calculate_stats(title_scores, "Title")
-        calculate_stats(author_scores, "Author")
-        calculate_stats(publisher_scores, "Publisher")
-        calculate_stats(combined_scores, "Combined")
-
-    @mark.regression
+    @mark.scoring
     def test_score_separation(
         self,
         known_matches: list[dict[str, str]],
@@ -515,41 +388,17 @@ class TestScoringRegression:
         match_values = [s["score"] for s in match_scores]
         mismatch_values = [s["score"] for s in mismatch_scores]
 
-        print(f"\n{'='*60}")
-        print("SCORE SEPARATION ANALYSIS")
-        print(f"{'='*60}")
+        # Silent analysis - no print statements
 
-        print(f"\n📊 Dataset Sizes:")
-        print(f"  Known matches (true positives): {len(match_scores)}")
-        print(f"  Known mismatches (false positives): {len(mismatch_scores)}")
-
-        # True match statistics
-        print(f"\n✅ TRUE MATCHES (should score high):")
-        print(f"  Min score: {min(match_values):.2f}")
-        print(f"  Max score: {max(match_values):.2f}")
-        print(f"  Mean score: {sum(match_values)/len(match_values):.2f}")
-        print(f"  Median score: {sorted(match_values)[len(match_values)//2]:.2f}")
-
-        # False positive statistics
-        print(f"\n❌ FALSE POSITIVES (should score low):")
-        print(f"  Min score: {min(mismatch_values):.2f}")
-        print(f"  Max score: {max(mismatch_values):.2f}")
-        print(f"  Mean score: {sum(mismatch_values)/len(mismatch_values):.2f}")
-        print(f"  Median score: {sorted(mismatch_values)[len(mismatch_values)//2]:.2f}")
+        # Calculate statistics silently
 
         # Find overlap zone
         lowest_match = min(match_values)
         highest_mismatch = max(mismatch_values)
 
-        if lowest_match > highest_mismatch:
-            print(f"\n🎯 PERFECT SEPARATION!")
-            print(f"  All true matches score >= {lowest_match:.2f}")
-            print(f"  All false positives score <= {highest_mismatch:.2f}")
-            print(f"  Safe threshold range: {highest_mismatch:.2f} - {lowest_match:.2f}")
-        else:
-            print(f"\n⚠️  OVERLAP ZONE: {lowest_match:.2f} - {highest_mismatch:.2f}")
-
-            # Count records in overlap zone
+        # Check for problematic overlap
+        if lowest_match <= highest_mismatch:
+            # Count records in overlap zone for error reporting
             matches_in_overlap = sum(
                 1 for s in match_scores if lowest_match <= s["score"] <= highest_mismatch
             )
@@ -557,45 +406,25 @@ class TestScoringRegression:
                 1 for s in mismatch_scores if lowest_match <= s["score"] <= highest_mismatch
             )
 
-            print(f"  True matches in overlap: {matches_in_overlap}")
-            print(f"  False positives in overlap: {mismatches_in_overlap}")
+            # Save overlap details to CSV if there's a problem
+            if matches_in_overlap > 0 or mismatches_in_overlap > 0:
+                # Standard library imports
+                import csv
+                from pathlib import Path
 
-            # Find some example problem cases
-            print(f"\n  Examples of lowest-scoring TRUE matches:")
-            low_matches = sorted(match_scores, key=lambda x: x["score"])[:3]
-            for m in low_matches:
-                print(f"    - {m['id']}: {m['score']:.2f}")
+                output_file = Path("score_overlap_analysis.csv")
+                with open(output_file, "w", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=["id", "score", "type"])
+                    writer.writeheader()
 
-            print(f"\n  Examples of highest-scoring FALSE positives:")
-            high_mismatches = sorted(mismatch_scores, key=lambda x: x["score"], reverse=True)[:3]
-            for m in high_mismatches:
-                print(f"    - {m['id']}: {m['score']:.2f}")
+                    # Write problematic matches
+                    for m in sorted(match_scores, key=lambda x: x["score"])[:10]:
+                        writer.writerow({"id": m["id"], "score": m["score"], "type": "true_match"})
+                    for m in sorted(mismatch_scores, key=lambda x: x["score"], reverse=True)[:10]:
+                        writer.writerow(
+                            {"id": m["id"], "score": m["score"], "type": "false_positive"}
+                        )
 
-        # Test various thresholds
-        print(f"\n📈 THRESHOLD ANALYSIS:")
-        thresholds = [20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90]
-
-        for threshold in thresholds:
-            true_positives = sum(1 for s in match_scores if s["score"] >= threshold)
-            false_positives = sum(1 for s in mismatch_scores if s["score"] >= threshold)
-            len(match_scores) - true_positives
-            len(mismatch_scores) - false_positives
-
-            precision = (
-                true_positives / (true_positives + false_positives)
-                if (true_positives + false_positives) > 0
-                else 0
-            )
-            recall = true_positives / len(match_scores) if len(match_scores) > 0 else 0
-            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-
-            print(f"\n  Threshold {threshold}:")
-            print(
-                f"    True Positives: {true_positives}/{len(match_scores)} ({true_positives/len(match_scores)*100:.1f}%)"
-            )
-            print(
-                f"    False Positives: {false_positives}/{len(mismatch_scores)} ({false_positives/len(mismatch_scores)*100:.1f}%)"
-            )
-            print(f"    Precision: {precision:.3f}")
-            print(f"    Recall: {recall:.3f}")
-            print(f"    F1 Score: {f1:.3f}")
+        # Just verify basic statistics
+        assert len(match_scores) > 0, "No match scores to analyze"
+        assert len(mismatch_scores) > 0, "No mismatch scores to analyze"

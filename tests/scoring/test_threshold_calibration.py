@@ -61,11 +61,7 @@ class TestThresholdCalibration:
                 else 0
             )
 
-            print(f"\n{scenario['name']}:")
-            print(f"  True Positive Rate: {tp_rate:.1%}")
-            print(f"  False Positive Rate: {fp_rate:.1%}")
-
-            # Assertions - we want high TP rate and low FP rate
+            # Silent assertions - we want high TP rate and low FP rate
             assert tp_rate > 0.8, f"True positive rate too low for {scenario['name']}"
             assert fp_rate < 0.2, f"False positive rate too high for {scenario['name']}"
 
@@ -184,7 +180,7 @@ class TestThresholdCalibration:
             "total_mismatches": len(mismatches),
         }
 
-    @mark.regression
+    @mark.scoring
     def test_threshold_analysis(self):
         """Test various threshold and boost combinations"""
         matches, mismatches = self.load_test_data()
@@ -200,12 +196,7 @@ class TestThresholdCalibration:
             (0, 30, "No boost: Field matching only"),
         ]
 
-        print(f"\n{'='*70}")
-        print("THRESHOLD CALIBRATION ANALYSIS")
-        print(f"{'='*70}")
-        print("\nAssuming 1% of records have LCCNs (realistic scenario)")
-        print(f"Total test matches: {len(matches)}")
-        print(f"Total test mismatches: {len(mismatches)}")
+        # Silent test - just verify scenarios
 
         best_config = None
         best_score = -1
@@ -231,22 +222,10 @@ class TestThresholdCalibration:
             # Score: maximize TP, minimize FP
             score = tp_rate - (fp_rate * 2)  # Weight FP more heavily
 
-            print(f"\n{description}")
-            print(f"  LCCN Boost: {lccn_boost}, Base Threshold: {threshold}")
-            print(f"  True Positives: {total_tp}/1000 ({tp_rate:.1f}%)")
-            print(f"    - With LCCN: {results['tp_with_lccn']}")
-            print(f"    - Without LCCN: {results['tp_without_lccn']}")
-            print(f"  False Positives: {results['fp']}/100 ({fp_rate:.1f}%)")
-            print(f"  Score: {score:.1f}")
-
             if score > best_score:
                 best_score = score
                 best_config = (lccn_boost, threshold, description)
-                print(f"  ⭐ NEW BEST!")
 
-        print(f"\n{'='*70}")
-        print(f"RECOMMENDED CONFIGURATION:")
-        print(f"  {best_config[2]}")
-        print(f"  LCCN Boost: {best_config[0]}")
-        print(f"  Base Threshold: {best_config[1]}")
-        print(f"  Score: {best_score:.1f}")
+        # Just verify we found a best configuration
+        assert best_config is not None, "Failed to find best configuration"
+        assert best_score > 0, "Best score should be positive"

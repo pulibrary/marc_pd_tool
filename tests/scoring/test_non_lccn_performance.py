@@ -104,7 +104,7 @@ class TestNonLCCNPerformance:
             }
         return {"title": 0, "author": 0, "publisher": 0, "combined": 0}
 
-    @mark.regression
+    @mark.scoring
     def test_score_comparison_with_without_lccn(
         self,
         known_matches: list[dict[str, str]],
@@ -135,31 +135,10 @@ class TestNonLCCNPerformance:
                     }
                 )
 
-        # Analysis
-        print(f"\n{'='*60}")
-        print("LCCN BOOST IMPACT ANALYSIS")
-        print(f"{'='*60}")
+        # Just verify we have some differences
+        assert len(score_differences) > 0, "No LCCN boost differences found"
 
-        if score_differences:
-            avg_diff = sum(d["difference"] for d in score_differences) / len(score_differences)
-            max_diff = max(d["difference"] for d in score_differences)
-            min_diff = min(d["difference"] for d in score_differences)
-
-            print(f"\n📊 Score Impact Statistics:")
-            print(f"  Records analyzed: {len(score_differences)}")
-            print(f"  Average boost: {avg_diff:.2f} points")
-            print(f"  Max boost: {max_diff:.2f} points")
-            print(f"  Min boost: {min_diff:.2f} points")
-
-            # Show examples
-            print(f"\n📈 Example Score Changes:")
-            for item in sorted(score_differences, key=lambda x: x["difference"], reverse=True)[:5]:
-                print(
-                    f"  {item['id']}: {item['without_lccn']:.1f} → {item['with_lccn']:.1f} (+{item['difference']:.1f})"
-                )
-                print(f"    Title: {item['title']}")
-
-    @mark.regression
+    @mark.scoring
     def test_threshold_analysis_without_lccn(
         self,
         known_matches: list[dict[str, str]],
@@ -191,49 +170,18 @@ class TestNonLCCNPerformance:
                 scores = self.calculate_scores(row, matcher_no_lccn, disable_lccn=True)
                 mismatch_scores.append(scores["combined"])
 
-        print(f"\n{'='*60}")
-        print("NON-LCCN MATCHING PERFORMANCE")
-        print(f"{'='*60}")
+        # Just verify we have scores
+        assert len(match_scores) > 0, "No match scores calculated"
+        assert len(mismatch_scores) > 0, "No mismatch scores calculated"
 
-        print(f"\n📊 Score Distributions WITHOUT LCCN:")
-        print(f"\n✅ True Matches:")
-        print(f"  Min: {min(match_scores):.2f}")
-        print(f"  Max: {max(match_scores):.2f}")
-        print(f"  Mean: {sum(match_scores)/len(match_scores):.2f}")
-        print(f"  Median: {sorted(match_scores)[len(match_scores)//2]:.2f}")
+        # Verify reasonable score separation
+        median_match = sorted(match_scores)[len(match_scores) // 2]
+        median_mismatch = (
+            sorted(mismatch_scores)[len(mismatch_scores) // 2] if mismatch_scores else 0
+        )
+        assert median_match > median_mismatch, "Match scores should be higher than mismatch scores"
 
-        if mismatch_scores:
-            print(f"\n❌ False Positives:")
-            print(f"  Min: {min(mismatch_scores):.2f}")
-            print(f"  Max: {max(mismatch_scores):.2f}")
-            print(f"  Mean: {sum(mismatch_scores)/len(mismatch_scores):.2f}")
-            print(f"  Median: {sorted(mismatch_scores)[len(mismatch_scores)//2]:.2f}")
-
-        # Test thresholds
-        print(f"\n📈 THRESHOLD ANALYSIS (Without LCCN):")
-        thresholds = [20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90]
-
-        for threshold in thresholds:
-            true_positives = sum(1 for s in match_scores if s >= threshold)
-            false_positives = (
-                sum(1 for s in mismatch_scores if s >= threshold) if mismatch_scores else 0
-            )
-
-            tp_rate = true_positives / len(match_scores) * 100
-            fp_rate = false_positives / len(mismatch_scores) * 100 if mismatch_scores else 0
-
-            print(f"\n  Threshold {threshold}:")
-            print(f"    True Positives: {true_positives}/{len(match_scores)} ({tp_rate:.1f}%)")
-            if mismatch_scores:
-                print(
-                    f"    False Positives: {false_positives}/{len(mismatch_scores)} ({fp_rate:.1f}%)"
-                )
-
-            # Highlight problem thresholds
-            if tp_rate < 95 and threshold <= 45:
-                print(f"    ⚠️  WARNING: Significant true positive loss at reasonable threshold!")
-
-    @mark.regression
+    @mark.scoring
     def test_records_failing_without_lccn(
         self, known_matches: list[dict[str, str]], matcher_no_lccn: CoreMatcher
     ) -> None:
@@ -258,22 +206,7 @@ class TestNonLCCNPerformance:
                     }
                 )
 
-        print(f"\n{'='*60}")
-        print(f"RECORDS FAILING WITHOUT LCCN (Threshold {threshold})")
-        print(f"{'='*60}")
-
-        if failing_records:
-            print(f"\n⚠️  {len(failing_records)}/{500} records would fail without LCCN")
-            print(f"  Failure rate: {len(failing_records)/500*100:.1f}%")
-
-            print(f"\n📋 Examples of Failing Records:")
-            for rec in failing_records[:10]:
-                print(f"\n  ID: {rec['id']}")
-                print(f"    Combined Score: {rec['score']:.2f}")
-                print(
-                    f"    Title Score: {rec['title_score']:.1f}, Author Score: {rec['author_score']:.1f}"
-                )
-                print(f"    Title: {rec['title']}")
-                print(f"    Author: {rec['author']}")
-        else:
-            print("\n✅ All tested records would still match without LCCN boost!")
+        # Just verify the failure rate is reasonable
+        failure_rate = len(failing_records) / 500
+        # We expect some failures without LCCN, but not too many
+        assert failure_rate < 0.5, f"Too many failures without LCCN: {failure_rate*100:.1f}%"

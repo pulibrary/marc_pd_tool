@@ -10,8 +10,8 @@ from pickle import dump
 from pickle import load
 from tempfile import mkdtemp
 from typing import Iterator
-from xml.etree.ElementTree import Element
-from xml.etree.ElementTree import iterparse
+from xml.etree.cElementTree import Element
+from xml.etree.cElementTree import iterparse
 
 # Local imports
 from marc_pd_tool.core.domain.enums import CountryClassification

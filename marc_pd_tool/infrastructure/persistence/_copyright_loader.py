@@ -7,10 +7,10 @@ from functools import cached_property
 from logging import getLogger
 from pathlib import Path
 from re import search
-from xml.etree.ElementTree import Element
-from xml.etree.ElementTree import ParseError
-from xml.etree.ElementTree import iterparse
-from xml.etree.ElementTree import parse
+from xml.etree.cElementTree import Element
+from xml.etree.cElementTree import ParseError
+from xml.etree.cElementTree import iterparse
+from xml.etree.cElementTree import parse
 
 # Local imports
 from marc_pd_tool.core.domain.publication import Publication
