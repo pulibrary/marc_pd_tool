@@ -44,6 +44,51 @@ class BatchProcessingComponent:
     platform-specific multiprocessing, and statistics aggregation.
     """
 
+    def _load_copyright_status_counts_from_stats_files(
+        self: BatchAnalyzerProtocol, result_temp_dir: str
+    ) -> None:
+        """Load and aggregate copyright status counts from batch stats pickle files.
+
+        Args:
+            result_temp_dir: Directory containing batch_*_stats.pkl files
+        """
+        # Standard library imports
+        from glob import glob
+        from os.path import join
+        from pickle import load
+
+        # Find all stats files
+        stats_files = glob(join(result_temp_dir, "batch_*_stats.pkl"))
+
+        # Aggregate copyright status counts
+        aggregated_statuses: dict[str, int] = {}
+
+        for stats_file in stats_files:
+            try:
+                with open(stats_file, "rb") as f:
+                    stats_data = load(f)
+
+                # The stats file contains various fields, copyright statuses are lowercase keys
+                for key, value in stats_data.items():
+                    # Skip the standard stats fields
+                    if key not in [
+                        "total_records",
+                        "registration_matches",
+                        "renewal_matches",
+                        "skipped_no_year",
+                        "skipped_out_of_range",
+                        "skipped_non_us",
+                    ]:
+                        # This is likely a copyright status
+                        if isinstance(value, int):
+                            aggregated_statuses[key] = aggregated_statuses.get(key, 0) + value
+            except Exception as e:
+                logger.warning(f"Failed to load stats file {stats_file}: {e}")
+
+        # Store the aggregated copyright status counts in the statistics extra_fields
+        for status_key, count in aggregated_statuses.items():
+            self.results.statistics.extra_fields[status_key] = count
+
     def _analyze_marc_file_batch(
         self: BatchAnalyzerProtocol,
         batch_paths: list[str],
@@ -324,6 +369,10 @@ class BatchProcessingComponent:
             with Pool(**pool_args) as pool:  # type: ignore[arg-type]
                 for result in pool.imap_unordered(process_batch, batch_infos):
                     batch_id, result_file_path, batch_stats = result
+
+                    # Register the result file with AnalysisResults for later loading
+                    self.results.add_result_file(result_file_path)
+
                     all_stats.append(batch_stats)
                     completed_batches += 1
                     total_reg_matches += batch_stats.registration_matches_found
@@ -390,6 +439,11 @@ class BatchProcessingComponent:
         self.results.statistics.non_us_records = total_non_us_records
         self.results.statistics.unknown_country = total_unknown_country
         # Note: errors field doesn't exist in AnalysisStatistics, skip it
+
+        # Note: Copyright status counts are stored in batch stats pickle files
+        # Load and aggregate them now for the final statistics
+        if result_temp_dir:
+            self._load_copyright_status_counts_from_stats_files(result_temp_dir)
 
         # Calculate no matches (records that didn't match either registration or renewal)
         self.results.statistics.no_matches = total_records - (total_reg_matches + total_ren_matches)

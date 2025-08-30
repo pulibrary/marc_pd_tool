@@ -446,7 +446,7 @@ def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats
         "skipped_non_us": stats.skipped_non_us,
     }
 
-    # Count copyright statuses
+    # Count copyright statuses for stats file
     for pub in processed_publications:
         if hasattr(pub, "copyright_status") and pub.copyright_status:
             status_key = pub.copyright_status.lower()

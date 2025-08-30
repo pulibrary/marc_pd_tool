@@ -221,23 +221,61 @@ def main() -> None:
             stats = stats_obj  # type: ignore[assignment]
 
         # Compute aggregated statistics for backward compatibility
-        pd_records = (
-            int(stats.get("pd_pre_min_year", 0))
-            + int(stats.get("pd_us_not_renewed", 0))
-            + int(stats.get("pd_us_no_reg_data", 0))
-            + int(stats.get("pd_us_reg_no_renewal", 0))
-            + int(stats.get("research_us_only_pd", 0))
-        )
+        # Map the actual copyright status values to the summary categories
+        pd_records = 0
+        not_pd_records = 0
+        undetermined_records = 0
 
-        not_pd_records = int(stats.get("in_copyright", 0)) + int(
-            stats.get("in_copyright_us_renewed", 0)
-        )
+        # Iterate through all stats to categorize copyright statuses
+        for key, value in stats.items():
+            key_lower = key.lower()
 
-        undetermined_records = (
-            int(stats.get("unknown_us_no_data", 0))
-            + int(stats.get("research_us_status", 0))
-            + int(stats.get("country_unknown", 0))
-        )
+            # Skip non-copyright status fields
+            if key in [
+                "total_records",
+                "us_records",
+                "non_us_records",
+                "unknown_country",
+                "registration_matches",
+                "renewal_matches",
+                "no_matches",
+                "skipped_no_year",
+            ]:
+                continue
+
+            # Public Domain statuses
+            if any(
+                pd_status in key_lower
+                for pd_status in [
+                    "us_registered_not_renewed",
+                    "us_pre_",  # Pre-copyright expiration
+                    "foreign_pre_",  # Foreign pre-copyright expiration
+                    "pd_pre",
+                    "pd_us",
+                    "research_us_only_pd",
+                ]
+            ):
+                pd_records += int(value)
+            # Not Public Domain statuses
+            elif any(
+                not_pd_status in key_lower
+                for not_pd_status in ["us_renewed", "foreign_renewed", "in_copyright"]
+            ):
+                not_pd_records += int(value)
+            # Undetermined statuses (including us_no_match which requires research)
+            elif any(
+                unknown_status in key_lower
+                for unknown_status in [
+                    "us_no_match",  # No match requires research
+                    "unknown",
+                    "country_unknown",
+                    "research_us_status",
+                    "foreign_registered_not_renewed",
+                    "foreign_no_match",
+                    "out_of_data_range",
+                ]
+            ):
+                undetermined_records += int(value)
 
         # Log summary (using new function signature)
         end_time = time()

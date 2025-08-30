@@ -142,7 +142,7 @@ def log_run_summary(
     total_input = total_records + skipped_no_year
 
     # Build summary message
-    summary_lines = ["\n" + "=" * 80, "PROCESSING COMPLETE", "=" * 80]
+    summary_lines = ["=" * 80, "PROCESSING COMPLETE", "=" * 80]
 
     # Show total input records if different from processed
     if skipped_no_year > 0:
@@ -233,6 +233,6 @@ def log_run_summary(
 
     summary_lines.append("=" * 80)
 
-    # Log the summary
-    summary = "\n".join(summary_lines)
-    logger.info(summary)
+    # Log each line separately to ensure proper timestamps
+    for line in summary_lines:
+        logger.info(line)
