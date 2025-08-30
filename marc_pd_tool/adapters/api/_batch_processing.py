@@ -13,6 +13,7 @@ This component handles:
 from logging import getLogger
 from multiprocessing import Pool
 from multiprocessing import get_start_method
+from multiprocessing import set_start_method
 from tempfile import mkdtemp
 from time import time
 from typing import TYPE_CHECKING
@@ -216,6 +217,19 @@ class BatchProcessingComponent:
         # Log multiprocessing configuration
         start_method = get_start_method()
         logger.info(f"Multiprocessing start method: {start_method}")
+
+        # Check if indexes are pre-loaded
+        indexes_loaded = self.registration_index is not None and self.renewal_index is not None
+        logger.info(f"Pre-loaded indexes available: {indexes_loaded}")
+
+        # Force fork mode on macOS if indexes are pre-loaded for memory sharing
+        if indexes_loaded and start_method == "spawn":
+            try:
+                set_start_method("fork", force=True)
+                start_method = "fork"
+                logger.info("Forced fork mode for memory sharing on macOS")
+            except RuntimeError as e:
+                logger.warning(f"Could not set fork mode: {e}")
 
         try:
             # Use same parallel processing logic as _process_parallel
