@@ -169,19 +169,14 @@ def create_argument_parser() -> ArgumentParser:
     )
     # File logging is enabled by default, so use store_true to disable it
     parser.add_argument("--disable-file-logging", action="store_true", help="Disable file logging")
-
-    # Verbosity - count occurrences: -v (INFO), -vv (DEBUG)
-    # Default is progress bars with only WARN/ERROR to stderr
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="Increase verbosity (default: progress bars only, -v: INFO, -vv: DEBUG)",
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",  # Default logging level
+        help="Logging level",
     )
-
-    # Keep silent for backwards compatibility
-    parser.add_argument("--silent", action="store_true", help="Suppress all console output")
+    # Silent is False by default, so use store_true to enable it
+    parser.add_argument("--silent", action="store_true", help="Suppress console output")
 
     # Temporary directory option for batch processing
     parser.add_argument(

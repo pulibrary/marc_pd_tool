@@ -26,7 +26,6 @@ from marc_pd_tool.adapters.cli.parser import generate_output_filename
 from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.infrastructure import RunIndexManager
 from marc_pd_tool.infrastructure.config import get_config
-from marc_pd_tool.infrastructure.logging._progress import shutdown_progress_manager
 
 logger = getLogger(__name__)
 
@@ -54,10 +53,10 @@ def main() -> None:
     if args.max_workers is None or args.max_workers == 0:
         args.max_workers = max(1, cpu_count() - 4)
 
-    # Configure logging based on verbosity level
-    log_file_path, progress_bars_enabled = set_up_logging(
+    # Configure logging
+    log_file_path = set_up_logging(
         log_file=args.log_file,
-        verbosity=args.verbose,
+        log_level=args.log_level,
         silent=args.silent,
         disable_file_logging=args.disable_file_logging,
     )
@@ -172,10 +171,6 @@ def main() -> None:
             run_info["status"] = "completed"
             run_index_manager.update_run(run_info["log_file"], run_info)
 
-            # Shutdown progress bars if enabled
-            if progress_bars_enabled:
-                shutdown_progress_manager()
-
             return  # Exit early for ground truth mode
 
         # Normal analysis mode
@@ -275,20 +270,11 @@ def main() -> None:
         run_info["status"] = "completed"
         run_index_manager.update_run(run_info["log_file"], run_info)
 
-        # Shutdown progress bars if enabled
-        if progress_bars_enabled:
-            shutdown_progress_manager()
-
     except Exception as e:
         logger.error(f"Error during processing: {e}")
         run_info["status"] = "failed"
         run_info["duration_seconds"] = str(int(time() - start_time))
         run_index_manager.update_run(run_info["log_file"], run_info)
-
-        # Shutdown progress bars if enabled
-        if progress_bars_enabled:
-            shutdown_progress_manager()
-
         raise
 
 

@@ -102,6 +102,30 @@ class MarcLoader:
             return [], 0, 0
 
         logger.info(f"Found {len(marc_files)} MARC file(s) to process")
+
+        # Quick first pass to count total records for better progress reporting
+        logger.info("Counting records...")
+        total_record_estimate = 0
+        estimated_batches = 0
+        for marc_file in marc_files:
+            try:
+                # Just count record tags without parsing content
+                record_count = 0
+                for event, elem in iterparse(marc_file, events=("end",)):
+                    if elem.tag.endswith("record"):
+                        record_count += 1
+                        elem.clear()
+                total_record_estimate += record_count
+            except Exception as e:
+                logger.warning(f"Could not count records in {marc_file.name}: {e}")
+
+        if total_record_estimate > 0:
+            # Estimate total batches (accounting for some filtering)
+            estimated_batches = max(1, int((total_record_estimate * 0.9) // self.batch_size + 1))
+            logger.info(
+                f"Found ~{total_record_estimate:,} total records, expecting ~{estimated_batches} batches"
+            )
+
         logger.info(f"Streaming batches to: {output_dir}")
 
         batch_paths = []
@@ -153,8 +177,13 @@ class MarcLoader:
 
                             batch_paths.append(batch_path)
                             batch_count += 1
+                            # Use the pre-calculated estimate if available
+                            if estimated_batches > 0:
+                                batch_indicator = f"{batch_count}/~{estimated_batches}"
+                            else:
+                                batch_indicator = f"{batch_count}"
                             logger.info(
-                                f"Pickled batch {batch_count} with {len(current_batch)} publications ({total_record_count:,} total records processed so far)"
+                                f"Pickled batch {batch_indicator} with {len(current_batch)} publications ({total_record_count:,} total records processed)"
                             )
 
                             # Clear batch from memory immediately
@@ -178,7 +207,9 @@ class MarcLoader:
 
             batch_paths.append(batch_path)
             batch_count += 1
-            logger.info(f"Pickled final batch {batch_count} with {len(current_batch)} publications")
+            logger.info(
+                f"Pickled final batch {batch_count}/{batch_count} with {len(current_batch)} publications"
+            )
 
         total_publications = (
             sum(len(load(open(path, "rb"))) for path in batch_paths) if batch_paths else 0

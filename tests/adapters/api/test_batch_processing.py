@@ -92,7 +92,9 @@ class TestBatchProcessingComponent:
             stats = BatchStats(batch_id=1, total_batches=1)
             mock_pool.imap_unordered.return_value = iter([(1, "result.pkl", stats)])
 
-            with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
+            with patch(
+                "marc_pd_tool.adapters.api._batch_processing.get_start_method"
+            ) as mock_start:
                 mock_start.return_value = "fork"
 
                 # Process with fork mode
@@ -133,7 +135,9 @@ class TestBatchProcessingComponent:
             stats = BatchStats(batch_id=1, total_batches=1)
             mock_pool.imap_unordered.return_value = iter([(1, "result.pkl", stats)])
 
-            with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
+            with patch(
+                "marc_pd_tool.adapters.api._batch_processing.get_start_method"
+            ) as mock_start:
                 mock_start.return_value = "spawn"
 
                 # Process with spawn mode

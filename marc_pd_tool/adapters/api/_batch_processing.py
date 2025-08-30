@@ -13,6 +13,7 @@ This component handles:
 from logging import getLogger
 from multiprocessing import Pool
 from multiprocessing import get_start_method
+from multiprocessing import set_start_method
 from tempfile import mkdtemp
 from time import time
 from typing import TYPE_CHECKING
@@ -38,7 +39,7 @@ logger = getLogger(__name__)
 
 class BatchProcessingComponent:
     """Component for batch-based parallel processing of datasets
-    
+
     Handles the core batch processing logic including parallel execution,
     platform-specific multiprocessing, and statistics aggregation.
     """
@@ -66,12 +67,9 @@ class BatchProcessingComponent:
             logger.info(f"  Year range filter: {year_range}")
 
         # Process batches using parallel infrastructure with pre-pickled batches
-        # Local imports
-        from marc_pd_tool.infrastructure.logging._progress import get_progress_manager
-        from marc_pd_tool.infrastructure.logging._progress import log_phase_header
-
-        progress_manager = get_progress_manager()
-        log_phase_header("PHASE 3: PROCESSING PUBLICATIONS", progress_manager.enabled)
+        logger.info("=" * 80)
+        logger.info("=== PHASE 3: PROCESSING PUBLICATIONS ===")
+        logger.info("=" * 80)
 
         # Extract options
         year_tolerance = options.year_tolerance
@@ -99,15 +97,10 @@ class BatchProcessingComponent:
         min_year = options.min_year
         max_year = options.max_year
 
-        # Print processing info (shows in progress bar mode, logged otherwise)
-        # Local imports
-        from marc_pd_tool.infrastructure.logging._progress import log_phase_info
-
-        log_phase_info(
-            f"Processing {len(batch_paths)} pre-pickled batches", progress_manager.enabled
-        )
-        log_phase_info(f"  Workers: {num_processes}", progress_manager.enabled)
-        log_phase_info(f"  Total batches: {len(batch_paths)}", progress_manager.enabled)
+        # Print processing info
+        logger.info(f"Processing {len(batch_paths)} pre-pickled batches")
+        logger.info(f"  Workers: {num_processes}")
+        logger.info(f"  Total batches: {len(batch_paths)}")
 
         # Process batches in parallel
         self._process_batches_parallel(
@@ -129,19 +122,17 @@ class BatchProcessingComponent:
 
         # Export results if output path provided
         if output_path:
-            log_phase_header("PHASE 5: EXPORTING RESULTS", progress_manager.enabled)
+            logger.info("=" * 80)
+            logger.info("=== PHASE 5: EXPORTING RESULTS ===")
+            logger.info("=" * 80)
 
             output_formats = options.formats if options.formats else ["json", "csv"]
             single_file = options.single_file
 
-            log_phase_info(f"Exporting results to: {output_path}", progress_manager.enabled)
-            log_phase_info(
-                f"  Formats: {', '.join([f.upper() for f in output_formats])}",
-                progress_manager.enabled,
-            )
-            log_phase_info(
-                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}",
-                progress_manager.enabled,
+            logger.info(f"Exporting results to: {output_path}")
+            logger.info(f"  Formats: {', '.join([f.upper() for f in output_formats])}")
+            logger.info(
+                f"  Single file: {'Yes' if single_file else 'No (separate files by status)'}"
             )
             self.export_results(output_path, formats=output_formats, single_file=single_file)
             logger.info("✓ Export complete")
@@ -226,6 +217,19 @@ class BatchProcessingComponent:
         # Log multiprocessing configuration
         start_method = get_start_method()
         logger.info(f"Multiprocessing start method: {start_method}")
+
+        # Check if indexes are pre-loaded
+        indexes_loaded = self.registration_index is not None and self.renewal_index is not None
+        logger.info(f"Pre-loaded indexes available: {indexes_loaded}")
+
+        # Force fork mode on macOS if indexes are pre-loaded for memory sharing
+        if indexes_loaded and start_method == "spawn":
+            try:
+                set_start_method("fork", force=True)
+                start_method = "fork"
+                logger.info("Forced fork mode for memory sharing on macOS")
+            except RuntimeError as e:
+                logger.warning(f"Could not set fork mode: {e}")
 
         try:
             # Use same parallel processing logic as _process_parallel

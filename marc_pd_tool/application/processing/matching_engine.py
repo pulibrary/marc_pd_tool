@@ -7,9 +7,6 @@ This is now a slim wrapper around the modular matching components.
 
 # Standard library imports
 from logging import DEBUG
-from logging import Formatter
-from logging import INFO
-from logging import StreamHandler
 from logging import getLogger
 from os import getpid
 from os import makedirs
@@ -182,22 +179,8 @@ def init_worker(
     # Store options - these will be passed in process_batch now
     _worker_options = {}
 
-    # Configure logging for worker - use same format as main process but with worker ID
-    worker_logger = getLogger()
-    worker_logger.handlers.clear()
-    handler = StreamHandler()
-    # Match main process format but add Worker ID
-    handler.setFormatter(Formatter("%(asctime)s - %(levelname)s - [Worker] %(message)s"))
-    worker_logger.addHandler(handler)
-    worker_logger.setLevel(INFO)
-
-    # Also configure the module logger to use the same format
-    global logger
-    logger = getLogger(__name__)
-    logger.handlers.clear()
-    logger.addHandler(handler)
-    logger.setLevel(INFO)
-    logger.propagate = False  # Don't propagate to root to avoid duplicates
+    # Skip logging configuration in workers to avoid conflicts
+    # Workers will inherit the main process's logging configuration
 
 
 def process_batch(batch_info: BatchProcessingInfo) -> tuple[int, str, BatchStats]:

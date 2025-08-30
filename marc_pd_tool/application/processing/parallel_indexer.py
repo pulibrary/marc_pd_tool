@@ -126,6 +126,7 @@ def build_wordbased_index_parallel(
         # Collect results as they complete
         completed = 0
         total_pubs_indexed = 0
+        last_log_time = 0
         for future in as_completed(future_to_chunk):
             start_idx, chunk = future_to_chunk[future]
             try:
@@ -135,11 +136,11 @@ def build_wordbased_index_parallel(
                 completed += 1
                 total_pubs_indexed += len(chunk)
 
-                # Log progress every 10 chunks or 30 seconds, whichever comes first
+                # Log progress every 10 chunks or 10 seconds, whichever comes first
                 elapsed = time() - start_time
                 if (
                     completed % 10 == 0
-                    or elapsed > (completed // 10 + 1) * 30
+                    or elapsed > last_log_time + 10  # Log every 10 seconds
                     or completed == len(chunks)
                 ):
                     rate = total_pubs_indexed / elapsed if elapsed > 0 else 0
@@ -148,6 +149,7 @@ def build_wordbased_index_parallel(
                         f"  Indexing progress: {percent:.1f}% ({total_pubs_indexed:,}/{len(publications):,} publications, "
                         f"{rate:.0f} pubs/sec)"
                     )
+                    last_log_time = elapsed
 
             except Exception as e:
                 logger.error(f"Error indexing chunk starting at {start_idx}: {e}")

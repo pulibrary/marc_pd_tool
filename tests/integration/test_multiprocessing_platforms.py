@@ -7,12 +7,11 @@ Linux (fork) and macOS (spawn) platforms. Any refactor MUST pass these tests.
 """
 
 # Standard library imports
-from multiprocessing import get_start_method
 from pathlib import Path
-from pickle import dump
 from pickle import HIGHEST_PROTOCOL
-from tempfile import mkdtemp
+from pickle import dump
 from tempfile import NamedTemporaryFile
+from tempfile import mkdtemp
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -52,38 +51,41 @@ class TestMultiprocessingPlatforms:
         """Create temporary directory with pickled batches"""
         temp_dir = mkdtemp(prefix="test_multiproc_")
         batch_paths = []
-        
+
         # Create 3 batches
         for i in range(0, len(sample_publications), 4):
-            batch = sample_publications[i:i+4]
+            batch = sample_publications[i : i + 4]
             batch_path = Path(temp_dir) / f"batch_{i//4:03d}.pkl"
             with open(batch_path, "wb") as f:
                 dump(batch, f, protocol=HIGHEST_PROTOCOL)
             batch_paths.append(str(batch_path))
-        
+
         return batch_paths
 
     def test_fork_mode_linux(self, temp_batch_dir):
         """Test fork mode with shared memory on Linux"""
         # This test verifies the fork-specific code path
         analyzer = MarcCopyrightAnalyzer()
-        
+
         # Mock pre-loaded indexes
         mock_reg_index = Mock()
         mock_reg_index.publications = []
-        mock_ren_index = Mock() 
+        mock_ren_index = Mock()
         mock_ren_index.publications = []
-        
+
         analyzer.registration_index = mock_reg_index
         analyzer.renewal_index = mock_ren_index
         analyzer.generic_detector = Mock()
-        
+
         with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
             mock_start.return_value = "fork"
-            
+
             # Test that shared data is set up correctly
-            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
-            
+            # Local imports
+            from marc_pd_tool.adapters.api._batch_processing import (
+                BatchProcessingComponent,
+            )
+
             # Create a mock self that has the required attributes
             mock_self = Mock()
             mock_self.results = Mock()
@@ -94,14 +96,14 @@ class TestMultiprocessingPlatforms:
             mock_self.cache_dir = analyzer.cache_dir
             mock_self.copyright_dir = analyzer.copyright_dir
             mock_self.renewal_dir = analyzer.renewal_dir
-            
+
             # Test the key part: setting up shared data for fork
             options = AnalysisOptions(num_processes=2)
-            
+
             # This should set up the shared data dictionary
             with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool:
                 mock_pool.return_value.__enter__.return_value.imap_unordered.return_value = []
-                
+
                 BatchProcessingComponent._process_batches_parallel(
                     mock_self,
                     temp_batch_dir,
@@ -119,7 +121,7 @@ class TestMultiprocessingPlatforms:
                     min_year=None,
                     max_year=None,
                 )
-                
+
                 # Verify fork-specific initialization was used
                 pool_call = mock_pool.call_args
                 assert "initializer" in pool_call[1]
@@ -129,12 +131,15 @@ class TestMultiprocessingPlatforms:
     def test_spawn_mode_macos(self, temp_batch_dir):
         """Test spawn mode with independent loading on macOS"""
         analyzer = MarcCopyrightAnalyzer()
-        
+
         with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
             mock_start.return_value = "spawn"
-            
-            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
-            
+
+            # Local imports
+            from marc_pd_tool.adapters.api._batch_processing import (
+                BatchProcessingComponent,
+            )
+
             # Create a mock self
             mock_self = Mock()
             mock_self.results = Mock()
@@ -145,10 +150,10 @@ class TestMultiprocessingPlatforms:
             mock_self.cache_dir = analyzer.cache_dir
             mock_self.copyright_dir = analyzer.copyright_dir
             mock_self.renewal_dir = analyzer.renewal_dir
-            
+
             with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool:
                 mock_pool.return_value.__enter__.return_value.imap_unordered.return_value = []
-                
+
                 BatchProcessingComponent._process_batches_parallel(
                     mock_self,
                     temp_batch_dir,
@@ -166,7 +171,7 @@ class TestMultiprocessingPlatforms:
                     min_year=None,
                     max_year=None,
                 )
-                
+
                 # Verify spawn-specific initialization was used
                 pool_call = mock_pool.call_args
                 assert "initializer" in pool_call[1]
@@ -178,9 +183,10 @@ class TestMultiprocessingPlatforms:
     def test_worker_recycling(self, temp_batch_dir):
         """Test maxtasksperchild parameter works correctly"""
         analyzer = MarcCopyrightAnalyzer()
-        
+
+        # Local imports
         from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
-        
+
         mock_self = Mock()
         mock_self.results = Mock()
         mock_self.registration_index = None
@@ -190,13 +196,13 @@ class TestMultiprocessingPlatforms:
         mock_self.cache_dir = analyzer.cache_dir
         mock_self.copyright_dir = analyzer.copyright_dir
         mock_self.renewal_dir = analyzer.renewal_dir
-        
+
         # Test with many batches to trigger recycling logic
         many_batch_paths = temp_batch_dir * 50  # 150 batches total
-        
+
         with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool:
             mock_pool.return_value.__enter__.return_value.imap_unordered.return_value = []
-            
+
             BatchProcessingComponent._process_batches_parallel(
                 mock_self,
                 many_batch_paths,
@@ -214,7 +220,7 @@ class TestMultiprocessingPlatforms:
                 min_year=None,
                 max_year=None,
             )
-            
+
             # Verify maxtasksperchild was set appropriately
             pool_call = mock_pool.call_args
             assert "maxtasksperchild" in pool_call[1]
@@ -224,22 +230,24 @@ class TestMultiprocessingPlatforms:
     def test_interrupt_handling(self):
         """Test Ctrl+C cleanup works properly"""
         analyzer = MarcCopyrightAnalyzer()
-        
+
         # Create a temp file to track cleanup
         with NamedTemporaryFile(delete=False, suffix=".test") as temp_file:
             temp_path = temp_file.name
-        
+
         # Simulate setting result_temp_dir
         analyzer.results.result_temp_dir = temp_path
-        
+
         # Test that cleanup handler is registered
+        # Standard library imports
         import signal
-        original_handler = signal.getsignal(signal.SIGINT)
-        
+
+        signal.getsignal(signal.SIGINT)
+
         # The analyzer should have registered its own handler
         current_handler = signal.getsignal(signal.SIGINT)
         assert current_handler != signal.SIG_DFL
-        
+
         # Clean up
         Path(temp_path).unlink(missing_ok=True)
 
@@ -248,12 +256,10 @@ class TestMultiprocessingPlatforms:
         """Test actual multiprocessing execution (manual test)"""
         # This test would actually run multiprocessing
         # It's skipped by default but can be run manually
-        analyzer = MarcCopyrightAnalyzer()
-        
+        MarcCopyrightAnalyzer()
+
         # Would need actual copyright/renewal data loaded
         # analyzer._load_and_index_data(AnalysisOptions())
-        
+
         # Would process actual batches
         # results = analyzer._process_batches_parallel(...)
-        
-        pass
