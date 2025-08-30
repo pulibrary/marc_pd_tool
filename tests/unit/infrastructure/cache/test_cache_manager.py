@@ -19,6 +19,13 @@ from marc_pd_tool.core.domain.publication import Publication
 from marc_pd_tool.infrastructure.cache._manager import CacheManager
 
 
+# Mock class for testing - needs to be at module level to be pickleable
+class MockIndex:
+    """Simple mock index for testing cache functionality"""
+    def __init__(self, publications):
+        self.publications = publications
+
+
 class TestCacheManager:
     """Test CacheManager functionality"""
 
@@ -307,10 +314,9 @@ class TestCacheManager:
         with TemporaryDirectory() as temp_dir:
             manager = CacheManager(temp_dir)
 
-            # Create simple test objects that can be pickled
-            # Using simple dicts as test data
-            mock_reg_index = {"publications": ["pub1"], "type": "registration"}
-            mock_ren_index = {"publications": ["pub2"], "type": "renewal"}
+            # Use module-level MockIndex class that can be pickled
+            mock_reg_index = MockIndex(["pub1"])
+            mock_ren_index = MockIndex(["pub2"])
 
             # Cache the indexes
             success = manager.cache_indexes(

@@ -3,9 +3,13 @@
 """Main analyzer class that combines all mixins"""
 
 # Standard library imports
+from atexit import register as atexit_register
 from hashlib import md5
 from json import dumps
 from logging import getLogger
+from signal import SIGINT
+from signal import SIGTERM
+from signal import signal as signal_handler
 
 # Local imports
 from marc_pd_tool.adapters.api._export import ExportComponent
@@ -83,6 +87,9 @@ class MarcCopyrightAnalyzer(
         # Default data directories
         self.copyright_dir = "nypl-reg/xml/"
         self.renewal_dir = "nypl-ren/data/"
+        
+        # Register cleanup handlers
+        self._register_cleanup_handlers()
 
         # Store analysis options for export metadata
         self.analysis_options: AnalysisOptions | None = None
@@ -573,3 +580,22 @@ class MarcCopyrightAnalyzer(
         # Create a stable string representation
         config_str = dumps(config_dict, sort_keys=True)
         return md5(config_str.encode()).hexdigest()
+    
+    def _register_cleanup_handlers(self) -> None:
+        """Register signal handlers and atexit for cleanup"""
+        # Register cleanup for normal exit
+        atexit_register(self._cleanup_on_exit)
+        
+        # Register signal handlers for abnormal termination
+        def signal_cleanup_handler(signum: int, frame: object) -> None:
+            """Handle signals by cleaning up and exiting"""
+            logger.warning(f"Received signal {signum}. Cleaning up...")
+            self._cleanup_on_exit()
+            # Exit with appropriate code
+            # Standard library imports
+            from sys import exit
+            exit(128 + signum)  # Unix convention: 128 + signal number
+            
+        # Store original handlers and set new ones
+        self._original_sigint = signal_handler(SIGINT, signal_cleanup_handler)
+        self._original_sigterm = signal_handler(SIGTERM, signal_cleanup_handler)
