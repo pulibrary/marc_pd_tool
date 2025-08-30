@@ -112,7 +112,7 @@ class TestSignalHandling:
         Path(test_file).write_text("test data")
 
         try:
-            with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+            with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
                 # Simulate KeyboardInterrupt during processing
                 mock_pool = MagicMock()
                 mock_pool_class.return_value.__enter__.return_value = mock_pool
@@ -124,11 +124,11 @@ class TestSignalHandling:
                     mock_results.cleanup_temp_files = MagicMock()
                     mock_results.publications = []
 
-                    # The streaming process should handle the interrupt and cleanup
+                    # The batch process should handle the interrupt and cleanup
                     AnalysisOptions()
 
                     # This should handle KeyboardInterrupt and call cleanup
-                    result = analyzer._process_streaming_parallel(
+                    result = analyzer._process_batches_parallel(
                         batch_paths=[test_file],
                         num_processes=2,
                         year_tolerance=1,

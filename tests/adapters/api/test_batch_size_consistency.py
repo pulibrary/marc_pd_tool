@@ -133,9 +133,9 @@ class TestBatchSizeConsistency:
                 with patch("pickle.dump") as mock_dump:
                     # Patch logger to avoid logging during test
                     with patch("marc_pd_tool.adapters.api._analyzer.logger"):
-                        # Patch the streaming component to avoid real processing
+                        # Patch the batch processing component to avoid real processing
                         with patch(
-                            "marc_pd_tool.adapters.api._analyzer.StreamingComponent._analyze_marc_file_streaming"
+                            "marc_pd_tool.adapters.api._analyzer.BatchProcessingComponent._analyze_marc_file_batch"
                         ) as mock_stream:
 
                             # Test with default batch_size (should be 100 from config)

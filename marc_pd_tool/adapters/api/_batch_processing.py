@@ -1,6 +1,13 @@
-# marc_pd_tool/adapters/api/_streaming.py
+# marc_pd_tool/adapters/api/_batch_processing.py
 
-"""Component for efficient batch-based processing of MARC datasets"""
+"""Component for batch-based parallel processing of MARC datasets
+
+This component handles:
+- Phase 3: Processing publications in parallel batches
+- Phase 5: Exporting results to various formats
+- Statistics aggregation from batch results
+- Platform-specific multiprocessing (fork vs spawn)
+"""
 
 # Standard library imports
 from logging import getLogger
@@ -16,7 +23,7 @@ from marc_pd_tool.application.processing.matching_engine import init_worker
 from marc_pd_tool.application.processing.matching_engine import process_batch
 from marc_pd_tool.core.domain.publication import Publication
 from marc_pd_tool.core.types.aliases import BatchProcessingInfo
-from marc_pd_tool.core.types.protocols import StreamingAnalyzerProtocol
+from marc_pd_tool.core.types.protocols import BatchAnalyzerProtocol
 from marc_pd_tool.shared.utils.time_utils import format_time_duration
 
 # Third party imports removed - psutil not needed (memory monitoring handled by CLI)
@@ -29,11 +36,15 @@ if TYPE_CHECKING:
 logger = getLogger(__name__)
 
 
-class StreamingComponent:
-    """Component for efficient batch processing of datasets"""
+class BatchProcessingComponent:
+    """Component for batch-based parallel processing of datasets
+    
+    Handles the core batch processing logic including parallel execution,
+    platform-specific multiprocessing, and statistics aggregation.
+    """
 
-    def _analyze_marc_file_streaming(
-        self: StreamingAnalyzerProtocol,
+    def _analyze_marc_file_batch(
+        self: BatchAnalyzerProtocol,
         batch_paths: list[str],
         marc_path: str,
         output_path: str | None,
@@ -54,7 +65,7 @@ class StreamingComponent:
             year_range = f"{options.min_year or 'earliest'} to {options.max_year or 'present'}"
             logger.info(f"  Year range filter: {year_range}")
 
-        # Process batches using existing parallel infrastructure but with pre-pickled batches
+        # Process batches using parallel infrastructure with pre-pickled batches
         # Local imports
         from marc_pd_tool.infrastructure.logging._progress import get_progress_manager
         from marc_pd_tool.infrastructure.logging._progress import log_phase_header
@@ -98,8 +109,8 @@ class StreamingComponent:
         log_phase_info(f"  Workers: {num_processes}", progress_manager.enabled)
         log_phase_info(f"  Total batches: {len(batch_paths)}", progress_manager.enabled)
 
-        # Use the existing parallel processing infrastructure with pre-pickled batches
-        self._process_streaming_parallel(
+        # Process batches in parallel
+        self._process_batches_parallel(
             batch_paths,
             num_processes,
             year_tolerance,
@@ -137,8 +148,8 @@ class StreamingComponent:
 
         return self.results
 
-    def _process_streaming_parallel(
-        self: StreamingAnalyzerProtocol,
+    def _process_batches_parallel(
+        self: BatchAnalyzerProtocol,
         batch_paths: list[str],
         num_processes: int,
         year_tolerance: int,

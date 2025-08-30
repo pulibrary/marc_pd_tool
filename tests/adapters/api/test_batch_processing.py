@@ -1,6 +1,6 @@
-# tests/adapters/api/test_streaming.py
+# tests/adapters/api/test_batch_processing.py
 
-"""Fixed tests for streaming component functionality"""
+"""Tests for batch processing component functionality"""
 
 # Standard library imports
 from os.path import join
@@ -20,15 +20,15 @@ from marc_pd_tool.application.processing.indexer import DataIndexer
 from marc_pd_tool.core.domain.publication import Publication
 
 
-class TestStreamingComponent:
-    """Test streaming component functionality"""
+class TestBatchProcessingComponent:
+    """Test batch processing component functionality"""
 
-    def test_streaming_processes_batches(self):
-        """Test that streaming processes batch files"""
+    def test_batch_processing_processes_batches(self):
+        """Test that batch processing processes batch files"""
         analyzer = MarcCopyrightAnalyzer()
 
         # Create temp directory with batch file
-        temp_dir = mkdtemp(prefix="test_streaming_")
+        temp_dir = mkdtemp(prefix="test_batch_")
         batch_file = join(temp_dir, "batch_001.pkl")
 
         # Create a batch with test publications
@@ -39,7 +39,7 @@ class TestStreamingComponent:
 
         try:
             # Mock the Pool to avoid actual multiprocessing
-            with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+            with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
                 mock_pool = MagicMock()
                 mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -49,7 +49,7 @@ class TestStreamingComponent:
                 mock_pool.imap_unordered.return_value = iter([(1, "result.pkl", stats)])
 
                 # Process the batch
-                result = analyzer._process_streaming_parallel(
+                result = analyzer._process_batches_parallel(
                     batch_paths=[batch_file],
                     num_processes=1,
                     year_tolerance=1,
@@ -75,7 +75,7 @@ class TestStreamingComponent:
             if Path(temp_dir).exists():
                 shutil.rmtree(temp_dir)
 
-    def test_streaming_handles_fork_mode(self):
+    def test_batch_processing_handles_fork_mode(self):
         """Test that streaming handles fork mode correctly"""
         analyzer = MarcCopyrightAnalyzer()
 
@@ -85,18 +85,18 @@ class TestStreamingComponent:
 
         batch_file = "/test/batch.pkl"
 
-        with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
             mock_pool = MagicMock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
             stats = BatchStats(batch_id=1, total_batches=1)
             mock_pool.imap_unordered.return_value = iter([(1, "result.pkl", stats)])
 
-            with patch("marc_pd_tool.adapters.api._streaming.get_start_method") as mock_start:
+            with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
                 mock_start.return_value = "fork"
 
                 # Process with fork mode
-                analyzer._process_streaming_parallel(
+                analyzer._process_batches_parallel(
                     batch_paths=[batch_file],
                     num_processes=1,
                     year_tolerance=1,
@@ -120,24 +120,24 @@ class TestStreamingComponent:
                 call_kwargs = mock_pool_class.call_args[1]
                 assert "initializer" in call_kwargs
 
-    def test_streaming_handles_spawn_mode(self):
+    def test_batch_processing_handles_spawn_mode(self):
         """Test that streaming handles spawn mode correctly"""
         analyzer = MarcCopyrightAnalyzer()
 
         batch_file = "/test/batch.pkl"
 
-        with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
             mock_pool = MagicMock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
             stats = BatchStats(batch_id=1, total_batches=1)
             mock_pool.imap_unordered.return_value = iter([(1, "result.pkl", stats)])
 
-            with patch("marc_pd_tool.adapters.api._streaming.get_start_method") as mock_start:
+            with patch("marc_pd_tool.adapters.api._batch_processing.get_start_method") as mock_start:
                 mock_start.return_value = "spawn"
 
                 # Process with spawn mode
-                analyzer._process_streaming_parallel(
+                analyzer._process_batches_parallel(
                     batch_paths=[batch_file],
                     num_processes=1,
                     year_tolerance=1,
@@ -164,26 +164,26 @@ class TestStreamingComponent:
                     # Spawn mode should have initargs
                     assert call_kwargs["initargs"] is not None
 
-    def test_streaming_cleanup_on_error(self):
+    def test_batch_processing_cleanup_on_error(self):
         """Test that streaming cleans up on error"""
         analyzer = MarcCopyrightAnalyzer()
 
         batch_file = "/test/batch.pkl"
 
-        with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+        with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
             mock_pool = MagicMock()
             mock_pool_class.return_value.__enter__.return_value = mock_pool
 
             # Simulate an error during processing
             mock_pool.imap_unordered.side_effect = Exception("Test error")
 
-            with patch("marc_pd_tool.adapters.api._streaming.mkdtemp") as mock_mkdtemp:
+            with patch("marc_pd_tool.adapters.api._batch_processing.mkdtemp") as mock_mkdtemp:
                 temp_dir = mkdtemp(prefix="test_error_")
                 mock_mkdtemp.return_value = temp_dir
 
                 try:
                     # Process should handle the error
-                    result = analyzer._process_streaming_parallel(
+                    result = analyzer._process_batches_parallel(
                         batch_paths=[batch_file],
                         num_processes=1,
                         year_tolerance=1,

@@ -1,8 +1,8 @@
-# tests/adapters/api/test_streaming_statistics.py
+# tests/adapters/api/test_batch_processing_statistics.py
 
-"""Test streaming component statistics collection.
+"""Test batch processing component statistics collection.
 
-Ensures that statistics are properly collected and aggregated in streaming mode.
+Ensures that statistics are properly collected and aggregated during batch processing.
 """
 
 # Standard library imports
@@ -10,13 +10,13 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 # Local imports
-from marc_pd_tool.adapters.api._streaming import StreamingComponent
+from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
 from marc_pd_tool.application.models.analysis_results import AnalysisResults
 from marc_pd_tool.application.models.batch_stats import BatchStats
 
 
-def test_streaming_statistics_are_saved():
-    """Test that streaming component saves statistics to results"""
+def test_batch_processing_statistics_are_saved():
+    """Test that batch processing component saves statistics to results"""
 
     # Create a mock analyzer with results
     mock_analyzer = Mock()
@@ -56,7 +56,7 @@ def test_streaming_statistics_are_saved():
     ]
 
     # Mock the parallel processing to return our batch stats
-    with patch("marc_pd_tool.adapters.api._streaming.Pool") as mock_pool_class:
+    with patch("marc_pd_tool.adapters.api._batch_processing.Pool") as mock_pool_class:
         mock_pool = Mock()
         mock_pool_class.return_value.__enter__.return_value = mock_pool
 
@@ -68,13 +68,13 @@ def test_streaming_statistics_are_saved():
         batch_paths = ["batch1", "batch2"]  # Fake batch paths
 
         # Set up other mocks
-        with patch("marc_pd_tool.adapters.api._streaming.mkdtemp") as mock_mkdtemp:
+        with patch("marc_pd_tool.adapters.api._batch_processing.mkdtemp") as mock_mkdtemp:
             mock_mkdtemp.return_value = "/tmp/test_results"
-            with patch("marc_pd_tool.adapters.api._streaming.time") as mock_time:
+            with patch("marc_pd_tool.adapters.api._batch_processing.time") as mock_time:
                 mock_time.return_value = 100
-                with patch("marc_pd_tool.adapters.api._streaming.logger"):
+                with patch("marc_pd_tool.adapters.api._batch_processing.logger"):
                     with patch(
-                        "marc_pd_tool.adapters.api._streaming.get_start_method"
+                        "marc_pd_tool.adapters.api._batch_processing.get_start_method"
                     ) as mock_start:
                         mock_start.return_value = "spawn"
 
@@ -82,8 +82,8 @@ def test_streaming_statistics_are_saved():
                         mock_options = Mock()
                         mock_options.num_processes = 2
 
-                        # Call the internal streaming method
-                        StreamingComponent._process_streaming_parallel(
+                        # Call the internal batch processing method
+                        BatchProcessingComponent._process_batches_parallel(
                             mock_analyzer,
                             batch_paths,
                             num_processes=2,

@@ -318,8 +318,8 @@ class TestWorkerCalledMethods:
                 assert json_data["metadata"]["total_records"] == 0
                 assert json_data["records"] == []
 
-    def test_analyze_marc_file_streaming_mode_basic(self) -> None:
-        """Test _analyze_marc_file_streaming basic functionality"""
+    def test_analyze_marc_file_batch_mode_basic(self) -> None:
+        """Test _analyze_marc_file_batch basic functionality"""
         analyzer = MarcCopyrightAnalyzer()
 
         with TemporaryDirectory() as temp_dir:
@@ -338,10 +338,10 @@ class TestWorkerCalledMethods:
             options = AnalysisOptions(formats=["json"], single_file=True, num_processes=1)
 
             # Mock the heavy processing
-            with patch.object(analyzer, "_process_streaming_parallel") as mock_process:
+            with patch.object(analyzer, "_process_batches_parallel") as mock_process:
                 mock_process.return_value = []
 
-                results = analyzer._analyze_marc_file_streaming(
+                results = analyzer._analyze_marc_file_batch(
                     batch_files, "/path/to/marc.xml", None, options
                 )
 

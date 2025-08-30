@@ -59,7 +59,7 @@ from marc_pd_tool.core.types.protocols import MultiFormatExporterProtocol
 from marc_pd_tool.core.types.protocols import PersistentCacheProtocol
 from marc_pd_tool.core.types.protocols import ProcessorProtocol
 from marc_pd_tool.core.types.protocols import StemmerProtocol
-from marc_pd_tool.core.types.protocols import StreamingAnalyzerProtocol
+from marc_pd_tool.core.types.protocols import BatchAnalyzerProtocol
 from marc_pd_tool.core.types.protocols import TextProcessorProtocol
 from marc_pd_tool.core.types.protocols import ThresholdConfigProtocol
 
@@ -122,7 +122,7 @@ __all__ = [
     "ExportAnalyzerProtocol",
     "GroundTruthAnalyzerProtocol",
     "AnalyzerProtocol",
-    "StreamingAnalyzerProtocol",
+    "BatchAnalyzerProtocol",
     # Legacy TypedDicts (deprecated)
     "CacheMetadataDict",
     "CopyrightRecordDict",

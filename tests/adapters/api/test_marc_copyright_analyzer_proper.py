@@ -305,9 +305,9 @@ class TestMarcCopyrightAnalyzerProper:
 
                     # Patch open to avoid file operations
                     with patch("builtins.open", mock_open):
-                        # Also patch StreamingComponent._analyze_marc_file_streaming to avoid real processing
+                        # Also patch BatchProcessingComponent._analyze_marc_file_batch to avoid real processing
                         with patch(
-                            "marc_pd_tool.adapters.api._analyzer.StreamingComponent._analyze_marc_file_streaming"
+                            "marc_pd_tool.adapters.api._analyzer.BatchProcessingComponent._analyze_marc_file_batch"
                         ) as mock_stream:
                             # Mock to add publications to results
                             def stream_pubs(self, *args, **kwargs):

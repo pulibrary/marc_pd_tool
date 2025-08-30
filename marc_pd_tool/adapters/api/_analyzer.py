@@ -14,8 +14,7 @@ from signal import signal as signal_handler
 # Local imports
 from marc_pd_tool.adapters.api._export import ExportComponent
 from marc_pd_tool.adapters.api._ground_truth import GroundTruthComponent
-from marc_pd_tool.adapters.api._processing import ProcessingComponent
-from marc_pd_tool.adapters.api._streaming import StreamingComponent
+from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
 from marc_pd_tool.application.models.analysis_results import AnalysisResults
 from marc_pd_tool.application.models.config_models import AnalysisOptions
 from marc_pd_tool.application.processing.indexer import DataIndexer
@@ -41,13 +40,20 @@ logger = getLogger(__name__)
 
 
 class MarcCopyrightAnalyzer(
-    ProcessingComponent, StreamingComponent, GroundTruthComponent, ExportComponent
+    BatchProcessingComponent, GroundTruthComponent, ExportComponent
 ):
     """High-level analyzer for MARC copyright status
 
     This class combines functionality from multiple mixins to provide
     a complete analysis pipeline for determining copyright status of
     MARC bibliographic records.
+    
+    Processing Architecture:
+    - Phase 1: Load copyright/renewal data (this file)
+    - Phase 2: Load MARC records into batches (this file) 
+    - Phase 3: Process batches in parallel (BatchProcessingComponent)
+    - Phase 4: Analyze ground truth if requested (GroundTruthComponent)
+    - Phase 5: Export results (BatchProcessingComponent via ExportComponent)
     """
 
     def __init__(
@@ -226,7 +232,7 @@ class MarcCopyrightAnalyzer(
             year_range = f"{options.min_year or 'earliest'} to {options.max_year or 'present'}"
             logger.info(f"  Year range filter: {year_range}")
 
-        # Process batches efficiently (Phase 3 and 5 are handled by _streaming.py)
+        # Process batches efficiently (Phase 3 and 5 are handled by BatchProcessingComponent)
         self._process_marc_batches(batch_paths, marc_path, output_path, options)
 
         return self.results
@@ -246,8 +252,8 @@ class MarcCopyrightAnalyzer(
             output_path: Path for output files (or None)
             options: Analysis options
         """
-        # Use the streaming component's method directly
-        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, marc_path, output_path, options)  # type: ignore[arg-type]
+        # Use the batch processing component's method directly
+        BatchProcessingComponent._analyze_marc_file_batch(self, batch_paths, marc_path, output_path, options)  # type: ignore[arg-type]
 
     def analyze_marc_records(
         self, publications: list[Publication], options: AnalysisOptions | None = None
@@ -272,7 +278,7 @@ class MarcCopyrightAnalyzer(
         if not self.registration_index or not self.renewal_index:
             self._load_and_index_data(options)
 
-        # Get processing parameters (Phase 3 header will be printed by _streaming.py)
+        # Get processing parameters (Phase 3 header will be printed by BatchProcessingComponent)
         # Use same batch_size default as loading phase
         batch_size = options.batch_size if options.batch_size else self.config.processing.batch_size
         num_processes = options.num_processes
@@ -339,7 +345,7 @@ class MarcCopyrightAnalyzer(
             logger.info(f"  Batch size: {batch_size}")
 
         # Process the batches
-        StreamingComponent._analyze_marc_file_streaming(self, batch_paths, "in-memory", None, options)  # type: ignore[arg-type]
+        BatchProcessingComponent._analyze_marc_file_batch(self, batch_paths, "in-memory", None, options)  # type: ignore[arg-type]
 
         # Return the publications from results (for backward compatibility)
         results = self.results.publications
@@ -634,3 +640,12 @@ class MarcCopyrightAnalyzer(
         # Store original handlers and set new ones
         self._original_sigint = signal_handler(SIGINT, signal_cleanup_handler)
         self._original_sigterm = signal_handler(SIGTERM, signal_cleanup_handler)
+
+    def _cleanup_on_exit(self) -> None:
+        """Clean up temporary files on exit
+        
+        Called by signal handlers and atexit to ensure temporary
+        files are cleaned up even on abnormal termination.
+        """
+        if hasattr(self.results, "result_temp_dir") and self.results.result_temp_dir:
+            self.results.cleanup_temp_files()

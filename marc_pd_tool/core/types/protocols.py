@@ -253,8 +253,8 @@ class AnalyzerProtocol(Protocol):
     ) -> None: ...
 
 
-class StreamingAnalyzerProtocol(Protocol):
-    """Protocol defining required attributes for StreamingComponent"""
+class BatchAnalyzerProtocol(Protocol):
+    """Protocol defining required attributes for BatchProcessingComponent"""
 
     results: "AnalysisResults"
     config: "ConfigLoader"
@@ -273,7 +273,7 @@ class StreamingAnalyzerProtocol(Protocol):
     def export_results(
         self, output_path: str, formats: list[str] | None, single_file: bool
     ) -> None: ...
-    def _process_streaming_parallel(
+    def _process_batches_parallel(
         self,
         batch_paths: list[str],
         num_processes: int,
@@ -321,5 +321,5 @@ __all__ = [
     "ExportAnalyzerProtocol",
     "GroundTruthAnalyzerProtocol",
     "AnalyzerProtocol",
-    "StreamingAnalyzerProtocol",
+    "BatchAnalyzerProtocol",
 ]

@@ -151,14 +151,14 @@ class TestMarcCopyrightAnalyzer:
         with patch.object(analyzer, "_load_and_index_data"):
             # Need to import StreamingComponent to patch it
             # Local imports
-            from marc_pd_tool.adapters.api._streaming import StreamingComponent
+            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
 
-            with patch.object(StreamingComponent, "_analyze_marc_file_streaming") as mock_stream:
+            with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Mock to populate results
-                def mock_streaming(self, *args, **kwargs):
+                def mock_batch_processing(self, *args, **kwargs):
                     self.results.publications = publications
 
-                mock_stream.side_effect = mock_streaming
+                mock_stream.side_effect = mock_batch_processing
 
                 # Call with num_processes=1 for sequential-like behavior
                 results = analyzer.analyze_marc_records(
@@ -186,14 +186,14 @@ class TestMarcCopyrightAnalyzer:
         # Mock dependencies - now mocking the streaming approach
         with patch.object(analyzer, "_load_and_index_data"):
             # Local imports
-            from marc_pd_tool.adapters.api._streaming import StreamingComponent
+            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
 
-            with patch.object(StreamingComponent, "_analyze_marc_file_streaming") as mock_stream:
+            with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Mock the streaming to populate results
-                def mock_streaming(self, *args, **kwargs):
+                def mock_batch_processing(self, *args, **kwargs):
                     self.results.publications = publications
 
-                mock_stream.side_effect = mock_streaming
+                mock_stream.side_effect = mock_batch_processing
 
                 results = analyzer.analyze_marc_records(
                     publications, options=AnalysisOptions(num_processes=1)
@@ -368,9 +368,9 @@ class TestAnalysisMethods:
         # Mock both _load_and_index_data and streaming
         with patch.object(analyzer, "_load_and_index_data"):
             # Local imports
-            from marc_pd_tool.adapters.api._streaming import StreamingComponent
+            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
 
-            with patch.object(StreamingComponent, "_analyze_marc_file_streaming") as mock_stream:
+            with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Track the arguments and populate results
                 called_args = {}
 
