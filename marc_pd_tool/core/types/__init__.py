@@ -42,6 +42,7 @@ from marc_pd_tool.core.types.models import SimilarityScores
 
 # Interfaces - now all in protocols.py
 from marc_pd_tool.core.types.protocols import AnalyzerProtocol
+from marc_pd_tool.core.types.protocols import BatchAnalyzerProtocol
 from marc_pd_tool.core.types.protocols import CSVRow
 from marc_pd_tool.core.types.protocols import CSVWriter
 from marc_pd_tool.core.types.protocols import CacheProtocol
@@ -59,7 +60,6 @@ from marc_pd_tool.core.types.protocols import MultiFormatExporterProtocol
 from marc_pd_tool.core.types.protocols import PersistentCacheProtocol
 from marc_pd_tool.core.types.protocols import ProcessorProtocol
 from marc_pd_tool.core.types.protocols import StemmerProtocol
-from marc_pd_tool.core.types.protocols import BatchAnalyzerProtocol
 from marc_pd_tool.core.types.protocols import TextProcessorProtocol
 from marc_pd_tool.core.types.protocols import ThresholdConfigProtocol
 

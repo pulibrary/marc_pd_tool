@@ -6,26 +6,16 @@
 from argparse import Namespace
 from datetime import datetime
 from logging import DEBUG
-from logging import ERROR
 from logging import FileHandler
-from logging import Filter
 from logging import Formatter
 from logging import INFO
 from logging import StreamHandler
-from logging import WARNING
 from logging import getLogger
 from os import makedirs
 from os.path import exists
-from sys import stderr
-from sys import stdout
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from logging import LogRecord
 
 # Local imports
 from marc_pd_tool.infrastructure import RunIndexManager
-from marc_pd_tool.infrastructure.logging._progress import initialize_progress_manager
 
 
 def get_default_log_path() -> str:
@@ -49,90 +39,44 @@ def get_default_log_path() -> str:
     return f"{log_dir}/{log_filename}"
 
 
-class MaxLevelFilter(Filter):
-    """Filter that only allows messages up to a certain level"""
-
-    def __init__(self, max_level: int) -> None:
-        self.max_level = max_level
-
-    def filter(self, record: "LogRecord") -> bool:
-        return record.levelno <= self.max_level
-
-
 def set_up_logging(
     log_file: str | None = None,
-    verbosity: int = 0,
+    log_level: str = "INFO",
     silent: bool = False,
     disable_file_logging: bool = False,
-) -> tuple[str | None, bool]:
+) -> str | None:
     """Configure logging for the application
 
     Args:
         log_file: Path to log file (auto-generated if None and file logging enabled)
-        verbosity: Verbosity level (0=progress bars, 1=INFO, 2+=DEBUG)
-        silent: If True, suppress all console output
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
+        silent: If True, suppress console output
         disable_file_logging: If True, disable file logging
 
     Returns:
-        Tuple of (log file path if enabled, whether progress bars are enabled)
+        Path to log file if file logging is enabled, None otherwise
     """
-    # Determine logging configuration based on verbosity
-    # 0 = progress bars only (WARN/ERROR to stderr)
-    # 1 = INFO to stdout
-    # 2+ = DEBUG to stdout
-    progress_bars_enabled = False
-
-    if verbosity == 0:
-        # Progress bar mode
-        console_level = WARNING
-        root_level = DEBUG  # Capture everything for file
-        progress_bars_enabled = not silent
-    elif verbosity == 1:
-        # Verbose mode (INFO)
-        console_level = INFO
-        root_level = INFO
-    else:
-        # Very verbose mode (DEBUG)
-        console_level = DEBUG
-        root_level = DEBUG
+    # Convert log level string to logging constant
+    level = getattr(getLogger(), log_level, INFO)
 
     # Configure root logger
     root_logger = getLogger()
-    root_logger.setLevel(root_level)
+    root_logger.setLevel(level)
 
     # Clear any existing handlers
     root_logger.handlers = []
 
-    # Create formatters
+    # Create formatters - use consistent format for both console and file
+    # Console gets abbreviated timestamp, file gets full details
     console_formatter = Formatter("%(asctime)s - %(levelname)s - %(message)s")
     file_formatter = Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    # Add console handlers unless silent
+    # Add console handler unless silent
     if not silent:
-        if verbosity == 0:
-            # Progress bar mode: only WARN/ERROR to stderr
-            stderr_handler = StreamHandler(stderr)
-            stderr_handler.setLevel(WARNING)
-            stderr_handler.setFormatter(console_formatter)
-            root_logger.addHandler(stderr_handler)
-
-            # Initialize progress bar manager
-            if progress_bars_enabled:
-                initialize_progress_manager(enabled=True)
-        else:
-            # Verbose modes: INFO/DEBUG to stdout, ERROR to stderr
-            # stdout for INFO and below
-            stdout_handler = StreamHandler(stdout)
-            stdout_handler.setLevel(console_level)
-            stdout_handler.setFormatter(console_formatter)
-            stdout_handler.addFilter(MaxLevelFilter(WARNING))  # Don't show ERROR on stdout
-            root_logger.addHandler(stdout_handler)
-
-            # stderr for ERROR only
-            stderr_handler = StreamHandler(stderr)
-            stderr_handler.setLevel(ERROR)
-            stderr_handler.setFormatter(console_formatter)
-            root_logger.addHandler(stderr_handler)
+        console_handler = StreamHandler()
+        console_handler.setLevel(level)
+        console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(console_handler)
 
     # Add file handler unless disabled
     if not disable_file_logging:
@@ -148,9 +92,9 @@ def set_up_logging(
         logger = getLogger(__name__)
         logger.info(f"Logging to file: {log_file}")
 
-        return log_file, progress_bars_enabled
+        return log_file
 
-    return None, progress_bars_enabled
+    return None
 
 
 def log_run_summary(

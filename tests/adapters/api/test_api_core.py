@@ -151,7 +151,9 @@ class TestMarcCopyrightAnalyzer:
         with patch.object(analyzer, "_load_and_index_data"):
             # Need to import StreamingComponent to patch it
             # Local imports
-            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
+            from marc_pd_tool.adapters.api._batch_processing import (
+                BatchProcessingComponent,
+            )
 
             with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Mock to populate results
@@ -186,7 +188,9 @@ class TestMarcCopyrightAnalyzer:
         # Mock dependencies - now mocking the streaming approach
         with patch.object(analyzer, "_load_and_index_data"):
             # Local imports
-            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
+            from marc_pd_tool.adapters.api._batch_processing import (
+                BatchProcessingComponent,
+            )
 
             with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Mock the streaming to populate results
@@ -368,7 +372,9 @@ class TestAnalysisMethods:
         # Mock both _load_and_index_data and streaming
         with patch.object(analyzer, "_load_and_index_data"):
             # Local imports
-            from marc_pd_tool.adapters.api._batch_processing import BatchProcessingComponent
+            from marc_pd_tool.adapters.api._batch_processing import (
+                BatchProcessingComponent,
+            )
 
             with patch.object(BatchProcessingComponent, "_analyze_marc_file_batch") as mock_stream:
                 # Track the arguments and populate results
