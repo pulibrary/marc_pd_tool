@@ -325,18 +325,18 @@ class StreamingComponent:
         except KeyboardInterrupt:
             logger.warning("Interrupted by user. Cleaning up...")
             # Ensure cleanup happens
-            if hasattr(self, 'results') and hasattr(self.results, 'cleanup_temp_files'):
+            if hasattr(self, "results") and hasattr(self.results, "cleanup_temp_files"):
                 self.results.cleanup_temp_files()
             return self.results.publications
         except Exception as e:
             logger.error(f"Error in parallel processing: {e}")
             # Ensure cleanup happens on any error
-            if hasattr(self, 'results') and hasattr(self.results, 'cleanup_temp_files'):
+            if hasattr(self, "results") and hasattr(self.results, "cleanup_temp_files"):
                 self.results.cleanup_temp_files()
             return self.results.publications
         finally:
             # Store result directory path for later cleanup (if not already cleaned)
-            if hasattr(self, 'results') and result_temp_dir:
+            if hasattr(self, "results") and result_temp_dir:
                 self.results.result_temp_dir = result_temp_dir
 
         # Note: result_temp_dir is now set in the finally block above

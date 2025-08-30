@@ -93,9 +93,64 @@ def fix_latin1_corruption(text: str) -> str:
     ]  # Other symbols
 
     # Check if text likely contains mojibake
-    has_mojibake = any(indicator in text for indicator in mojibake_indicators)
+    # Be very conservative - only fix if we have clear mojibake patterns
+    # and the fix actually improves the text
 
-    if has_mojibake:
+    # These are reliable indicators of mojibake (UTF-8 interpreted as Latin-1)
+    # We need multiple of these or a high concentration to be confident
+    strong_mojibake_patterns = [
+        "Ã¡",
+        "Ã©",
+        "Ã­",
+        "Ã³",
+        "Ãº",  # Accented vowels
+        "Ã ",
+        "Ã¨",
+        "Ã¬",
+        "Ã²",
+        "Ã¹",  # Grave accents
+        "Ã±",  # Spanish ñ
+        "Ã¢",
+        "Ãª",
+        "Ã®",
+        "Ã´",
+        "Ã»",  # Circumflex
+        "Ã£",
+        "Ãµ",  # Tilde vowels
+        "Ã§",  # ç
+        "â€œ",
+        "â€",
+        "â€™",
+        'â€"',  # Smart quotes/dashes
+    ]
+
+    # Count strong indicators
+    pattern_count = sum(1 for pattern in strong_mojibake_patterns if pattern in text)
+
+    # Decide whether to fix based on evidence:
+    # 1. Multiple strong patterns indicate mojibake
+    # 2. Single pattern in short text might be mojibake
+    # 3. But be careful with valid accented text mixed with other characters
+    should_fix = False
+
+    if pattern_count >= 2:
+        # Multiple patterns - likely mojibake
+        should_fix = True
+    elif pattern_count == 1:
+        # Single pattern - check context
+        # If it's a known mojibake pattern in mostly ASCII text, fix it
+        # But don't fix if it looks like valid accented text (e.g., café)
+        for pattern in strong_mojibake_patterns:
+            if pattern in text:
+                # Check if this looks like isolated mojibake
+                # e.g., "RevÃ£rend" is likely mojibake
+                # but "café" with other accents might be valid
+                if pattern in ["Ã£", "Ãµ", "Ã§"] and len(text) > 10:
+                    # These patterns in longer English-looking text are likely mojibake
+                    should_fix = True
+                    break
+
+    if should_fix:
         try:
             # Try to fix: encode back to Latin-1, then decode as UTF-8
             fixed = text.encode("latin-1", errors="ignore").decode("utf-8", errors="ignore")

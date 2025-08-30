@@ -22,6 +22,7 @@ from marc_pd_tool.infrastructure.cache._manager import CacheManager
 # Mock class for testing - needs to be at module level to be pickleable
 class MockIndex:
     """Simple mock index for testing cache functionality"""
+
     def __init__(self, publications):
         self.publications = publications
 
