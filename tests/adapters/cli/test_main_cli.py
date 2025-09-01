@@ -69,7 +69,7 @@ class TestMainCLI:
                             "marc_pd_tool.adapters.cli.main.RunIndexManager"
                         ) as mock_run_index:
                             mock_analyzer_class.return_value = create_mock_analyzer()
-                            mock_logging.return_value = ("/path/to/log.log", False)
+                            mock_logging.return_value = "/path/to/log.log"
                             mock_run_index.return_value = create_mock_run_index_manager()
 
                             main()
@@ -104,7 +104,7 @@ class TestMainCLI:
                         ) as mock_run_index:
                             with patch("marc_pd_tool.adapters.cli.main.logger") as mock_logger:
                                 mock_analyzer_class.return_value = create_mock_analyzer()
-                                mock_logging.return_value = (None, False)
+                                mock_logging.return_value = None
                                 mock_run_index.return_value = create_mock_run_index_manager()
 
                                 main()
@@ -130,7 +130,8 @@ class TestMainCLI:
             "--score-everything",
             "--max-workers",
             "4",
-            "-vv",  # Use -vv for DEBUG level logging
+            "--log-level",
+            "DEBUG",  # Use --log-level for DEBUG level logging
         ]
 
         with patch("sys.argv", test_args):
@@ -145,7 +146,7 @@ class TestMainCLI:
                             with patch("marc_pd_tool.adapters.cli.main.logger") as mock_logger:
                                 mock_analyzer = create_mock_analyzer()
                                 mock_analyzer_class.return_value = mock_analyzer
-                                mock_logging.return_value = ("/path/to/log.log", False)
+                                mock_logging.return_value = "/path/to/log.log"
                                 mock_run_index_manager = create_mock_run_index_manager()
                                 mock_run_index.return_value = mock_run_index_manager
 
@@ -182,10 +183,7 @@ class TestMainCLI:
                             mock_analyzer = create_mock_analyzer()
                             mock_analyzer.results = Mock()  # Add results attribute
                             mock_analyzer_class.return_value = mock_analyzer
-                            mock_logging.return_value = (
-                                None,
-                                False,
-                            )  # No log file, no progress bars
+                            mock_logging.return_value = None  # No log file
                             mock_run_index.return_value = create_mock_run_index_manager()
 
                             # Mock ground truth extraction at the class method level

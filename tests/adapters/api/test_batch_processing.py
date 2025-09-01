@@ -210,11 +210,11 @@ class TestBatchProcessingComponent:
                     # Temp directory should still be set in finally block
                     assert analyzer.results.result_temp_dir == temp_dir
 
-                    # Directory still exists but will be cleaned up by _cleanup_on_exit
-                    assert Path(temp_dir).exists(), "Temp dir still exists until cleanup_on_exit"
+                    # Directory still exists but will be cleaned up by cleanup_temp_files
+                    assert Path(temp_dir).exists(), "Temp dir still exists until cleanup"
 
                     # Now call cleanup manually to verify it works
-                    analyzer._cleanup_on_exit()
+                    analyzer.results.cleanup_temp_files()
                     assert not Path(
                         temp_dir
                     ).exists(), "Temp dir should be cleaned after cleanup_on_exit"

@@ -82,25 +82,12 @@ class TestSignalHandling:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_analyzer_registers_cleanup_handlers(self):
-        """Test that analyzer registers signal and atexit handlers"""
-        with patch("marc_pd_tool.adapters.api._analyzer.atexit_register") as mock_atexit:
-            with patch("marc_pd_tool.adapters.api._analyzer.signal_handler") as mock_signal:
-                MarcCopyrightAnalyzer()
-
-                # Verify atexit was registered
-                mock_atexit.assert_called_once()
-
-                # Verify signal handlers were registered
-                assert mock_signal.call_count >= 2  # SIGINT and SIGTERM
-                signal_calls = mock_signal.call_args_list
-
-                # Check that SIGINT was registered
-                sigint_registered = any(call[0][0] == signal.SIGINT for call in signal_calls)
-                assert sigint_registered, "SIGINT handler not registered"
-
-                # Check that SIGTERM was registered
-                sigterm_registered = any(call[0][0] == signal.SIGTERM for call in signal_calls)
-                assert sigterm_registered, "SIGTERM handler not registered"
+        """Test that analyzer can be created without signal handler issues"""
+        # Signal handlers are no longer registered in __init__ to avoid multiprocessing issues
+        # This test now just verifies the analyzer can be created successfully
+        analyzer = MarcCopyrightAnalyzer()
+        assert analyzer is not None
+        assert hasattr(analyzer, "results")
 
     def test_streaming_cleanup_on_keyboard_interrupt(self):
         """Test cleanup happens on keyboard interrupt during streaming"""
@@ -155,7 +142,7 @@ class TestSignalHandling:
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_cleanup_handler_called_on_exit(self):
-        """Test that cleanup handler is called on normal exit"""
+        """Test that cleanup can be called manually"""
         analyzer = MarcCopyrightAnalyzer()
 
         # Create a real temp directory
@@ -168,8 +155,8 @@ class TestSignalHandling:
             analyzer.results.result_temp_dir = temp_dir
             analyzer.results.result_file_paths = [test_file]
 
-            # Test the cleanup handler
-            analyzer._cleanup_on_exit()
+            # Test cleanup directly on results
+            analyzer.results.cleanup_temp_files()
 
             # Verify temp files were cleaned
             assert not exists(temp_dir)
@@ -231,18 +218,28 @@ class TestSignalHandling:
         assert not exists(temp_dir)
 
     def test_cleanup_called_after_successful_export(self):
-        """Test that cleanup is automatically called via atexit"""
-        # Just verify that the analyzer registers cleanup handlers
-        # The actual cleanup after export is tested in the integration tests
+        """Test that cleanup can be performed after export"""
+        # Signal handlers are no longer automatically registered
+        # Cleanup must be called explicitly when needed
+        analyzer = MarcCopyrightAnalyzer()
 
-        with patch("marc_pd_tool.adapters.api._analyzer.atexit_register") as mock_atexit:
-            analyzer = MarcCopyrightAnalyzer()
+        # Create test temp files
+        temp_dir = mkdtemp(prefix="test_export_")
+        test_file = join(temp_dir, "test.pkl")
+        Path(test_file).write_text("test data")
 
-            # Verify atexit was registered with the cleanup handler
-            mock_atexit.assert_called_once()
+        try:
+            # Set up analyzer with temp files
+            analyzer.results.result_temp_dir = temp_dir
+            analyzer.results.result_file_paths = [test_file]
 
-            # Get the registered function
-            cleanup_func = mock_atexit.call_args[0][0]
+            # Cleanup should work when called directly
+            analyzer.results.cleanup_temp_files()
 
-            # Verify it's the cleanup_on_exit method
-            assert cleanup_func == analyzer._cleanup_on_exit
+            # Verify cleanup worked
+            assert not exists(temp_dir)
+        except Exception:
+            # Manual cleanup if test fails
+            if exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            raise

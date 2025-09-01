@@ -60,9 +60,8 @@ class TestDefaultLogging(TestCase):
                         mock_stream_instance = mock_stream_handler.return_value
                         mock_stream_instance.level = 20  # INFO level
 
-                        log_path, progress_bars = set_up_logging(disable_file_logging=False)
+                        log_path = set_up_logging(disable_file_logging=False)
                         self.assertEqual(log_path, "logs/test.log")
-                        self.assertTrue(progress_bars)  # Default verbosity=0 enables progress bars
                         mock_file_handler.assert_called_once_with("logs/test.log")
 
     def test_setup_logging_with_no_log_file(self):
@@ -71,9 +70,8 @@ class TestDefaultLogging(TestCase):
             with patch(
                 "marc_pd_tool.infrastructure.logging._setup.StreamHandler"
             ) as mock_stream_handler:
-                log_path, progress_bars = set_up_logging(disable_file_logging=True)
+                log_path = set_up_logging(disable_file_logging=True)
                 self.assertIsNone(log_path)
-                self.assertTrue(progress_bars)  # Default verbosity=0 enables progress bars
                 mock_file_handler.assert_not_called()
 
     def test_setup_logging_with_custom_file(self):
@@ -93,11 +91,8 @@ class TestDefaultLogging(TestCase):
                     mock_stream_instance = mock_stream_handler.return_value
                     mock_stream_instance.level = 20  # INFO level
 
-                    log_path, progress_bars = set_up_logging(
-                        log_file="custom.log", disable_file_logging=False
-                    )
+                    log_path = set_up_logging(log_file="custom.log", disable_file_logging=False)
                     self.assertEqual(log_path, "custom.log")
-                    self.assertTrue(progress_bars)  # Default verbosity=0 enables progress bars
                     mock_file_handler.assert_called_once_with("custom.log")
 
 
