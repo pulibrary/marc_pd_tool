@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 # Local imports
 from marc_pd_tool.adapters.exporters.csv_exporter import CSVExporter
+from marc_pd_tool.adapters.exporters.html_exporter import HTMLExporter
 from marc_pd_tool.adapters.exporters.xlsx_exporter import XLSXExporter
 from marc_pd_tool.core.types.protocols import ExportAnalyzerProtocol
 
@@ -93,7 +94,11 @@ class ExportComponent:
 
                 elif fmt == "html":
                     output_dir = f"{output_path}_html"
-                    self.results.export_html(output_dir)
+                    # Use HTML exporter that reads from JSON (source of truth)
+                    # JSON was already created above - HTML reads from it
+                    html_exporter = HTMLExporter(json_path, output_dir, single_file=single_file)
+                    html_exporter.export()
+
                     self.results.add_result_file("html", output_dir)
                     logger.info(f"  ✓ HTML: {output_dir}/")
                     export_count += 1

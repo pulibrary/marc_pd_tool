@@ -19,7 +19,7 @@ class HTMLExporter(BaseJSONExporter):
     records in a stacked comparison format for detailed analysis.
     """
 
-    __slots__ = ("items_per_page",)
+    __slots__ = ("items_per_page", "country_codes")
 
     def __init__(self, json_path: str, output_dir: str, single_file: bool = False):
         """Initialize the HTML exporter
@@ -31,6 +31,100 @@ class HTMLExporter(BaseJSONExporter):
         """
         super().__init__(json_path, output_dir, single_file)
         self.items_per_page = 50  # Hard-coded pagination
+
+        # Country code mappings (MARC country codes to display names)
+        self.country_codes = {
+            "abc": "Alberta",
+            "ae": "Algeria",
+            "ag": "Argentina",
+            "ai": "Anguilla",
+            "at": "Australia",
+            "au": "Austria",
+            "be": "Belgium",
+            "bl": "Brazil",
+            "bu": "Bulgaria",
+            "bw": "Belarus",
+            "cc": "China",
+            "ch": "China (Republic)",
+            "ck": "Colombia",
+            "cl": "Chile",
+            "cs": "Czechoslovakia",
+            "cu": "Cuba",
+            "cy": "Cyprus",
+            "dk": "Denmark",
+            "enk": "United Kingdom",
+            "es": "El Salvador",
+            "fr": "France",
+            "ge": "Germany (East)",
+            "gh": "Ghana",
+            "gr": "Greece",
+            "gs": "Georgia (Republic)",
+            "gt": "Guatemala",
+            "gw": "Germany",
+            "hk": "Hong Kong",
+            "ht": "Haiti",
+            "hu": "Hungary",
+            "ie": "Ireland",
+            "ii": "India",
+            "iq": "Iraq",
+            "ir": "Iran",
+            "is": "Israel",
+            "it": "Italy",
+            "iv": "Ivory Coast",
+            "ja": "Japan",
+            "jo": "Jordan",
+            "ko": "Korea (South)",
+            "le": "Lebanon",
+            "li": "Lithuania",
+            "lu": "Luxembourg",
+            "lv": "Latvia",
+            "mk": "Macedonia",
+            "mm": "Malta",
+            "mr": "Morocco",
+            "mx": "Mexico",
+            "ne": "Netherlands",
+            "no": "Norway",
+            "nr": "Nigeria",
+            "onc": "Ontario",
+            "pe": "Peru",
+            "pl": "Poland",
+            "po": "Portugal",
+            "pr": "Puerto Rico",
+            "quc": "Quebec",
+            "rm": "Romania",
+            "ru": "Russia",
+            "rur": "Russia (Federation)",
+            "sa": "South Africa",
+            "si": "Singapore",
+            "sp": "Spain",
+            "stk": "Scotland",
+            "sw": "Sweden",
+            "sy": "Syria",
+            "sz": "Switzerland",
+            "ta": "Tajikistan",
+            "th": "Thailand",
+            "ti": "Tunisia",
+            "tu": "Turkey",
+            "ua": "Egypt",
+            "uik": "United Kingdom (Misc.)",
+            "un": "Soviet Union",
+            "unr": "Soviet Union (Regions)",
+            "us": "United States",
+            "uz": "Uzbekistan",
+            "vc": "Vatican City",
+            "ve": "Venezuela",
+            "vm": "Vietnam",
+            "vn": "Vietnam (North)",
+            "vp": "Various places",
+            "wb": "West Berlin",
+            "wiu": "Wisconsin",
+            "wlk": "Wales",
+            "xr": "Czech Republic",
+            "xx": "Unknown",
+            "xxc": "Canada",
+            "xxk": "United Kingdom",
+            "yu": "Yugoslavia",
+        }
 
     def export(self) -> None:
         """Generate static HTML pages from JSON data"""
@@ -60,8 +154,11 @@ class HTMLExporter(BaseJSONExporter):
             for status in by_status:
                 by_status[status] = self.sort_by_quality(by_status[status])
 
-            # Generate index page with summary
-            self._generate_index(by_status, output_path)
+            # Group statuses by country for better organization
+            grouped_data = self._group_by_country(by_status)
+
+            # Generate index page with grouped summary
+            self._generate_grouped_index(grouped_data, output_path)
 
             # Generate paginated pages for each status
             for status, records in by_status.items():
@@ -69,6 +166,214 @@ class HTMLExporter(BaseJSONExporter):
                     status_dir = output_path / self._status_to_dirname(status)
                     status_dir.mkdir(exist_ok=True)
                     self._generate_status_pages(status, records, status_dir)
+
+    def _group_by_country(self, by_status: dict[str, JSONList]) -> dict[str, dict[str, JSONList]]:
+        """Group statuses by country/origin
+
+        Returns a hierarchical structure:
+        {
+            "US": {"NO_MATCH": [...], "PRE_1929": [...], ...},
+            "France": {"NO_MATCH": [...], "RENEWED": [...], ...},
+            ...
+        }
+        """
+        grouped: dict[str, dict[str, JSONList]] = {}
+
+        for status, records in by_status.items():
+            if not records:
+                continue
+
+            if status.startswith("US_"):
+                # US publications
+                country = "United States"
+                status_type = status[3:]  # Remove "US_" prefix
+            elif status.startswith("FOREIGN_"):
+                # Foreign publications - extract country code
+                # Format is FOREIGN_STATUS_TYPE_COUNTRY_CODE
+                # e.g., FOREIGN_RENEWED_sp or FOREIGN_NO_MATCH_fr
+                parts = status.split("_", 2)  # Split into at most 3 parts
+                if len(parts) >= 3:
+                    # parts[0] = "FOREIGN", parts[1] = status type, parts[2] = country code and any remaining
+                    status_part = parts[1]
+                    remaining = parts[2]
+
+                    # Check if this is a multi-word status like "NO_MATCH" or "REGISTERED_NOT_RENEWED"
+                    if status_part == "NO" and remaining.startswith("MATCH_"):
+                        status_type = "NO_MATCH"
+                        country_code = remaining[6:]  # Skip "MATCH_"
+                    elif status_part == "PRE" and remaining.startswith("1929_"):
+                        status_type = "PRE_1929"
+                        country_code = remaining[5:]  # Skip "1929_"
+                    elif status_part == "REGISTERED" and remaining.startswith("NOT_RENEWED_"):
+                        status_type = "REGISTERED_NOT_RENEWED"
+                        country_code = remaining[13:]  # Skip "NOT_RENEWED_"
+                    else:
+                        # Simple status like RENEWED, RENEWED_sp
+                        status_type = status_part
+                        country_code = remaining
+
+                    country = self.country_codes.get(country_code, f"Country Code: {country_code}")
+                else:
+                    continue
+            elif status.startswith("COUNTRY_UNKNOWN"):
+                # Country unknown
+                country = "Country Unknown"
+                status_type = status[16:] if len(status) > 16 else "UNKNOWN"
+            elif status.startswith("OUT_OF_DATA_RANGE"):
+                # Out of range
+                country = "Out of Data Range"
+                status_type = status[18:] if len(status) > 18 else "UNKNOWN"
+            else:
+                # Other/unknown
+                country = "Other"
+                status_type = status
+
+            # Initialize country dict if needed
+            if country not in grouped:
+                grouped[country] = {}
+
+            # Add records to the appropriate status within the country
+            if status_type not in grouped[country]:
+                grouped[country][status_type] = []
+            grouped[country][status_type].extend(records)
+
+        return grouped
+
+    def _generate_grouped_index(
+        self, grouped_data: dict[str, dict[str, JSONList]], output_path: Path
+    ) -> None:
+        """Generate the main index page with grouped country sections"""
+        metadata = self.metadata
+        total_records = 0
+        for country_statuses in grouped_data.values():
+            for records in country_statuses.values():
+                total_records += len(records)
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARC PD Analysis Results</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <h1>MARC Copyright Status Analysis Results</h1>
+    
+    <div class="processing-info">
+        <h3>Processing Information</h3>
+        <div class="metadata">
+            <div class="metadata-item">
+                <span class="metadata-label">Processing Date:</span> {metadata.get('processing_date', 'Unknown')}
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Total Records:</span> {total_records:,}
+            </div>
+            <div class="metadata-item">
+                <span class="metadata-label">Tool Version:</span> {metadata.get('tool_version', 'Unknown')}
+            </div>
+        </div>
+    </div>
+    
+    <h2>Results by Country of Publication</h2>
+"""
+
+        # Sort countries with US first, then Country Unknown, then alphabetically
+        sorted_countries = []
+        if "United States" in grouped_data:
+            sorted_countries.append("United States")
+        if "Country Unknown" in grouped_data:
+            sorted_countries.append("Country Unknown")
+        if "Out of Data Range" in grouped_data:
+            sorted_countries.append("Out of Data Range")
+
+        # Add other countries alphabetically
+        for country in sorted(grouped_data.keys()):
+            if country not in ["United States", "Country Unknown", "Out of Data Range"]:
+                sorted_countries.append(country)
+
+        # Generate country sections
+        for country in sorted_countries:
+            statuses = grouped_data[country]
+            country_total = sum(len(records) for records in statuses.values())
+
+            html += f"""
+    <div class="country-section">
+        <h3>{country} ({country_total:,} records)</h3>
+        <div class="status-grid">
+"""
+
+            # Sort status types for consistent display
+            status_order = ["NO_MATCH", "PRE_1929", "REGISTERED_NOT_RENEWED", "RENEWED"]
+            # Add any other statuses not in the standard order
+            for status_type in sorted(statuses.keys()):
+                if status_type not in status_order:
+                    status_order.append(status_type)
+
+            for status_type in status_order:
+                if status_type in statuses:
+                    records = statuses[status_type]
+                    # Reconstruct the full status name for directory creation
+                    if country == "United States":
+                        full_status = f"US_{status_type}"
+                    elif country == "Country Unknown":
+                        full_status = f"COUNTRY_UNKNOWN_{status_type}"
+                    elif country == "Out of Data Range":
+                        full_status = f"OUT_OF_DATA_RANGE_{status_type}"
+                    else:
+                        # Find the country code for foreign countries
+                        country_code = None
+                        for code, name in self.country_codes.items():
+                            if name == country:
+                                country_code = code
+                                break
+                        if country_code:
+                            full_status = f"FOREIGN_{status_type}_{country_code}"
+                        else:
+                            # Fallback for unknown codes
+                            full_status = f"FOREIGN_{status_type}_unknown"
+
+                    status_dir = self._status_to_dirname(full_status)
+                    display_name = self._format_status_type(status_type)
+
+                    html += f"""
+            <div class="status-card">
+                <h4>{display_name}</h4>
+                <div class="count">{len(records):,}</div>
+                <a href="{status_dir}/page_1.html">View Records →</a>
+            </div>
+"""
+
+            html += """
+        </div>
+    </div>
+"""
+
+        html += """
+    <footer>
+        <p>Generated by MARC Copyright Status Analysis Tool</p>
+    </footer>
+</body>
+</html>
+"""
+
+        (output_path / "index.html").write_text(html)
+
+    def _format_status_type(self, status_type: str) -> str:
+        """Format status type for display"""
+        status_formats = {
+            "NO_MATCH": "No Match",
+            "PRE_1929": "Pre-1929",
+            "REGISTERED_NOT_RENEWED": "Registered, Not Renewed",
+            "RENEWED": "Renewed",
+            "NO MATCH": "No Match",
+            "PRE 1929": "Pre-1929",
+            "_NO_MATCH": "No Match",
+            "_PRE_1929": "Pre-1929",
+            "_REGISTERED_NOT_RENEWED": "Registered, Not Renewed",
+            "_RENEWED": "Renewed",
+        }
+        return status_formats.get(status_type, status_type.replace("_", " ").title())
 
     def _status_to_dirname(self, status: str) -> str:
         """Convert status to directory name"""
@@ -140,6 +445,32 @@ nav a:hover {
 }
 
 /* Index page styles */
+/* Country sections */
+.country-section {
+    margin: 30px 0;
+    padding: 20px;
+    background: #f9f9f9;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.country-section h3 {
+    color: #2c5282;
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.4em;
+    border-bottom: 2px solid #366092;
+    padding-bottom: 10px;
+}
+
+/* Status grid within country */
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 15px 0;
+}
+
 .summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -161,9 +492,14 @@ nav a:hover {
     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
 }
 
-.status-card h2 {
+.status-card h2,
+.status-card h4 {
     margin-top: 0;
     color: #366092;
+}
+
+.status-card h4 {
+    font-size: 1.1em;
 }
 
 .status-card .count {
@@ -227,11 +563,12 @@ table {
     border-collapse: collapse;
     margin: 15px 0;
     font-family: Arial, sans-serif;
+    border: 1px solid #ddd;
 }
 
 table th,
 table td {
-    border: 1px solid #ddd;
+    border: 1px solid #ddd !important;
     padding: 8px;
     text-align: left;
 }
@@ -252,11 +589,12 @@ table tr:nth-child(even) {
     border-collapse: collapse;
     margin-top: 15px;
     font-size: 0.9em;
+    border: 1px solid #ddd;
 }
 
 .stacked-comparison th,
 .stacked-comparison td {
-    border: 1px solid #ddd;
+    border: 1px solid #ddd !important;
     padding: 8px;
     text-align: left;
 }
@@ -402,15 +740,22 @@ footer {
     <div class="summary-grid">
 """
 
-        # Add status cards
-        status_order = [
-            "PD_NO_RENEWAL",
-            "PD_DATE_VERIFY",
-            "IN_COPYRIGHT",
-            "RESEARCH_US_STATUS",
-            "RESEARCH_US_ONLY_PD",
-            "COUNTRY_UNKNOWN",
+        # Add status cards - use all statuses found in the data
+        # Sort statuses for consistent display, prioritizing US statuses
+        all_statuses = sorted(by_status.keys())
+
+        # Group and order statuses for better organization
+        us_statuses = [s for s in all_statuses if s.startswith("US_")]
+        foreign_statuses = [s for s in all_statuses if s.startswith("FOREIGN_")]
+        country_unknown = [s for s in all_statuses if s.startswith("COUNTRY_UNKNOWN")]
+        other_statuses = [
+            s
+            for s in all_statuses
+            if not any(s.startswith(p) for p in ["US_", "FOREIGN_", "COUNTRY_UNKNOWN"])
         ]
+
+        # Combine in priority order
+        status_order = us_statuses + country_unknown + foreign_statuses + other_statuses
 
         for status in status_order:
             if status in by_status:

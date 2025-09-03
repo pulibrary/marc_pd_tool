@@ -19,6 +19,106 @@ class CSVExporter(BaseJSONExporter):
     with simplified columns for easy analysis.
     """
 
+    __slots__ = ("country_codes",)
+
+    def __init__(self, json_path: str, output_path: str, single_file: bool = False):
+        """Initialize the exporter with JSON data and country code mappings"""
+        super().__init__(json_path, output_path, single_file)
+
+        # Country code mappings (MARC country codes to display names)
+        self.country_codes = {
+            "abc": "Alberta",
+            "ae": "Algeria",
+            "ag": "Argentina",
+            "ai": "Anguilla",
+            "at": "Australia",
+            "au": "Austria",
+            "be": "Belgium",
+            "bl": "Brazil",
+            "bu": "Bulgaria",
+            "bw": "Belarus",
+            "cc": "China",
+            "ch": "China (Republic)",
+            "ck": "Colombia",
+            "cl": "Chile",
+            "cs": "Czechoslovakia",
+            "cu": "Cuba",
+            "cy": "Cyprus",
+            "dk": "Denmark",
+            "enk": "United Kingdom",
+            "es": "El Salvador",
+            "fr": "France",
+            "ge": "Germany (East)",
+            "gh": "Ghana",
+            "gr": "Greece",
+            "gs": "Georgia (Republic)",
+            "gt": "Guatemala",
+            "gw": "Germany",
+            "hk": "Hong Kong",
+            "ht": "Haiti",
+            "hu": "Hungary",
+            "ie": "Ireland",
+            "ii": "India",
+            "iq": "Iraq",
+            "ir": "Iran",
+            "is": "Israel",
+            "it": "Italy",
+            "iv": "Ivory Coast",
+            "ja": "Japan",
+            "jo": "Jordan",
+            "ko": "Korea (South)",
+            "le": "Lebanon",
+            "li": "Lithuania",
+            "lu": "Luxembourg",
+            "lv": "Latvia",
+            "mk": "Macedonia",
+            "mm": "Malta",
+            "mr": "Morocco",
+            "mx": "Mexico",
+            "ne": "Netherlands",
+            "no": "Norway",
+            "nr": "Nigeria",
+            "onc": "Ontario",
+            "pe": "Peru",
+            "pl": "Poland",
+            "po": "Portugal",
+            "pr": "Puerto Rico",
+            "quc": "Quebec",
+            "rm": "Romania",
+            "ru": "Russia",
+            "rur": "Russia (Federation)",
+            "sa": "South Africa",
+            "si": "Singapore",
+            "sp": "Spain",
+            "stk": "Scotland",
+            "sw": "Sweden",
+            "sy": "Syria",
+            "sz": "Switzerland",
+            "ta": "Tajikistan",
+            "th": "Thailand",
+            "ti": "Tunisia",
+            "tu": "Turkey",
+            "ua": "Egypt",
+            "uik": "United Kingdom (Misc.)",
+            "un": "Soviet Union",
+            "unr": "Soviet Union (Regions)",
+            "us": "United States",
+            "uz": "Uzbekistan",
+            "vc": "Vatican City",
+            "ve": "Venezuela",
+            "vm": "Vietnam",
+            "vn": "Vietnam (North)",
+            "vp": "Various places",
+            "wb": "West Berlin",
+            "wiu": "Wisconsin",
+            "wlk": "Wales",
+            "xr": "Czech Republic",
+            "xx": "Unknown",
+            "xxc": "Canada",
+            "xxk": "United Kingdom",
+            "yu": "Yugoslavia",
+        }
+
     def export(self) -> None:
         """Export records to CSV file(s) in organized folder structure"""
         if self.single_file:
@@ -53,88 +153,284 @@ class CSVExporter(BaseJSONExporter):
         # Group records by status
         by_status = self.group_by_status()
 
+        # Group statuses by country for better organization
+        grouped_by_country = self._group_by_country(by_status)
+
         # Create summary CSV first
         self._create_summary_csv(output_dir / "_summary.csv", by_status)
 
-        # Separate US, foreign, and unknown records
-        us_statuses: dict[str, list[JSONType]] = {}
-        foreign_by_status_type: dict[str, list[JSONType]] = {}  # Group by status type, not country
-        unknown_statuses: dict[str, list[JSONType]] = {}
+        # Export CSV files by country/status combinations
+        # Start with US
+        if "United States" in grouped_by_country:
+            us_statuses = grouped_by_country["United States"]
+            for status_type, records in us_statuses.items():
+                sorted_records = self.sort_by_quality(records)
+                filename = f"us_{status_type.lower()}"
+                output_file = output_dir / f"{filename}.csv"
+
+                with open(output_file, "w", newline="", encoding="utf-8") as f:
+                    csv_writer = writer(f)
+                    self._write_header_with_country(csv_writer)
+
+                    for record in sorted_records:
+                        if isinstance(record, dict):
+                            self._write_record_with_country_name(
+                                csv_writer, record, "United States"
+                            )
+
+        # Export Country Unknown
+        if "Country Unknown" in grouped_by_country:
+            unknown_statuses = grouped_by_country["Country Unknown"]
+            for status_type, records in unknown_statuses.items():
+                sorted_records = self.sort_by_quality(records)
+                filename = f"country_unknown_{status_type.lower()}"
+                output_file = output_dir / f"{filename}.csv"
+
+                with open(output_file, "w", newline="", encoding="utf-8") as f:
+                    csv_writer = writer(f)
+                    self._write_header_with_country(csv_writer)
+
+                    for record in sorted_records:
+                        if isinstance(record, dict):
+                            self._write_record_with_country_name(
+                                csv_writer, record, "Country Unknown"
+                            )
+
+        # Export Out of Data Range
+        if "Out of Data Range" in grouped_by_country:
+            out_of_range = grouped_by_country["Out of Data Range"]
+            for status_type, records in out_of_range.items():
+                sorted_records = self.sort_by_quality(records)
+                filename = f"out_of_data_range_{status_type.lower()}"
+                output_file = output_dir / f"{filename}.csv"
+
+                with open(output_file, "w", newline="", encoding="utf-8") as f:
+                    csv_writer = writer(f)
+                    self._write_header_with_country(csv_writer)
+
+                    for record in sorted_records:
+                        if isinstance(record, dict):
+                            self._write_record_with_country_name(
+                                csv_writer, record, "Out of Data Range"
+                            )
+
+        # Export foreign countries - combine all countries by status type
+        foreign_by_status: dict[str, list[tuple[str, JSONType]]] = {}
+
+        for country_name in sorted(grouped_by_country.keys()):
+            if country_name in ["United States", "Country Unknown", "Out of Data Range"]:
+                continue
+
+            country_statuses = grouped_by_country[country_name]
+            for status_type, records in country_statuses.items():
+                if status_type not in foreign_by_status:
+                    foreign_by_status[status_type] = []
+                # Store records with their country name
+                for record in records:
+                    foreign_by_status[status_type].append((country_name, record))
+
+        # Now export combined foreign files by status type
+        for status_type, country_records in foreign_by_status.items():
+            # Sort by quality across all countries
+            sorted_records = sorted(
+                country_records, key=lambda x: self._get_sort_score(x[1]), reverse=True
+            )
+
+            filename = f"foreign_{status_type.lower()}"
+            output_file = output_dir / f"{filename}.csv"
+
+            with open(output_file, "w", newline="", encoding="utf-8") as f:
+                csv_writer = writer(f)
+                self._write_header_with_country(csv_writer)
+
+                for country_name, record in sorted_records:
+                    if isinstance(record, dict):
+                        self._write_record_with_country_name(csv_writer, record, country_name)
+
+    def _get_sort_score(self, record: JSONType) -> float:
+        """Get the sort score from a record for sorting"""
+        if isinstance(record, dict):
+            analysis = record.get("analysis", {})
+            if isinstance(analysis, dict):
+                score = analysis.get("sort_score", 0.0)
+                if isinstance(score, (int, float)):
+                    return float(score)
+        return 0.0
+
+    def _group_by_country(
+        self, by_status: dict[str, list[JSONType]]
+    ) -> dict[str, dict[str, list[JSONType]]]:
+        """Group statuses by country/origin
+
+        Returns a hierarchical structure:
+        {
+            "US": {"NO_MATCH": [...], "PRE_1929": [...], ...},
+            "France": {"NO_MATCH": [...], "RENEWED": [...], ...},
+            ...
+        }
+        """
+        grouped: dict[str, dict[str, list[JSONType]]] = {}
 
         for status, records in by_status.items():
             if not records:
                 continue
 
-            status_upper = status.upper()
-            if status_upper.startswith("US_") or "US_" in status_upper:
-                us_statuses[status] = records
-            elif status_upper.startswith("FOREIGN_"):
-                # Extract status type without country code
-                # FOREIGN_RENEWED_FRA -> FOREIGN_RENEWED
-                # FOREIGN_PRE_1929_GBR -> FOREIGN_PRE_1929
-                parts = status_upper.split("_")
+            if status.startswith("US_"):
+                # US publications
+                country = "United States"
+                status_type = status[3:]  # Remove "US_" prefix
+            elif status.startswith("FOREIGN_"):
+                # Foreign publications - extract country code
+                # Format is FOREIGN_STATUS_TYPE_COUNTRY_CODE
+                # e.g., FOREIGN_RENEWED_sp or FOREIGN_NO_MATCH_fr
+                parts = status.split("_", 2)  # Split into at most 3 parts
                 if len(parts) >= 3:
-                    # Remove the last part if it looks like a country code (3 chars, all letters)
-                    if len(parts[-1]) == 3 and parts[-1].isalpha():
-                        status_type = "_".join(parts[:-1])
+                    # parts[0] = "FOREIGN", parts[1] = status type, parts[2] = country code and any remaining
+                    status_part = parts[1]
+                    remaining = parts[2]
+
+                    # Check if this is a multi-word status like "NO_MATCH" or "REGISTERED_NOT_RENEWED"
+                    if status_part == "NO" and remaining.startswith("MATCH_"):
+                        status_type = "NO_MATCH"
+                        country_code = remaining[6:]  # Skip "MATCH_"
+                    elif status_part == "PRE" and remaining.startswith("1929_"):
+                        status_type = "PRE_1929"
+                        country_code = remaining[5:]  # Skip "1929_"
+                    elif status_part == "REGISTERED" and remaining.startswith("NOT_RENEWED_"):
+                        status_type = "REGISTERED_NOT_RENEWED"
+                        country_code = remaining[13:]  # Skip "NOT_RENEWED_"
                     else:
-                        status_type = status_upper
+                        # Simple status like RENEWED, RENEWED_sp
+                        status_type = status_part
+                        country_code = remaining
+
+                    country = self.country_codes.get(country_code, f"Country Code: {country_code}")
                 else:
-                    status_type = status_upper
-
-                if status_type not in foreign_by_status_type:
-                    foreign_by_status_type[status_type] = []
-                foreign_by_status_type[status_type].extend(records)
-            elif "UNKNOWN" in status_upper:
-                unknown_statuses[status] = records
+                    continue
+            elif status.startswith("COUNTRY_UNKNOWN"):
+                # Country unknown
+                country = "Country Unknown"
+                status_type = status[16:] if len(status) > 16 else "UNKNOWN"
+            elif status.startswith("OUT_OF_DATA_RANGE"):
+                # Out of range
+                country = "Out of Data Range"
+                status_type = status[18:] if len(status) > 18 else "UNKNOWN"
             else:
-                # Default to US for unrecognized patterns
-                us_statuses[status] = records
+                # Other/unknown
+                country = "Other"
+                status_type = status
 
-        # Export US statuses to separate files
-        for status, records in us_statuses.items():
-            sorted_records = self.sort_by_quality(records)
-            filename = self._format_status_filename(status)
-            output_file = output_dir / f"{filename}.csv"
+            # Initialize country dict if needed
+            if country not in grouped:
+                grouped[country] = {}
 
-            with open(output_file, "w", newline="", encoding="utf-8") as f:
-                csv_writer = writer(f)
-                self._write_header(csv_writer)
+            # Add records to the appropriate status within the country
+            if status_type not in grouped[country]:
+                grouped[country][status_type] = []
+            grouped[country][status_type].extend(records)
 
-                for record in sorted_records:
-                    # JSON structure already validated
-                    if isinstance(record, dict):
-                        self._write_record(csv_writer, record)
+        return grouped
 
-        # Export foreign records grouped by status type (all countries together)
-        for status_type, records in foreign_by_status_type.items():
-            sorted_records = self.sort_by_quality(records)
-            filename = self._format_status_filename(status_type)
-            output_file = output_dir / f"{filename}.csv"
+    def _write_header_with_country(self, csv_writer: CSVWriter) -> None:
+        """Write CSV header row with country name column"""
+        headers = [
+            "ID",
+            "Title",
+            "Author",
+            "Year",
+            "Publisher",
+            "Country of Publication",
+            "Country Code",
+            "Status",
+            "Match Summary",
+            "Warning",
+            "Registration Source ID",
+            "Renewal Entry ID",
+        ]
+        csv_writer.writerow(headers)  # type: ignore[arg-type]
 
-            with open(output_file, "w", newline="", encoding="utf-8") as f:
-                csv_writer = writer(f)
-                self._write_header_with_country_code(csv_writer)
+    def _write_record_with_country_name(
+        self, csv_writer: CSVWriter, record: dict[str, JSONType], country_name: str
+    ) -> None:
+        """Write a single record to CSV with country name"""
+        marc = record.get("marc", {})
+        matches = record.get("matches", {})
+        analysis = record.get("analysis", {})
 
-                for record in sorted_records:
-                    # JSON structure already validated
-                    if isinstance(record, dict):
-                        self._write_record_with_country_code(csv_writer, record)
+        # Extract MARC data
+        marc_id = ""
+        original = {}
+        if isinstance(marc, dict):
+            id_val = marc.get("id", "")
+            if isinstance(id_val, str):
+                marc_id = id_val
+            orig_data = marc.get("original", {})
+            if isinstance(orig_data, dict):
+                original = orig_data
 
-        # Export unknown country statuses to separate files
-        for status, records in unknown_statuses.items():
-            sorted_records = self.sort_by_quality(records)
-            filename = self._format_status_filename(status)
-            output_file = output_dir / f"{filename}.csv"
+        title = original.get("title", "")
+        author = original.get("author_245c") or original.get("author_1xx", "")
+        year = original.get("year", "")
+        publisher = original.get("publisher", "")
 
-            with open(output_file, "w", newline="", encoding="utf-8") as f:
-                csv_writer = writer(f)
-                self._write_header(csv_writer)
+        # Extract metadata
+        metadata = {}
+        if isinstance(marc, dict):
+            meta_data = marc.get("metadata", {})
+            if isinstance(meta_data, dict):
+                metadata = meta_data
+        country_code = metadata.get("country_code", "")
 
-                for record in sorted_records:
-                    # JSON structure already validated
-                    if isinstance(record, dict):
-                        self._write_record(csv_writer, record)
+        # Extract analysis data
+        status = ""
+        if isinstance(analysis, dict):
+            status_val = analysis.get("status", "")
+            if isinstance(status_val, str):
+                status = status_val
+
+        # Format match summary
+        match_summary = ""
+        if isinstance(matches, dict):
+            match_summary = self._format_match_summary(matches)
+
+        # Get warnings
+        warnings = ""
+        if isinstance(analysis, dict):
+            warnings = self._get_warnings(analysis)
+
+        # Get source IDs
+        reg_id = ""
+        ren_id = ""
+
+        if isinstance(matches, dict):
+            reg_data = matches.get("registration", {})
+            if isinstance(reg_data, dict) and reg_data.get("found"):
+                id_val = reg_data.get("id", "")
+                if isinstance(id_val, str):
+                    reg_id = id_val
+
+            ren_data = matches.get("renewal", {})
+            if isinstance(ren_data, dict) and ren_data.get("found"):
+                id_val = ren_data.get("id", "")
+                if isinstance(id_val, str):
+                    ren_id = id_val
+
+        # Write row with country name
+        row = [
+            marc_id,
+            title,
+            author,
+            year,
+            publisher,
+            country_name,  # Use the provided country name
+            country_code,
+            status,
+            match_summary,
+            warnings,
+            reg_id,
+            ren_id,
+        ]
+        csv_writer.writerow(row)  # type: ignore[arg-type]
 
     def _write_header(self, csv_writer: CSVWriter) -> None:
         """Write CSV header row"""

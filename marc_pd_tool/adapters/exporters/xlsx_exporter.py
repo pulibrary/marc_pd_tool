@@ -28,6 +28,106 @@ class XLSXExporter(BaseJSONExporter):
     showing records in a tabular format with match details.
     """
 
+    __slots__ = ("country_codes",)
+
+    def __init__(self, json_path: str, output_path: str, single_file: bool = False):
+        """Initialize the exporter with JSON data and country code mappings"""
+        super().__init__(json_path, output_path, single_file)
+
+        # Country code mappings (MARC country codes to display names)
+        self.country_codes = {
+            "abc": "Alberta",
+            "ae": "Algeria",
+            "ag": "Argentina",
+            "ai": "Anguilla",
+            "at": "Australia",
+            "au": "Austria",
+            "be": "Belgium",
+            "bl": "Brazil",
+            "bu": "Bulgaria",
+            "bw": "Belarus",
+            "cc": "China",
+            "ch": "China (Republic)",
+            "ck": "Colombia",
+            "cl": "Chile",
+            "cs": "Czechoslovakia",
+            "cu": "Cuba",
+            "cy": "Cyprus",
+            "dk": "Denmark",
+            "enk": "United Kingdom",
+            "es": "El Salvador",
+            "fr": "France",
+            "ge": "Germany (East)",
+            "gh": "Ghana",
+            "gr": "Greece",
+            "gs": "Georgia (Republic)",
+            "gt": "Guatemala",
+            "gw": "Germany",
+            "hk": "Hong Kong",
+            "ht": "Haiti",
+            "hu": "Hungary",
+            "ie": "Ireland",
+            "ii": "India",
+            "iq": "Iraq",
+            "ir": "Iran",
+            "is": "Israel",
+            "it": "Italy",
+            "iv": "Ivory Coast",
+            "ja": "Japan",
+            "jo": "Jordan",
+            "ko": "Korea (South)",
+            "le": "Lebanon",
+            "li": "Lithuania",
+            "lu": "Luxembourg",
+            "lv": "Latvia",
+            "mk": "Macedonia",
+            "mm": "Malta",
+            "mr": "Morocco",
+            "mx": "Mexico",
+            "ne": "Netherlands",
+            "no": "Norway",
+            "nr": "Nigeria",
+            "onc": "Ontario",
+            "pe": "Peru",
+            "pl": "Poland",
+            "po": "Portugal",
+            "pr": "Puerto Rico",
+            "quc": "Quebec",
+            "rm": "Romania",
+            "ru": "Russia",
+            "rur": "Russia (Federation)",
+            "sa": "South Africa",
+            "si": "Singapore",
+            "sp": "Spain",
+            "stk": "Scotland",
+            "sw": "Sweden",
+            "sy": "Syria",
+            "sz": "Switzerland",
+            "ta": "Tajikistan",
+            "th": "Thailand",
+            "ti": "Tunisia",
+            "tu": "Turkey",
+            "ua": "Egypt",
+            "uik": "United Kingdom (Misc.)",
+            "un": "Soviet Union",
+            "unr": "Soviet Union (Regions)",
+            "us": "United States",
+            "uz": "Uzbekistan",
+            "vc": "Vatican City",
+            "ve": "Venezuela",
+            "vm": "Vietnam",
+            "vn": "Vietnam (North)",
+            "vp": "Various places",
+            "wb": "West Berlin",
+            "wiu": "Wisconsin",
+            "wlk": "Wales",
+            "xr": "Czech Republic",
+            "xx": "Unknown",
+            "xxc": "Canada",
+            "xxk": "United Kingdom",
+            "yu": "Yugoslavia",
+        }
+
     # Header styling
     HEADER_FONT = Font(bold=True, color="FFFFFF")
     HEADER_FILL = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
@@ -169,22 +269,98 @@ class XLSXExporter(BaseJSONExporter):
             # Group by status and create sheets
             by_status = self.group_by_status()
 
-            # Sort records within each status group
-            for status in by_status:
-                by_status[status] = self.sort_by_quality(by_status[status])
+            # Group statuses by category for organized tabs
+            grouped = self._group_for_tabs(by_status)
 
-            # Create a sheet for each status
-            # Sort statuses to ensure consistent order
-            statuses = sorted(by_status.keys())
-
-            for status in statuses:
-                if by_status[status]:
-                    # Generate sheet name from status
-                    sheet_name = self._format_status_as_sheet_name(status)
-                    self._create_data_sheet(wb, sheet_name, by_status[status])
+            # Create tabs in organized order
+            for tab_name, records in grouped:
+                if records:
+                    sorted_records = self.sort_by_quality(records)
+                    self._create_data_sheet(wb, tab_name, sorted_records)
 
         # Save the workbook
         wb.save(self.output_path)
+
+    def _group_for_tabs(self, by_status: dict[str, JSONList]) -> list[tuple[str, JSONList]]:
+        """Group statuses into organized tabs
+
+        Returns list of (tab_name, records) tuples in display order
+        """
+        tabs = []
+
+        # Group by category
+        us_records: dict[str, JSONList] = {}
+        foreign_by_type: dict[str, JSONList] = {}
+        unknown_records: dict[str, JSONList] = {}
+        out_of_range_records: JSONList = []
+
+        for status, records in by_status.items():
+            if not records:
+                continue
+
+            if status.startswith("US_"):
+                # US tabs
+                status_type = status[3:]
+                us_records[status_type] = records
+            elif status.startswith("FOREIGN_"):
+                # Parse foreign status type
+                parts = status.split("_", 2)
+                if len(parts) >= 3:
+                    status_part = parts[1]
+                    remaining = parts[2]
+
+                    # Check if this is a multi-word status
+                    if status_part == "NO" and remaining.startswith("MATCH_"):
+                        status_type = "NO_MATCH"
+                    elif status_part == "PRE" and remaining.startswith("1929_"):
+                        status_type = "PRE_1929"
+                    elif status_part == "REGISTERED" and remaining.startswith("NOT_RENEWED_"):
+                        status_type = "REGISTERED_NOT_RENEWED"
+                    else:
+                        status_type = status_part
+
+                    if status_type not in foreign_by_type:
+                        foreign_by_type[status_type] = []
+                    foreign_by_type[status_type].extend(records)
+            elif status.startswith("COUNTRY_UNKNOWN"):
+                status_type = status[16:] if len(status) > 16 else "UNKNOWN"
+                unknown_records[status_type] = records
+            elif status.startswith("OUT_OF_DATA_RANGE"):
+                out_of_range_records.extend(records)
+
+        # Add US tabs first
+        for status_type in ["NO_MATCH", "PRE_1929", "REGISTERED_NOT_RENEWED", "RENEWED"]:
+            if status_type in us_records:
+                tab_name = f"US {self._format_status_type(status_type)}"
+                tabs.append((tab_name, us_records[status_type]))
+
+        # Add Foreign tabs
+        for status_type in ["NO_MATCH", "PRE_1929", "REGISTERED_NOT_RENEWED", "RENEWED"]:
+            if status_type in foreign_by_type:
+                tab_name = f"Foreign {self._format_status_type(status_type)}"
+                tabs.append((tab_name, foreign_by_type[status_type]))
+
+        # Add Country Unknown tabs
+        for status_type in ["NO_MATCH", "PRE_1929", "REGISTERED_NOT_RENEWED", "RENEWED"]:
+            if status_type in unknown_records:
+                tab_name = f"Unknown {self._format_status_type(status_type)}"
+                tabs.append((tab_name, unknown_records[status_type]))
+
+        # Add Out of Range tab if present
+        if out_of_range_records:
+            tabs.append(("Out of Data Range", out_of_range_records))
+
+        return tabs
+
+    def _format_status_type(self, status_type: str) -> str:
+        """Format status type for display"""
+        formats = {
+            "NO_MATCH": "No Match",
+            "PRE_1929": "Pre-1929",
+            "REGISTERED_NOT_RENEWED": "Not Renewed",
+            "RENEWED": "Renewed",
+        }
+        return formats.get(status_type, status_type.replace("_", " ").title())
 
     def _create_summary_sheet(self, wb: Workbook) -> None:
         """Create summary sheet with statistics"""
